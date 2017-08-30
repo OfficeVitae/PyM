@@ -323,7 +323,7 @@ class Function:
 			elif argcount==3:
 				if self.functionindex==200 or self.functionindex==201 or self.functionindex==202 or self.functionindex==203: # the 'if' function
 					# NOTE we might expand if a bit but making it a multiselector
-					#      i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
+					#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
 					conditionvalue=getValue(_arglist[0])
 					if isinstance(conditionvalue,int): # an acceptible outcome
 						# wrap around the condition value to be in the range [0,len(_arglist)-2]
@@ -337,23 +337,25 @@ class Function:
 					# instead of a condition we have a list with values to iterate over
 					forindex=_arglist[0]
 					# NOTE any argument should always be an expression, which should create the identifier mentioned in it
-					#      now, if it is not a single token in it of type identifier 
-					if isinstance(forindex,Expression):
+					#			 now, if it is not a single token in it of type identifier
+					if isinstance(forindex,ExpressionEvaluator): # which it should be
 						forindexvalues=getValue(_arglist[1]) # or we might pop this last argument
 						if isIterable(forindexvalues):
 							# create the identifier in forindex if need be (to be destroyed when done)
 							forindexidentifierexists=False
-							if len(forindex.tokens)==1 and forindex.tokens[-1].getType()==IDENTIFIER_TOKENTYPE:
-								forindexidentifiername=forindex.tokens[-1].getText()
+							forindexexpression=forindex.getExpression()
+							forindexenvironment=forindex.getEnvironment()
+							if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType()==IDENTIFIER_TOKENTYPE:
+								forindexidentifiername=forindexexpression.tokens[-1].getText()
 							else:
 								forindexidentifiername=None
 							# remember if it already existed
-							forindexidentifierexisted=forindexidentifiername is not None and identifierExists(forindexidentifiername)
+							forindexidentifierexisted=forindexidentifiername is not None and forindexenvironment.identifierExists(forindexidentifiername)
 							# ready to rock'n'roll
 							getValue(forindex) # get the forindex expression executed (which will take care of creating the index identifier)
 							# the for index identifier should now definitely exist
 							if forindexidentifiername is not None: # the forindex identifies a single identifier to use as index variable
-								forindexidentifier=getIdentifier(forindexidentifiername)
+								forindexidentifier=forindex.getIdentifier(forindexidentifiername)
 							else:
 								forindexidentifier=None
 							# do we have a for index identifier????
@@ -370,7 +372,7 @@ class Function:
 									fvalue.append(forbodyvalue[0])
 							# if the for index identifier was created, it should be removed again
 							if forindexidentifiername is not None and not forindexidentifierexisted:
-								del identifiers[forindexidentifiername]
+								forindex.deleteIdentifier(forindexidentifiername)
 						else:
 							note("Second for loop argument not a list.")
 					else:
@@ -394,49 +396,68 @@ class Identifier:
 		return self.name
 undefined=Identifier() # the identifier with None value is used to indicate an undefined value
 # MDH@30AUG2017: an 'environment is basically a dictionary of identifiers
-class Environment(dict):
+class Environment:
 	def __init__(self,_parent=None):
 		if isinstance(_parent,Environment):
 			self.parent=_parent
-	def functionsExistStartingWith(_functionprefix):
-		for functiongroup in functions:
+		else:
+			self.parent=None
+		self.identifiers=dict()
+		self.functiongroups=[]
+	def functionsExistStartingWith(self,_functionprefix):
+		for functiongroup in self.functiongroups:
 			for function in functiongroup:
 				if function.startswith(_functionprefix):
 					return True
 		return False
-	def identifiersExistStartingWith(_identifierprefix):
-		for identifier in identifiers:
+	def identifiersExistStartingWith(self,_identifierprefix):
+		for identifier in self.identifiers:
 			if identifier.startswith(_identifierprefix):
 				return True
 		return False
-	def identifierExists(_identifiername):
-		return _identifiername in identifiers
-	def getIdentifier(_identifiername):
-		if not identifierExists(_identifiername):
-			identifiers[_identifiername]=Identifier(_identifiername)
+	def identifierExists(self,_identifiername):
+		if _identifiername in self.identifiers:
+			return True
+		if self.parent is not None:
+			return self.parent.identifierExists(_identifiername)
+		return False # can't find it
+	def getIdentifier(self,_identifiername):
+		if not self.identifierExists(_identifiername):
+			self.identifiers[_identifiername]=Identifier(_identifiername)
 			if DEBUG&8:
 				note("Identifier "+_identifiername+" added...")
-		return identifiers[_identifiername]
-	def getExistingIdentifier(_identifiername):
-		if _identifiername in identifiers:
-			return identifiers[_identifiername]
-		return None
-	def getIdentifierValue(_identifiername):
+		return self.identifiers[_identifiername]
+	def getExistingIdentifier(self,_identifiername):
+		# check whether 'locally' defined first
+		if _identifiername in self.identifiers:
+			return self.identifiers[_identifiername]
+		# go up the chain...
+		if self.parent is not None:
+			return self.parent.getExistingIdentifier(_identifiername)
+		return None # can't find it
+	def deleteIdentifier(self,_identifiername): # for now allow only deleting 'local' identifiers
+		del self.identifiers[_identifiername]
+	def getIdentifierValue(self,_identifiername):
 		try:
-			return getIdentifier(_identifiername).getValue()
+			return self.getIdentifier(_identifiername).getValue()
 		except:
-			return None
+			note("Can't find "+_identifiername+".")
+			return undefined.getValue()
+	def addIdentifier(self,_name,_identifier):
+		self.identifiers[_name]=_identifier
+	def addFunction(self,_name,_function,_functiongroup):
+		self.functions[_name]=_function
 # create the main M environment
 import math
 MEnvironment=Environment()
 # populate the M environment with the predefined constants/variables
-MEnvironment['undefined']=undefined
-MEnvironment['false']=Identifier(_value=0)
-MEnvironment['true']=Identifier(_value=1)
-MEnvironment['pi']=Identifier(_value=math.pi)
-MEnvironment['e']=Identifier(_value=math.e)
-MEnvironment['M']=Identifier(_value=[])
-# MDH@30AUG2017: 
+MEnvironment.addIdentifier('undefined',undefined)
+MEnvironment.addIdentifier('false',Identifier(_value=0))
+MEnvironment.addIdentifier('true',Identifier(_value=1))
+MEnvironment.addIdentifier('pi',Identifier(_value=math.pi))
+MEnvironment.addIdentifier('e',Identifier(_value=math.e))
+MEnvironment.addIdentifier('M',Identifier(_value=[]))
+# MDH@30AUG2017:
 # the user is allowed to create functions with the function function
 # last first argument should be the argument list, the remaining arguments the body expressions
 class MFunction(Function):
@@ -448,7 +469,7 @@ class MFunction(Function):
 		# TODO yet to do
 		pass
 		# the argument list supplies the function with the initial values of the formal parameters i.e. actual parameters
-		# the body is an expression that is to be executed using these actual parameters i.e. an expression can be given a set of actual values 
+		# the body is an expression that is to be executed using these actual parameters i.e. an expression can be given a set of actual values
 def getTokentypeRepresentation(_tokentype):
 	tokentype=abs(_tokentype)
 	result=str(tokentype)
@@ -1429,7 +1450,7 @@ class Expression(Token):
 			""" replacing:
 			self.writtentexts=None
 			"""
-	def __init__(self,_environment,_parent=None,_debug=None,_tokenchar=None):
+	def __init__(self,_environment,_debug=None,_parent=None,_tokenchar=None):
 		Token.__init__(self,EXPRESSION_TOKENTYPE,_debug,_tokenchar)
 		self.declared=False # initially assumably not declared...
 		self.parent=_parent # supposedly the parent expression to revert to when receiving the ld or le character
@@ -1568,7 +1589,7 @@ class Expression(Token):
 				# it might be the function name but without an opening parenthesis a user can still change it
 				if not self.identifierExists(self.token.getText()): # MDH@30AUG2017: benefit of the doubt it it looks like the variable is initialized, somewhere in this expression itself
 					# MDH@30AUG2017: it makes sense to allow declaring a variable without initializing it if it's the only token in an expression
-					#                in which case it is allowed to end the expression here and now
+					#								 in which case it is allowed to end the expression here and now
 					if self.parent is None or len(self.tokens)>1:
 						result="You cannot end an expression with an uninitialized variable."
 					else: # we may assume that the variable will be created when the expression is evaluated!!!
@@ -1999,7 +2020,7 @@ class Expression(Token):
 			representation+=" "+token.getRepresentation()
 		return representation.strip()
 	# if we pass the environment to getValue() which I suppose should then better be called evaluate or evaluatesTo we should ascertain that any subexpression
-	# that we push on elements actually wraps the expression in an ExpressionExecutor
+	# that we push on elements actually wraps the expression in an ExpressionEvaluator
 	# that way getOperationResult() and Function.getValue() never sees any expression that does NOT know it's environment
 	def getValue(self,_environment=None):
 		# best not to end with a period, given the possible color showing the last token
@@ -2143,10 +2164,10 @@ class Expression(Token):
 							#		 because we might be assigning to it!!!
 							if isinstance(token,IdentifierElementExpression): # always behind an identifier argument
 								if isinstance(elements[-1],Identifier): # if the previous element on the element stack is the actual indexed identifier (as there should be for the first identifier element expression)
-									elements[-1]=ExpressionExecutor(token,_environment) # replace the identifier argument (just put on the stack)
+									elements[-1]=ExpressionEvaluator(token,_environment) # replace the identifier argument (just put on the stack)
 									continue # i.e. do not append to elements (see below)
 								# TODO we need to combine it with the identifier element expression in front of it!!!
-							argument=ExpressionExecutor(token,_environment) ######.getValue() # we need to evaluate it anyway!!!
+							argument=ExpressionEvaluator(token,_environment) ######.getValue() # we need to evaluate it anyway!!!
 						elif tokentype==IDENTIFIER_TOKENTYPE: # some identifier, either a function or an identifier
 							# although an identifier can also be a function, we allow using function names as identifiers, so it depends on what's behind the identifier name
 							# whether it's a function or identifier
@@ -2156,7 +2177,7 @@ class Expression(Token):
 							if functionindex>0:
 								argument=Function(functionindex) # remember the function until we have the argument to apply it to
 							else: # identifier that does not yet exist
-								argument=getIdentifier(tokentext)
+								argument=_environment.getIdentifier(tokentext)
 						else: # anything else (which is stored as text)
 							argument=getValue(tokentext) # like an expression
 						# MDH@15AUG2017: if we allow as many arguments as possible, we cannot immediately apply the functions to an argument, not until we come across an operator
@@ -2299,9 +2320,9 @@ class IdentifierElementExpression(Expression):
 		if self.indexvalue is None:
 			self.indexvalue=Expression.getValue(self)
 		return self.indexvalue
-	def getValue(self):
+	def getValue(self,_environment):
 		######note("Value of an element of "+str(self.identifiername)+" requested.")
-		identifier=getExistingIdentifier(self.identifiername)
+		identifier=_environment.getExistingIdentifier(self.identifiername)
 		if identifier is None:
 			raise Exception("Identifier "+self.identifiername+" vanished.")
 		value=identifier.getValue() # which should be a list
@@ -2334,8 +2355,8 @@ class IdentifierElementExpression(Expression):
 		if indexvalue<=0 or indexvalue>maxindex:
 			return Exception("Index ("+str(indexvalue)+") into variable "+self.identifiername+" out of range.")
 		return value[indexvalue-1]
-	def setValue(self,_value):
-		identifier=getExistingIdentifier(self.identifiername)
+	def setValue(self,_value,_environment):
+		identifier=_environment.getExistingIdentifier(self.identifiername)
 		if identifier is None:
 			raise Exception("Identifier "+self.identifiername+" vanished.")
 		value=identifier.getValue() # which should be a list
@@ -2383,15 +2404,27 @@ class IdentifierElementExpression(Expression):
 			value[self.indexvalue-1]=_value
 		return self
 # MDH@30AUG2017: if an expression is executed it executes within a certain 'environment' i.e. a set of variables constitute a state that is local
-#                this means that the getValue() that we used to have in Expression is to be moved over to the ExpressionExecutor
-#                this way at any moment the same expression can be used in multiple expression executors at the same time all with different 'environments'
-class ExpressionExecutor:
+#								 this means that the getValue() that we used to have in Expression is to be moved over to the ExpressionEvaluator
+#								 this way at any moment the same expression can be used in multiple expression executors at the same time all with different 'environments'
+class ExpressionEvaluator:
 	def __init__(self,_expression,_environment):
-		self.expression=expression
-		self.environment=environment
+		self.expression=_expression
+		self.environment=_environment
+	def getExpression(self):
+		return self.expression
+	def getEnvironment(self):
+		return self.environment
+	# because we know the 'parent' environment, when getValue is requested, we can pass that environment into the expression
+	# at the moment that the expression is to be evaluated, which can pass it along to any subexpression that are evaluated 'below' it
 	def getValue(self):
 		return self.expression.getValue(self.environment)
-""" 
+	def setValue(self,_value): # TODO do we need _environment here as well??????
+		self.expression.setValue(_value,self.environment)
+	def getIdentifier(self,_identifiername):
+		return self.environment.getIdentifier(_identifiername)
+	def deleteIdentifier(self,_identifiername):
+		self.environment.deleteIdentifier(_identifiername)
+"""
 ******************************************************************** M USER INTERFACE LOOP *********************************************************************
 """
 # and here some additional utility functions
@@ -2505,7 +2538,7 @@ def main():
 						lnwrite("Unary operators:\t= ! ~ - +")
 					elif controlmessage[0]=="v" or controlmessage[0]=="V":
 						lnwrite("Variables:")
-						for identifier in identifiers:
+						for identifier in MEnvironment.identifiers:
 							write(" "+identifier)
 						#####newline()
 					elif controlmessage[0]==":": # MDH@27AUG2017: switch to declaration mode
@@ -2663,7 +2696,7 @@ def main():
 			if len(expressiontext)>0: # something to evaluate at all
 				# better to show any syntax error first (because getValue() might also create an error
 				###sys.stdout.write("\n")
-				expressionvalue=mexpression.getValue()
+				expressionvalue=mexpression.getValue(MEnvironment) # pass in the global environment to evaluate the expression
 				# MDH@27AUG2017: write the result on the same line
 				if expressionvalue is not None:
 					write(getColoredText(" = ",INFO_COLOR)+getColoredText(getText(expressionvalue),RESULT_COLOR,RESULT_BACKCOLOR))
@@ -2684,10 +2717,11 @@ def main():
 				#####expressiontext=mexpression.getText() ####Representation() #####mexpression.getWritten()+getColorText(INFO_COLOR) # ascertain to end with the default coloring
 				# MDH@18AUG2017: TODO if we store the expression (or expression tokens) itself, we can use val() instead of eval() to evaluate it!!!
 				#											but this would also mean that we should be allowed to store/serialize tokenized versions of expression text (source) actually Expression instances
+				# MDH@30AUG2017: the global M variable is now defined in MEnvironment
 				if mode==0: # declaration mode
-					identifiers['M'].getValue().append(mexpression) # MDH@17AUG2017: storing the expression itself (which value might change dynamically)
+					MEnvironment.getIdentifierValue('M').append(mexpression) # MDH@17AUG2017: storing the expression itself (which value might change dynamically)
 				else:
-					identifiers['M'].getValue().append(expressionvalue) # MDH@17AUG2017: for now let's see if we can do this!!
+					MEnvironment.getIdentifierValue('M').append(expressionvalue) # MDH@17AUG2017: for now let's see if we can do this!!
 			mexpression=None # thus forcing to have to create a new one instead of continueing with the incompleted one
 		else:
 			writeerror("No expression to evaluate!")
