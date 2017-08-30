@@ -41,8 +41,12 @@ PROMPT_COLOR=INFO_COLOR # same as the info color
 IDENTIFIER_COLOR=13 # magenta
 LITERAL_COLOR=22 # green
 OPERATOR_COLOR=12 # blue
-RESULT_BACKCOLOR=70 # yellowish
 RESULT_COLOR=15 # quite dark
+RESULT_BACKCOLOR=12 # or what????
+
+INFO_BACKCOLOR=231 # white
+DEBUG_BACKCOLOR=255 # light grey
+
 """
 SAVE_CURSOR_ANSICODE="\033[s"
 RESTORE_CURSOR_ANSICODE="\033[u"
@@ -50,11 +54,12 @@ RESTORE_CURSOR_ANSICODE="\033[u"
 # MDH@28AUG2017: how about using 256-color mode?? i.e. instead of using the color code directly behind [ we use 38;5; for foreground
 #								 and 48;5; prefix for background colors
 #								 getColorText() adapted to allow including a background color code as well!!
-def getColorText(_color,_backcolor=None):
+def getBackcolorText(_backcolor):
 	if isinstance(_backcolor,int) and _backcolor>=0:
-		backcolortext="\033[48;5;"+str(_backcolor)+"m"
-	else:
-		backcolortext=""
+		return "\033[48;5;"+str(_backcolor)+"m"
+	return ""
+def getColorText(_color=None,_backcolor=None):
+	backcolortext=getBackcolorText(_backcolor)
 	if isinstance(_color,int) and _color>=0:
 		if _color>0:
 			return backcolortext+"\033[38;5;"+str(_color)+"m"
@@ -77,20 +82,27 @@ def backspace(): # means go one position to the left on the current line, and cl
 	output("\033[D") # go left one character
 	output("\033[K") # clear the rest of the line
 # write outputs text to be colored
-def write(_towrite,_color=None):
-	result=getColorText(_color)+_towrite
+def write(_towrite,_color=None,_backcolor=None):
+	result=getColorText(_color,_backcolor)+_towrite+"\033[0m" # prudent to force the standard color after each write!!
 	output(result)
 	return result
+def newline():
+	output("\n\033[0m") # it makes sense to reset the coloring at the start of each next line!!!
 # end of output producing methods
 
 # helper functions for outputting text
-def writeln(_linetowrite,_color=INFO_COLOR): # writes a line in black
-	write(_linetowrite+'\n',_color)
-def lnwrite(_linetowrite,_color=INFO_COLOR):
-	write('\n'+_linetowrite,_color)
-def newline(): # doesn't change the current color
-	lnwrite('')
-
+def writeln(_linetowrite,_backcolor=None,_color=None): # writes a line in black
+	write(_linetowrite,_color,_backcolor) #####write(_linetowrite+'\n',_color,_backcolor)
+	newline()
+def lnwrite(_linetowrite,_backcolor=None,_color=None):
+	# NOTE whatever's left of the current line we want to use the standard background color
+	newline()
+	write(_linetowrite,_color,_backcolor) # NOT using write assuming the newline will undo any coloring defined!!!
+def lnwriteleft(_linetowrite,_width=0,_color=None,_backcolor=None):
+	dwidth=_width-len(_linetowrite)
+	if dwidth>0:
+		_linetowrite+=" "*dwidth
+	lnwrite(_linetowrite,_color,_backcolor)
 # \r at the start forces the cursor to be at the beginning of the line
 # but it is a bit of a nuisance that the line might not be empty so can we do that here as well????
 # as such it should either be preceded by newline() or emptyline()
@@ -269,41 +281,100 @@ class Function:
 						if value>0:
 							return [undefined.getValue()]*value
 						return []
-
 		# if we get here the function result is undefined
 		return undefined.getValue()
 	def getValue(self,_arglist):
 		fvalue=undefined.getValue()
 		# this is the function application at the top level i.e. it will receive an argument list
 		argcount=1+(self.functionindex/100) # the number of arguments this function has
-		if argcount==1:
-			if self.functionindex<23 and len(_arglist)==1: # a scalar function applied to a single-item argument list is to return a scalar
-				fvalue=self.apply(_arglist[0])
-			else: # apply the function to each separate element!!!
-				fvalue=map(self.apply,_arglist)
-				if self.functionindex>=23 and len(fvalue)==1:
-					fvalue=fvalue[0]
-		elif argcount==2: # two-argument functions like while and shape|format|arrange|group
-			# I guess we can pop two operands at a time into a result????
-			fvalue=[]
-			while len(_arglist)>0:
-				if self.functionindex==101:
-					fvalue.append(group(getValue(_arglist.pop()),getValue(_arglist.pop())))
-				elif self.functionindex==125: # while function application
-					whilebody=_arglist.pop()
-					condition=_arglist.pop()
-					whilevalue=[]
+		if len(_arglist)>=argcount:
+			if argcount==1:
+				if self.functionindex<23 and len(_arglist)==1: # a scalar function applied to a single-item argument list is to return a scalar
+					fvalue=self.apply(_arglist[0])
+				else: # apply the function to each separate element!!!
+					fvalue=map(self.apply,_arglist)
+					if self.functionindex>=23 and len(fvalue)==1:
+						fvalue=fvalue[0]
+			elif argcount==2: # two-argument functions like while and shape|format|arrange|group
+				fvalue=[]
+				# first all functions that consume all arguments in one go
+				if self.functionindex==100: # while
+					whilebody=_arglist[1:]
+					condition=_arglist[0] # or we might pop this last argument
 					conditionvalue=getValue(condition)
 					###note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
-					while conditionvalue:
-						bodyvalue=getValue(whilebody)
+					while conditionvalue!=0:
+						bodyvalues=map(getValue,whilebody)
 						###note("Value of body '"+str(whilebody)+"': '"+str(bodyvalue)+"'...")
-						whilevalue.append(bodyvalue)
+						fvalue.append(bodyvalues)
 						conditionvalue=getValue(condition)
 						###note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
-					fvalue.append(whilevalue)
-			if len(fvalue)==1:
-				fvalue=fvalue[0]
+				else:
+				# I guess we can pop two operands at a time into a result????
+					while len(_arglist)>0:
+						if self.functionindex==199: # the group function
+							fvalue.append(group(getValue(_arglist.pop()),getValue(_arglist.pop())))
+						elif self.functionindex==125: # while function application
+							whilebody=_arglist.pop()
+							condition=_arglist.pop()
+							whilevalue=[]
+				if len(fvalue)==1:
+					fvalue=fvalue[0]
+			elif argcount==3:
+				if self.functionindex==200 or self.functionindex==201 or self.functionindex==202 or self.functionindex==203: # the 'if' function
+					# NOTE we might expand if a bit but making it a multiselector
+					#      i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
+					conditionvalue=getValue(_arglist[0])
+					if isinstance(conditionvalue,int): # an acceptible outcome
+						# wrap around the condition value to be in the range [0,len(_arglist)-2]
+						if conditionvalue>0:
+							conditionvalue%=len(_arglist)-1
+						if conditionvalue>0: # evaluate one of the 'true' clauses
+							fvalue=getValue(_arglist[conditionvalue+1])
+						else: # evaluate the False clause
+							fvalue=getValue(_arglist[1])
+				elif self.functionindex==210: # for requires a total of three elements the loop variable, the list to iterate over, and what to do
+					# instead of a condition we have a list with values to iterate over
+					forindex=_arglist[0]
+					# NOTE any argument should always be an expression, which should create the identifier mentioned in it
+					#      now, if it is not a single token in it of type identifier 
+					if isinstance(forindex,Expression):
+						forindexvalues=getValue(_arglist[1]) # or we might pop this last argument
+						if isIterable(forindexvalues):
+							# create the identifier in forindex if need be (to be destroyed when done)
+							forindexidentifierexists=False
+							if len(forindex.tokens)==1 and forindex.tokens[-1].getType()==IDENTIFIER_TOKENTYPE:
+								forindexidentifiername=forindex.tokens[-1].getText()
+							else:
+								forindexidentifiername=None
+							# remember if it already existed
+							forindexidentifierexisted=forindexidentifiername is not None and identifierExists(forindexidentifiername)
+							# ready to rock'n'roll
+							getValue(forindex) # get the forindex expression executed (which will take care of creating the index identifier)
+							# the for index identifier should now definitely exist
+							if forindexidentifiername is not None: # the forindex identifies a single identifier to use as index variable
+								forindexidentifier=getIdentifier(forindexidentifiername)
+							else:
+								forindexidentifier=None
+							# do we have a for index identifier????
+							fvalue=[]
+							# NOTE we might consider leaving the loop if it's value changed within the loop
+							for forindexvalue in forindexvalues:
+								# update the value of the forindex identifier (if any)
+								if forindexidentifier is not None:
+									forindexidentifier.setValue(forindexvalue) # this is a bit of an issue
+								forbodyvalue=map(getValue,_arglist[2:]) # evaluate the remaining arguments
+								if not isIterable(forbodyvalue) or len(forbodyvalue)!=1:
+									fvalue.append(forbodyvalue)
+								else: # a single result
+									fvalue.append(forbodyvalue[0])
+							# if the for index identifier was created, it should be removed again
+							if forindexidentifiername is not None and not forindexidentifierexisted:
+								del identifiers[forindexidentifiername]
+						else:
+							note("Second for loop argument not a list.")
+					else:
+						note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
 		return fvalue
 def getTokentypeRepresentation(_tokentype):
 	tokentype=abs(_tokentype)
@@ -397,7 +468,7 @@ o2=" != << <= >> >= == .. ** && || // %%" # the result of o2.find() should be no
 ts="'"+'"' # starts a string literal
 te="'"+'"' # ends a string literal
 # we have some predefined identifiers which are all functions of a fixed number of arguments
-functions=({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99},{'group':101,'while':125},{'if':126},{'for':127})
+functions=({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99},{'while':100,'join':199},{'if':200,'select':201,'case':202,'switch':203,'for':210})
 import math
 # keep track of the identifier (that have a value)
 class Identifier:
@@ -1336,10 +1407,42 @@ class Expression(Token):
 		Token.__init__(self,EXPRESSION_TOKENTYPE,_debug,_tokenchar)
 		self.declared=False # initially assumably not declared...
 		self.parent=_parent # supposedly the parent expression to revert to when receiving the ld or le character
+		self.newidentifiers=[] # MDH@30AUG2017: keep track of any identifiers declared in subexpressions
 		#####write(('X','Y')[self.parent is not None])
 		#######self.evaluatedexpression=None # MDH@15AUG2017: the result of evaluating the expression (which might well be a single token)
 		self.reset()
+	# MDH@30AUG2017: any subexpression should register any identifier initialization, so that further subexpression can check whether it was created before on that level
+	def initializesIdentifier(self,_identifiername):
+		if not _identifiername in self.newidentifiers:
+			self.newidentifiers.append(_identifiername)
 	# treated as a Token instance, we can return the text representation (without output formatting colors)
+	def initializedIdentifier(self,_identifiername):
+		# did I initialize this identifier?
+		if _identifiername in self.newidentifiers:
+			return True
+		# is this identifier initialized in the parent?
+		if self.parent is not None:
+			return self.parent.initializedIdentifier(_identifiername)
+		return False # neither
+	# 'overriding' the global identifierExists() function that only looks at identifiers created before, with also looking at the identifiers that are initialized in this expression
+	# NOTE that this is not fail-safe because sometimes certain expressions will NOT get evaluated, so it's still possible that the variable will NOT exist before it is used
+	def identifierExists(self,_identifiername):
+		# always look in the global pool first (that's quickest)
+		return identifierExists(_identifiername) or self.initializedIdentifier(_identifiername)
+	def identifiersExistStartingWith(self,_identifierprefix):
+		# if in the global pool, we're done immediately
+		if identifiersExistStartingWith(_identifierprefix):
+			return True
+		# I might have them
+		for newidentifier in self.newidentifiers:
+			if newidentifier.startswith(_identifierprefix):
+				return True
+		# my parent might have them
+		if self.parent is not None:
+			if self.parent.identifiersExistStartingWith(_identifierprefix):
+				return True
+		# NOPE nobody
+		return False
 	def getText(self):
 		result=Token.getText(self) ###self.text # this would be the whitespace at the beginning...
 		# NOTE if the token is a subexpression, the subexpression will enclose it's text in parenthesis (so I won't have to check for that type of token myself)
@@ -1436,8 +1539,13 @@ class Expression(Token):
 			elif tokentype==IDENTIFIER_TOKENTYPE: # an identifier
 				# given that we're not assigning the given identifier should exist
 				# it might be the function name but without an opening parenthesis a user can still change it
-				if not identifierExists(self.token.getText()):
-					result="You cannot end an expression with a variable of which the value has not yet been set."
+				if not self.identifierExists(self.token.getText()): # MDH@30AUG2017: benefit of the doubt it it looks like the variable is initialized, somewhere in this expression itself
+					# MDH@30AUG2017: it makes sense to allow declaring a variable without initializing it if it's the only token in an expression
+					#                in which case it is allowed to end the expression here and now
+					if self.parent is None or len(self.tokens)>1:
+						result="You cannot end an expression with an uninitialized variable."
+					else: # we may assume that the variable will be created when the expression is evaluated!!!
+						self.parent.initializesIdentifier(self.token.getText())
 			elif tokentype==SINGLEQUOTED_TOKENTYPE or tokentype==DOUBLEQUOTED_TOKENTYPE:
 				result="Expression incomplete: first of all you need to enter a quote to finish text."
 		elif tokentype<0: # negative token types
@@ -1535,7 +1643,7 @@ class Expression(Token):
 								tokentext=self.token.getText()
 								if getFunctionIndex(tokentext)==0: # not a function therefore NOT allowed
 									# now allowed to index an existing variable of which the current value is a list (i.e. list)
-									if identifierExists(tokentext): # an existing variable
+									if self.identifierExists(tokentext): # an existing variable # MDH@30AUG2017: allow for 'locally' defined identifiers as well
 										identifiervalue=identifiers[tokentext].getValue()
 										if isinstance(identifiervalue,list): # can be indexed
 											# we're going to replace the identifier by an IdentifierElementExpression
@@ -1620,8 +1728,8 @@ class Expression(Token):
 							if tokentype>0 and secondoperatorchar: #### replacing:	 _tokenchar in so[tokentype-1]: # the second character of the two-character operator
 								# we should NOT allow using == as operator behind an identifier that has not yet been defined
 								# although it's not always true that the == operator is applied to the value of this non-existing identifier per se
-								if len(self.tokens)>0 and self.tokens[-1].getType()==IDENTIFIER_TOKENTYPE and not identifierExists(self.tokens[-1].getText()):
-									self.error="Not allowed to apply the equal comparison operator to an non-existing identifier."
+								if len(self.tokens)>0 and self.tokens[-1].getType()==IDENTIFIER_TOKENTYPE and not self.identifierExists(self.tokens[-1].getText()):
+									self.error="It is not allowed to apply the equal comparison operator to a non-existing variable."
 								elif tokentype<=2 and len(self.tokens)>0 and operatortext==_tokenchar and self.tokens[-1].getType()==REAL_TOKENTYPE:
 									# someone is trying to apply the shift operator to a real number
 									self.error="It is not possible to shift a real number."
@@ -1682,14 +1790,16 @@ class Expression(Token):
 									self.endToken() # have to do this explicitly here because I removed it from newToken() (and into addToken())
 									result=self.addToken(0,"",_output).flagAsDeclared() # mark as being declared, so we can end it with Enter
 									_tokenchar=None
-								elif not identifierExists(tokentext):
+								elif not self.identifierExists(tokentext): # MDH@30AUG2017: same here, allow for variables initialized in this expression before
 									# if this identifier is used as value, it should NOT be accepted here and now...
 									# i.e. basically you can only assign a value to it, i.e. it should be the first token in the expression
 									# which still allows one to start any subexpression with a variable assignment like in (a=2)+(b=3)
 									# MDH@12AUG2017: let's allow chaining assignments that would be neat
 									if len(self.tokens)>1 and self.tokens[-1].getText()==assignmentchar: # something in front of this identifier that doesn't exist yet is not allowed, even if it's a function or operator as
 										self.error="You cannot use the value of variable "+tokentext+" until after a value was assigned to it."
-									elif _tokenchar==assignmentchar:
+									elif _tokenchar==assignmentchar: # the entered token character is the assignment character which is the only operator we allow on a non-existing identifier
+										if self.parent is not None:
+											self.parent.initializesIdentifier(tokentext)
 										self.addToken(OPERATOR_TOKENTYPE,assignmentchar,_output).discontinued() # thus allowing whitespace but NOT another = or : sign!!!
 										_tokenchar=None
 									else:
@@ -1799,7 +1909,7 @@ class Expression(Token):
 								else: # accept to be an identifier start
 									# we need an identifier that could exist (either as a function or as a variable) when not the first expression token
 									# unless we allow chaining assigning identifiers (which I suppose we can do)
-									if len(self.tokens)>0 and self.tokens[-1].getText()!=assignmentchar and not identifiersExistStartingWith(_tokenchar) and not functionsExistStartingWith(_tokenchar):
+									if len(self.tokens)>0 and self.tokens[-1].getText()!=assignmentchar and not self.identifiersExistStartingWith(_tokenchar) and not functionsExistStartingWith(_tokenchar):
 										self.error="No identifiers or functions exist starting with "+_tokenchar+" as is required here."
 									else: # for now allowed
 										tokentype=self.setTokentype(IDENTIFIER_TOKENTYPE)
@@ -2316,14 +2426,15 @@ def main():
 					# get to see the variables with v
 					if controlmessage[0]=="h" or controlmessage[0]=="H":
 						lnwrite("Possible control messages:")
-						lnwrite("d=<debug level>[Enter]\t\t\tto set the debug level.")
-						lnwrite("c<color type>=<color code>[Enter]\tto set the color code for color type (d=debug, i=identifier, l=literal, o=operator, p=prompt).")
-						lnwrite("v\t\t\t\t\tto see the list of constants and variables.")
-						lnwrite("f\t\t\t\t\tto see the list of functions.")
-						lnwrite("h\t\t\t\t\tto view this help.")
-						lnwrite("x\t\t\t\t\tto exit M immediately.")
-						lnwrite(":\t\t\t\t\tto switch to declaration mode (default).")
-						lnwrite("=\t\t\t\t\tto switch to evaluation mode.")
+						lnwriteleft("d=<debug level>[Enter] "+(" "*12)+" to set the debug level.",130,DEBUG_BACKCOLOR)
+						lnwrite("c<color type>=<color code>[Enter] "+(" "*1)+" to set the color code for color type (d=debug, i=identifier, l=literal, o=operator, p=prompt).")
+						lnwriteleft("v "+(" "*33)+" shows the list of (global) constants and variables.",130,DEBUG_BACKCOLOR)
+						lnwrite("f "+(" "*33)+" shows the list of functions.")
+						lnwriteleft("o "+(" "*33)+" shows the list of operators.",130,DEBUG_BACKCOLOR)
+						lnwrite("h "+(" "*33)+" to view this help.")
+						lnwriteleft("x "+(" "*33)+" to exit M immediately.",130,DEBUG_BACKCOLOR)
+						lnwrite(": "+(" "*33)+" to switch to declaration mode (default).")
+						lnwriteleft("= "+(" "*33)+" to switch to evaluation mode.",130,DEBUG_BACKCOLOR)
 					elif controlmessage[0]=="x" or controlmessage[0]=="X":
 						break
 						"""
@@ -2342,6 +2453,14 @@ def main():
 							for function in functionlist:
 								write(" "+function)
 							#######newline()
+					elif controlmessage[0]=="o" or controlmessage[0]=="O":
+						lnwrite("Binary operators:")
+						lnwrite("\tArithmetic\t- + % \ | & ^ . .. * ** / // << >>")
+						lnwrite("\tComparison\t< <= > >= == ")
+						lnwrite("\tLogical\t\t&& ||")
+						lnwrite("\tAssignment\t=")
+						lnwrite("\tDeclaration\t:")
+						lnwrite("Unary operators:\t= ! ~ - +")
 					elif controlmessage[0]=="v" or controlmessage[0]=="V":
 						lnwrite("Variables:")
 						for identifier in identifiers:
