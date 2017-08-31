@@ -151,8 +151,12 @@ INTEGER_TOKENTYPE=13
 REAL_TOKENTYPE=14
 SINGLEQUOTED_TOKENTYPE=15
 DOUBLEQUOTED_TOKENTYPE=16
-IDENTIFIER_TOKENTYPE=17
-EXPRESSION_TOKENTYPE=18
+EXPRESSION_TOKENTYPE=17
+# MDH@31AUG2017: all identifiers have a token type with bit 5 set
+IDENTIFIER_TOKENTYPE=32
+VARIABLE_TOKENTYPE=64
+FUNCTION_TOKENTYPE=160
+USERFUNCTION_TOKENTYPE=192
 ###OPENINGPARENTHESIS_TOKENTYPE=18
 ###CLOSINGPARENTHESIS_TOKENTYPE=19
 ###COMMENT_TOKENTYPE=20 # MDH@07AUG2017: any expression can end with a comment
@@ -349,7 +353,7 @@ class Function:
 							forindexidentifierexists=False
 							forindexexpression=forindex.getExpression()
 							forindexenvironment=forindex.getEnvironment()
-							if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType()==IDENTIFIER_TOKENTYPE:
+							if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType() in (IDENTIFIER_TOKENTYPE,VARIABLE_TOKENTYPE):
 								forindexidentifiername=forindexexpression.tokens[-1].getText()
 							else:
 								forindexidentifiername=None
@@ -503,10 +507,16 @@ def getTokentypeRepresentation(_tokentype):
 		result="real"
 	elif tokentype==SINGLEQUOTED_TOKENTYPE or tokentype==DOUBLEQUOTED_TOKENTYPE:
 		result="str"
-	elif tokentype==IDENTIFIER_TOKENTYPE:
-		result="var"
 	elif tokentype==EXPRESSION_TOKENTYPE:
 		result="expr"
+	elif tokentype==IDENTIFIER_TOKENTYPE:
+		result="id"
+	elif tokentype==VARIABLE_TOKENTYPE:
+		result="var"
+	elif tokentype==FUNCTION_TOKENTYPE:
+		result="fun"
+	elif tokentype==USERFUNCTION_TOKENTYPE:
+		result="ufun"
 	return ("-","")[_tokentype>=0]+result
 def getOperatorPrecedence(_operator):
 	if _operator==declarationchar: # TODO I have to think about this...
@@ -876,10 +886,10 @@ def getTokentypeColor(_tokentype):
 	tokentype=abs(_tokentype)
 	if tokentype>0 and tokentype<=OPERATOR_TOKENTYPE: # an operator
 		return OPERATOR_COLOR
-	elif tokentype<IDENTIFIER_TOKENTYPE: # a sign, integer, real or string literal
-		return LITERAL_COLOR
-	elif tokentype==IDENTIFIER_TOKENTYPE: # an identifier
+	elif tokentype>=IDENTIFIER_TOKENTYPE: # an identifier
 		return IDENTIFIER_COLOR
+	else: # a sign, integer, real or string literal
+		return LITERAL_COLOR
 	return 0 # the default is black
 # MDH@15AUG2017: we need an Operator class to distinguish operators from operands
 class Operator:
@@ -1609,7 +1619,7 @@ class Expression(Token):
 				result="Please report this bug: you have an unfinished operator in your expression."
 			elif tokentype==SIGN_TOKENTYPE:
 				result="Please report this bug: you have an unfinished unary operator in your expression."
-			elif tokentype==IDENTIFIER_TOKENTYPE: # an identifier
+			elif tokentype>=IDENTIFIER_TOKENTYPE: # an identifier
 				# given that we're not assigning the given identifier should exist
 				# it might be the function name but without an opening parenthesis a user can still change it
 				if not self.identifierExists(self.token.getText()): # MDH@30AUG2017: benefit of the doubt it it looks like the variable is initialized, somewhere in this expression itself
@@ -1712,7 +1722,7 @@ class Expression(Token):
 						if tokentype!=0 and abs(tokentype)>SIGN_TOKENTYPE:
 							if abs(tokentype)==EXPRESSION_TOKENTYPE:
 								self.error="Cannot start a subexpression right behind another subexpression."
-							elif abs(tokentype)==IDENTIFIER_TOKENTYPE: # in/behind an identifier
+							elif abs(tokentype)>=IDENTIFIER_TOKENTYPE: # in/behind an identifier
 								tokentext=self.token.getText()
 								if self.getFunctionIndex(tokentext)==0: # not a function therefore NOT allowed
 									# now allowed to index an existing variable of which the current value is a list (i.e. list)
@@ -1773,7 +1783,7 @@ class Expression(Token):
 						elif tokentype==INTEGER_TOKENTYPE: # in an integer, thus a number literal continuation
 							########self.token.setType(REAL_TOKENTYPE) # switch over to being a number MDH@27AUG2017: the token should now take care of switching to REAL_TOKENTYPE!!!
 							self.token.add(_tokenchar)
-						elif abs(tokentype)==IDENTIFIER_TOKENTYPE or abs(tokentype)==EXPRESSION_TOKENTYPE: # in/behind an identifier or expression, as list concatenation operator
+						elif abs(tokentype)>=IDENTIFIER_TOKENTYPE or abs(tokentype)==EXPRESSION_TOKENTYPE: # in/behind an identifier or expression, as list concatenation operator
 							# MDH@25AUG2017: if we use the period as list concatenation operator as well, the current token needs to evaluate to a list
 							#								 the question is whether we actually want to evaluate what's in front of this thing here
 							self.addToken(OPERATOR_TOKENTYPE,_tokenchar,_output)	#### MDH@27AUG2017: do NOT discontinue because another period character defines the .. operator!!!!.discontinued()
@@ -1844,7 +1854,7 @@ class Expression(Token):
 									self.token.end() # MDH@24AUG2017: instead of discontinuing the token (which would mean that it cannot be continued anymore, which it can, we end it!!!!
 							elif tokentype<0:
 								self.error="Number cannot be continued this way: all digits need to be adjacent."
-						elif abs(tokentype)==IDENTIFIER_TOKENTYPE: # in an identifier
+						elif abs(tokentype)>=IDENTIFIER_TOKENTYPE: # in an identifier
 							# anything not alphanumeric or digits ends the identifier
 							# but you cannot start another value
 							if not _tokenchar in a and not _tokenchar in A and not _tokenchar in d: # we are allowed to continue an active identifier with a, A or d but not when in whitespace!!!
@@ -1917,7 +1927,7 @@ class Expression(Token):
 												self.addToken(SIGN_TOKENTYPE,_tokenchar,_output).discontinued()
 											else:
 												self.error="Can't start with an operator."
-										elif _tokenchar==assignmentchar and self.tokens[-1].getType()!=IDENTIFIER_TOKENTYPE: # not an assignment
+										elif _tokenchar==assignmentchar and self.tokens[-1].getType()<IDENTIFIER_TOKENTYPE: # not an assignment
 											# unless, we're behind an identifier element expression
 											if self.tokens[-1].getType()!=EXPRESSION_TOKENTYPE or not isinstance(self.tokens[-1],IdentifierElementExpression):
 												# force equal is comparison operator
