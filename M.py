@@ -77,6 +77,8 @@ class ColoredText:
 		self.backcolor=_backcolor
 	def length(self):
 		return len(self.text)
+	def getText(self):
+		return self.text
 	def __repr__(self):
 		return self.getText()
 	def __str__(self):
@@ -93,6 +95,9 @@ def output(_tooutput):
 	sys.stdout.write(_tooutput)
 
 # methods that write to the console themselves, and should be called by all other output producing functions/methods
+# MDH@31AUG2017: it's going to be dificult to keep track of what's written on the same line behind the prompt and to rewrite it
+#                therefore we let write() keep track of all ColoredText instance written, and by separating the token characters by None ColoredText instances
+#                we can remove the last token character entered until None are left on the line!!!
 def beep():
 	output('\a')
 def emptyline(): # clears the current line and puts the cursor at the beginning of the current line
@@ -100,15 +105,38 @@ def emptyline(): # clears the current line and puts the cursor at the beginning 
 def backspace(): # means go one position to the left on the current line, and clear the rest of the line
 	output("\033[D") # go left one character
 	output("\033[K") # clear the rest of the line
+linecoloredtexts=[] # keep a list of ColoredText instances written on the current input (behind the prompt line)
 # write outputs text to be colored
 def write(_towrite,_color=None,_backcolor=None):
-	result=ColoredText(_towrite,_color,_backcolor)
-	output(str(result))
+	if isinstance(_towrite,str): # if something to write, go ahead and write it
+		result=ColoredText(_towrite,_color,_backcolor)
+		output(str(result))
+	else: # we're appending it as well to linecoloredtexts
+		result=None
+	linecoloredtexts.append(result)
 	return result # thus allowing manipulation of background and text color later on
 def newline():
+	global linecoloredtexts
+	linecoloredtexts=[] # start over collecting linecoloredtext elements
 	output("\n\033[0m") # it makes sense to reset the coloring at the start of each next line!!!
 # end of output producing methods
-
+def removeDeletedTokenchar(): # removes the last token char written from the current line
+	# keep popping ColoredText elements until we pop a None object, then write what's remaining
+	global linecoloredtexts
+	while len(linecoloredtexts)>0:
+		linecoloredtext=linecoloredtexts.pop()
+		if linecoloredtext is None: # separator popped
+			break
+		# it's an idea to actually put an empty text at the end of the prompt to prevent to remove any of the prompt characters!!
+		if linecoloredtext.length()==0: # oeps shouldn't happen!!!
+			linecoloredtexts.append(linecoloredtext)
+			beep()
+			break
+	# write the rest on the line again (this would include the prompt!!!)
+	emptyline() # clear the current text line...
+	for linecoloredtext in linecoloredtexts:
+		if linecoloredtext is not None:
+			output(str(linecoloredtext))
 # helper functions for outputting text
 def writeln(_linetowrite,_backcolor=None,_color=None): # writes a line in black
 	write(_linetowrite,_color,_backcolor) #####write(_linetowrite+'\n',_color,_backcolor)
@@ -122,6 +150,7 @@ def lnwriteleft(_linetowrite,_width=0,_color=None,_backcolor=None):
 	if dwidth>0:
 		_linetowrite+=" "*dwidth
 	lnwrite(_linetowrite,_color,_backcolor)
+
 # \r at the start forces the cursor to be at the beginning of the line
 # but it is a bit of a nuisance that the line might not be empty so can we do that here as well????
 # as such it should either be preceded by newline() or emptyline()
@@ -140,6 +169,7 @@ def continueprompt():
 	prompt=(" "*(len(prompt)-2))+modechars[mode]+" "
 def writeprompt():
 	write(prompt,PROMPT_COLOR)
+	write("") # the prompt, expression text separator (see above) that will prevent the prompt from being removed!!!
 def reprompt():
 	emptyline()
 	writeprompt()
@@ -575,6 +605,7 @@ def getOperatorPrecedence(_operator):
 # start with two-character operators, followed by unary and binary
 # NOTE let's allow integer division with \ as well
 # MDH@25AUG2017: we'll be using the period character for list concatenation as well (similar to what PHP does)
+newlinechar="\n" # MDH@31AUG2017: the character used for separating lines in multiline expressions
 periodchar="." # integer fraction part separator MDH@27AUG2017 now also a one- and two-character binary operator
 declarationchar=":" # for 'declaring' an expression (or a list of expression that can be considered a block)
 o=periodchar+"\^"+declarationchar # all one-character binary operators that are not also unary operators
@@ -584,7 +615,7 @@ soro="!=-+" # single-character binary or unary operators
 ls="(" # starts an argument list
 le=")" # ends an (argument) list
 ld="," # separates list arguments
-w=" \n" # whitespace between tokens (include the newline character now)
+w=" "+newlinechar # whitespace between tokens (include the newline character now)
 commentchar=";" # any comment starts behind a semicolon
 # also allowing underscores in identifiers and dollar signs and pound signs (forget about the pound signs we might need it for other stuff
 a="_$abcdefghijklmnopqrstuvwxyz"
@@ -925,7 +956,7 @@ class Operator:
 		return self.text
 	def __str__(self):
 		return self.text
-
+####newlinechar='\n' # the newline character for use in multiline expressions
 # MDH@22AUG2017: also more reliable to keep any token character is a separate class instance
 #								 this can be a character that is to be written (when _color is given) or not
 # MDH@23AUG2017: TokenChar is to be used to store a single user input token character exactly
@@ -958,6 +989,7 @@ class TokenChar:
 			# keep track of the number of characters actually written (so we can remove them on unend)
 			if self.debug&2:
 				self.append(")",DEBUG_COLOR)
+			write(None) # by writing None (i.e. no text), write will insert a None ColoredText instance, that will be used to remove this token char from what it wrote on the current line
 	def unend(self):
 		if self.ended>=0: # return to whatever we had when we ended!!!
 			self.writtentext=self.writtentext[:self.ended]
@@ -1231,7 +1263,11 @@ class Token:
 		# MDH@23AUG2017: NOT until we're removing a significant token character, do we force the token to be discontinued
 		#								 i.e. make it continuable again, the problem is that even when that happens it is still possible to add whitespace
 		#								 which means that when that happens we would remove the continuable
+		# MDH@31AUG2017: any newline character will always be in the suffix of a token i.e. it is a whitespace character
 		if len(self.suffix)>0:
+			if self.suffix[-1].getText()==newlinechar:
+				self.error="Already at the start of the current text line."
+				return None
 			self.suffix.pop() # very convenient
 			# NOTE never force continuability until actually removing a significant token
 			#			 BUT that's a problem because sometimes the thing is not continuable AND there's no suffix
@@ -2150,6 +2186,10 @@ class Expression(Token):
 				# NOTE as soon as we empty this (sub)expression we should move back to the parent expression if any, to take it from there
 				#			 but we shouldn't call the backspace on self.token because we just removed the last token char on this (sub) expression
 				if len(self.text)>0:
+					if self.text[-1].getText()==newlinechar: # do NOT allow popping a newline character
+						self.error="It is not possible to return to a previous text line."
+						beep() # we can do this
+						return None
 					self.text.pop()
 				# have we emptied this (sub)expression
 				if len(self.text)>0:
@@ -2163,7 +2203,12 @@ class Expression(Token):
 				else: # we've reached the end of the main expression, so nothing to remove!!!
 					beep()
 		else: # in the suffix (comment part)
+			# NOT allowed to remove a newline token character
 			if len(self.suffix)>0:
+				if self.suffix[-1].getText()==newlinechar:
+					self.error="It is not possible to return to a previous text line."
+					beep() # we can do this
+					return None
 				self.suffix.pop() ### replacing: self.suffix=self.suffix[:-1]
 				if len(self.suffix)==0: # comment character removed
 					self.undiscontinued() # which will call unendText() on success (which we have to override to prevent Token.unendText() to unend the last tokenchar in self.text
@@ -2173,6 +2218,7 @@ class Expression(Token):
 				self.error="Please report the following bug: no comment characters left to remove."
 		if self.error is not None:
 			return None
+		removeDeletedTokenchar() # should take care of showing the line again
 		return result
 # MDH@17AUG2017: when an identifier is 'applied' to an expression the expression indicates an index
 # such an expression behaves like any other expression except that it returns the value
@@ -2503,10 +2549,12 @@ def main():
 						beep()
 					else:
 						mexpression_new=mexpression.backspace() # returns None if some error occurred
+						""" MDH@31AUG2017: backspace() should take of calling removeLastTokenchar which will display again all ColoredText instance as part of the last Tokenchar written!!!
 						if mexpression_new is not None: # expression data model adapted accordingly
 							# we have to rewrite the entire expression as it is now
 							reprompt() # clears the line and prompt again
 							mexpression_new.echo() # write the main expression in the original colouring (that is what echo does, go all the way up to the main expression!!)
+						"""
 				else: # not a backspace
 					mexpression_new=mexpression.add(tokenchar)
 				expressionerror=mexpression.getError()
@@ -2520,18 +2568,18 @@ def main():
 						break
 				elif mexpression.ends() is None: # expression complete, so ready to be evaluated, so there's no need to set mexpression_new anyway!!!
 					break
+				mexpression_new=mexpression.add(newlinechar) # add the newline char (which we know is whitespace)
 				continueprompt() # change the prompt to the continuation prompt (not including M(<index>)
 				if mexpression.parent is None: # in the main expression
 					# let's display the result, and return to the current position
 					error=mexpression.getError()
 					if error is not None:
 						writeerror(error)
-						showprompt()
-						writeagain(mexpression)
+						writeagain(mexpression) # already shows the prompt again!!
 					else:
-						showprompt()
+						writeprompt()
 				else:
-					showprompt()
+					writeprompt()
 			# if some error occurred (e.g. that the expression is not yet complete when the user presses the Enter/Return key)
 			if expressionerror is not None: # some error occurred (stored with mexpression)
 				# write the error and redisplay the expression
@@ -2549,8 +2597,8 @@ def main():
 							emptyline=True
 							expressionvalue=mexpression.getValue(MEnvironment)
 							expressionvaluetext=" = "+getText(expressionvalue)
-							write(expressionvaluetext,DEBUG_COLOR)
-							sys.stdout.write("\033["+str(len(expressionvaluetext))+"D") # return to the original cursor position
+							output(str(ColoredText(expressionvaluetext,DEBUG_COLOR,None))) # do NOT use write() here, as in that case it will be registered in the linecoloredtexts
+							output("\033["+str(len(expressionvaluetext))+"D") # return to the original cursor position
 			# ready to read and process the next character!!!
 			tokenchar=getexprch()
 			if emptyline:
