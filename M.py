@@ -2,6 +2,8 @@
 Marc's expression tokenizer and evaluator
 """
 """ History
+31AUG2017:
+- we want to change the color of an identifier when it is a known variable or function
 18AUG2017:
 - I want to be able to use empty lists as well so () should be an allowed construction, ending up with an expression with no tokens
 - there should be a constant with value None or something similar, to indicate a No result or no value with a certain text representation
@@ -38,7 +40,9 @@ INFO_COLOR=0 # black
 ERROR_COLOR=9 # red
 PROMPT_COLOR=INFO_COLOR # same as the info color
 
-IDENTIFIER_COLOR=13 # magenta
+IDENTIFIER_COLOR=202 # orange for unknown identifiers (although these would be used for assignments)
+VARIABLE_COLOR=13 # magenta
+FUNCTION_COLOR=93 # something more blueish
 LITERAL_COLOR=22 # green
 OPERATOR_COLOR=12 # blue
 RESULT_COLOR=15 # quite dark
@@ -404,6 +408,11 @@ class Environment:
 			self.parent=None
 		self.identifiers=dict()
 		self.functiongroups=[]
+	def getFunctionIndex(self,_identifier):
+		for functiondict in self.functiongroups:
+			if _identifier in functiondict:
+				return functiondict[_identifier]
+		return 0 # not a function
 	def functionsExistStartingWith(self,_functionprefix):
 		for functiongroup in self.functiongroups:
 			for function in functiongroup:
@@ -447,6 +456,8 @@ class Environment:
 		self.identifiers[_name]=_identifier
 	def addFunction(self,_name,_function,_functiongroup):
 		self.functions[_name]=_function
+	def addFunctionGroup(self,_functiongroup):
+		self.functiongroups.append(_functiongroup)
 # create the main M environment
 import math
 MEnvironment=Environment()
@@ -457,6 +468,11 @@ MEnvironment.addIdentifier('true',Identifier(_value=1))
 MEnvironment.addIdentifier('pi',Identifier(_value=math.pi))
 MEnvironment.addIdentifier('e',Identifier(_value=math.e))
 MEnvironment.addIdentifier('M',Identifier(_value=[]))
+# MDH@31AUG2017: let's add the function groups as well
+MEnvironment.addFunctionGroup({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99})
+MEnvironment.addFunctionGroup({'while':100,'join':199})
+MEnvironment.addFunctionGroup({'if':200,'select':201,'case':202,'switch':203,'for':210})
+
 # MDH@30AUG2017:
 # the user is allowed to create functions with the function function
 # last first argument should be the argument list, the remaining arguments the body expressions
@@ -562,7 +578,6 @@ o2=" != << <= >> >= == .. ** && || // %%" # the result of o2.find() should be no
 ts="'"+'"' # starts a string literal
 te="'"+'"' # ends a string literal
 # we have some predefined identifiers which are all functions of a fixed number of arguments
-functions=({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99},{'while':100,'join':199},{'if':200,'select':201,'case':202,'switch':203,'for':210})
 """
 # MDH@17AUG2017: if we want to be able to change an element of an identifier we need the indexable identifier and the index
 class IdentifierElement(Identifier):
@@ -848,11 +863,6 @@ def getOperationResult(argument2,operator,argument1):
 			note("Result of applying "+str(operator)+" to "+str(operand1)+" and "+str(operand2)+"="+str(result))
 	return result
 import random
-def getFunctionIndex(_identifier):
-	for functiondict in functions:
-		if _identifier in functiondict:
-			return functiondict[_identifier]
-	return 0 # not a function
 # list of token types:
 # 0=unknown
 # 1=unfinished operator (i.e. < or > or =)
@@ -1491,6 +1501,21 @@ class Expression(Token):
 				return True
 		# NOPE nobody
 		return False
+	def functionsExistStartingWith(self,_functionprefix):
+		# if in the global pool, we're done immediately
+		if self.environment.functionsExistStartingWith(_functionprefix):
+			return True
+		# my parent might have them
+		if self.parent is not None:
+			if self.parent.functionsExistStartingWith(_functionprefix):
+				return True
+		# NOPE nobody
+		return False
+	def getFunctionIndex(self,_identifiername):
+		functionindex=self.environment.getFunctionIndex(_identifiername)
+		if functionindex<=0 and self.parent is not None:
+			functionindex=self.parent.getFunctionIndex(_identifiername)
+		return functionindex
 	def getText(self):
 		result=Token.getText(self) ###self.text # this would be the whitespace at the beginning...
 		# NOTE if the token is a subexpression, the subexpression will enclose it's text in parenthesis (so I won't have to check for that type of token myself)
@@ -1689,7 +1714,7 @@ class Expression(Token):
 								self.error="Cannot start a subexpression right behind another subexpression."
 							elif abs(tokentype)==IDENTIFIER_TOKENTYPE: # in/behind an identifier
 								tokentext=self.token.getText()
-								if getFunctionIndex(tokentext)==0: # not a function therefore NOT allowed
+								if self.getFunctionIndex(tokentext)==0: # not a function therefore NOT allowed
 									# now allowed to index an existing variable of which the current value is a list (i.e. list)
 									if self.identifierExists(tokentext): # an existing variable # MDH@30AUG2017: allow for 'locally' defined identifiers as well
 										identifiervalue=identifiers[tokentext].getValue()
@@ -1826,7 +1851,7 @@ class Expression(Token):
 								# unless the new token is the assignment operator
 								# NOTE we have to perform the check again when registering the == two-character comparison operator (because then the test will fail!!!)
 								tokentext=self.getLastTokenText()
-								functionindex=getFunctionIndex(tokentext)
+								functionindex=self.getFunctionIndex(tokentext)
 								if functionindex>0: # a function name, and only ( is basically allowed behind it
 									if not _tokenchar in ls:
 										self.error="Function "+tokentext+" should now be applied to an argument (inside parentheses)."
@@ -1957,7 +1982,7 @@ class Expression(Token):
 								else: # accept to be an identifier start
 									# we need an identifier that could exist (either as a function or as a variable) when not the first expression token
 									# unless we allow chaining assigning identifiers (which I suppose we can do)
-									if len(self.tokens)>0 and self.tokens[-1].getText()!=assignmentchar and not self.identifiersExistStartingWith(_tokenchar) and not functionsExistStartingWith(_tokenchar):
+									if len(self.tokens)>0 and self.tokens[-1].getText()!=assignmentchar and not self.identifiersExistStartingWith(_tokenchar) and not self.functionsExistStartingWith(_tokenchar):
 										self.error="No identifiers or functions exist starting with "+_tokenchar+" as is required here."
 									else: # for now allowed
 										tokentype=self.setTokentype(IDENTIFIER_TOKENTYPE)
@@ -2173,7 +2198,7 @@ class Expression(Token):
 							# whether it's a function or identifier
 							# on the other hand if there's nothing behind the identifier it's an existing identifier
 							# so if it's an existing identifier assume it's an identifier, and correct when an opening parenthesis comes next
-							functionindex=getFunctionIndex(tokentext)
+							functionindex=self.getFunctionIndex(tokentext)
 							if functionindex>0:
 								argument=Function(functionindex) # remember the function until we have the argument to apply it to
 							else: # identifier that does not yet exist
