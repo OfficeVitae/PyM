@@ -46,7 +46,7 @@ FUNCTION_COLOR=93 # something more blueish
 LITERAL_COLOR=22 # green
 OPERATOR_COLOR=12 # blue
 RESULT_COLOR=15 # quite dark
-RESULT_BACKCOLOR=12 # or what????
+RESULT_BACKCOLOR=69 # or what????
 
 INFO_BACKCOLOR=231 # white
 DEBUG_BACKCOLOR=255 # light grey
@@ -69,10 +69,25 @@ def getColorText(_color=None,_backcolor=None):
 			return backcolortext+"\033[38;5;"+str(_color)+"m"
 		return backcolortext+"\033[0m" # resetting all colors
 	return backcolortext
+# MDH@31AUG2017: if we want to be able to rewrite text in a different color we need to keep track of all colored text written
+class ColoredText:
+	def __init__(self,_text,_color,_backcolor):
+		self.text=_text
+		self.color=_color
+		self.backcolor=_backcolor
+	def length(self):
+		return len(self.text)
+	def __repr__(self):
+		return self.getText()
+	def __str__(self):
+		return getColorText(self.color,self.backcolor)+self.text+"\033[0m" # TODO think about whether we need to append returning to the default color here???
+	def setColor(self,_color):
+		self.color=_color
+	def setBackcolor(self,_backcolor):
+		self.backcolor=_backcolor
 # convenient to be able to color certain text
 def getColoredText(_text,_color,_backcolor=None):
-	return getColorText(_color,_backcolor)+_text+getColorText(0)
-
+	return str(ColoredText(_text,_color,_backcolor))
 # main output method to be used to output any text directly
 def output(_tooutput):
 	sys.stdout.write(_tooutput)
@@ -87,9 +102,9 @@ def backspace(): # means go one position to the left on the current line, and cl
 	output("\033[K") # clear the rest of the line
 # write outputs text to be colored
 def write(_towrite,_color=None,_backcolor=None):
-	result=getColorText(_color,_backcolor)+_towrite+"\033[0m" # prudent to force the standard color after each write!!
-	output(result)
-	return result
+	result=ColoredText(_towrite,_color,_backcolor)
+	output(str(result))
+	return result # thus allowing manipulation of background and text color later on
 def newline():
 	output("\n\033[0m") # it makes sense to reset the coloring at the start of each next line!!!
 # end of output producing methods
@@ -122,7 +137,7 @@ def updateprompt():
 	prompt="M("+str(len(mexpressions)+1)+")"+modechars[mode]+" "
 def continueprompt():
 	global prompt
-	prompt=" "*len(prompt)
+	prompt=(" "*(len(prompt)-2))+modechars[mode]+" "
 def writeprompt():
 	write(prompt,PROMPT_COLOR)
 def reprompt():
@@ -211,6 +226,8 @@ class Function:
 		return self
 	def apply(self,_value): # the function to be applied to a single argument
 		value=getValue(_value)
+		if self.functionindex==1: # the list function only needs to evaluate the arguments!!!
+			return value
 		if value!=undefined.getValue():
 			if self.functionindex>=50: # a list function
 				if isIterable(value): # as it should be
@@ -296,7 +313,10 @@ class Function:
 		# this is the function application at the top level i.e. it will receive an argument list
 		argcount=1+(self.functionindex/100) # the number of arguments this function has
 		if len(_arglist)>=argcount:
-			if argcount==1:
+			if argcount==0:
+				if self.functionindex==1: # the list function
+					fvalue=map(self.apply,_arglist) # will always return a list
+			elif argcount==1:
 				if self.functionindex<23 and len(_arglist)==1: # a scalar function applied to a single-item argument list is to return a scalar
 					fvalue=self.apply(_arglist[0])
 				else: # apply the function to each separate element!!!
@@ -473,8 +493,9 @@ MEnvironment.addIdentifier('pi',Identifier(_value=math.pi))
 MEnvironment.addIdentifier('e',Identifier(_value=math.e))
 MEnvironment.addIdentifier('M',Identifier(_value=[]))
 # MDH@31AUG2017: let's add the function groups as well
+MEnvironment.addFunctionGroup({'list':1}) # I guess any number of arguments allowed (should a function always have at least one argument???)
 MEnvironment.addFunctionGroup({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99})
-MEnvironment.addFunctionGroup({'while':100,'join':199})
+MEnvironment.addFunctionGroup({'while':100,'function':150,'join':199})
 MEnvironment.addFunctionGroup({'if':200,'select':201,'case':202,'switch':203,'for':210})
 
 # MDH@30AUG2017:
@@ -917,7 +938,7 @@ class TokenChar:
 			return None
 		if isinstance(_color,int):
 			self.color=_color
-		self.writtentext+=write(_towrite,_color)
+		self.writtentext.append(write(_towrite,_color)) # MDH@31AUG2017: now turned into a list of ColoredText instances
 		return self
 	# you can only define significant character text once
 	def start(self):
@@ -926,7 +947,7 @@ class TokenChar:
 	def __init__(self,_debug):
 		self.debug=_debug
 		self.text=""
-		self.writtentext=""
+		self.writtentext=[]
 		self.ended=-1 # keep track of how many characters were had before writing the end of tokenchar characters
 		self.color=None
 		self.error=None
@@ -944,7 +965,10 @@ class TokenChar:
 	def isEnded(self):
 		return self.ended>=0
 	def getWritten(self):
-		return self.writtentext
+		writtentext=""
+		for coloredtext in self.writtentext:
+			writtentext+=str(coloredtext)
+		return writtentext
 	def getColor(self):
 		return self.color
 	def getText(self):
@@ -974,10 +998,6 @@ class Token:
 			self.text[-1].write(_towrite,(self.color,_color)[isinstance(_color,int)])
 		else:
 			self.suffix[-1].write(_towrite,(self.color,_color)[isinstance(_color,int)])
-		""" replacing:
-		self.writtentexts[-1]+=write(_towrite,(self.color,_color)[isinstance(_color,int)])
-		return _towrite
-		"""
 	def getLastWrittenColor(self): # this would be the color in which the last written token character was written
 		if len(self.text)==0:
 			return None
@@ -1031,23 +1051,11 @@ class Token:
 		if self.output:
 			if self.debug&6: # something to write immediately
 				if self.debug&2: # immediately write the start of token text
-					self.writtenprefix+=write('[',DEBUG_COLOR) # an empty token character
+					self.writtenprefix.append(write('[',DEBUG_COLOR)) # an empty token character
 				if self.debug&4:
-					self.writtenprefix+=write(getTokentypeRepresentation(self.type)+":",DEBUG_COLOR)
-			""" replacing:
-			self.writtentexts=[] # start with empty list
-			if self.debug&6: # something to write immediately
-				self.writtentexts.append("")
-				if self.debug&2: # immediately write the start of token text
-					self.write('[',DEBUG_COLOR)
-				if self.debug&4:
-					self.write(getTokentypeRepresentation(self.type)+":",DEBUG_COLOR)
-			"""
+					self.writtenprefix.append(write(getTokentypeRepresentation(self.type)+":",DEBUG_COLOR))
 		else: # no need to keep track of the written text
 			pass
-			""" replacing:
-			self.writtentexts=None
-			"""
 	def __init__(self,_tokentype,_debug=None,_tokenchar=None):
 		self.debug=_debug # do NOT change DEBUG while constructing a token????
 		self.error=None # MDH@21AUG2017: the backspace() method requires the use of self.error here as well
@@ -1059,9 +1067,10 @@ class Token:
 		self.setType(_tokentype)
 		# what used to go in start
 		### added: prefix / infix / postfix written stuff initialized to empty strings
-		self.writteninfix=""
-		self.writtenprefix=""
-		self.writtenpostfix=""
+		# MDH@31AUG2017: now contain all colored text in separate ColoredText instances
+		self.writteninfix=[]
+		self.writtenprefix=[]
+		self.writtenpostfix=[]
 		self.start()
 		if isinstance(_tokenchar,str):
 			self.append(_tokenchar)
@@ -1080,7 +1089,7 @@ class Token:
 				self.text[-1].end()
 			if self.output:
 				if self.debug&2: # indicates the start of the suffix (if any)
-					self.writteninfix+=write("|",DEBUG_COLOR) ###self.write("|",DEBUG_COLOR)
+					self.writteninfix.append(write("|",DEBUG_COLOR)) ###self.write("|",DEBUG_COLOR)
 		return result
 	def unendText(self):
 		if len(self.text)>0:
@@ -1107,7 +1116,7 @@ class Token:
 				self.type=OPERATOR_TOKENTYPE
 			if self.output:
 				if self.debug&2:
-					self.writtenpostfix=write(']',DEBUG_COLOR)
+					self.writtenpostfix.append(write(']',DEBUG_COLOR))
 			# MDH@23AUG2017: end the last token characters
 		return self
 	def unend(self): # which undo any assumed end (what we'll do with the last token in an expression), so it can be continued again
@@ -1159,8 +1168,23 @@ class Token:
 		for tokenchar in self.suffix:
 			writtensuffix+=tokenchar.getWritten()
 		return writtensuffix
+	def getWrittenPrefix(self):
+		writtenprefix=""
+		for coloredtext in self.writtenprefix:
+			writtenprefix+=str(coloredtext)
+		return writtenprefix
+	def getWrittenInfix(self):
+		writteninfix=""
+		for coloredtext in self.writteninfix:
+			writteninfix+=str(coloredtext)
+		return writteninfix
+	def getWrittenPostfix(self):
+		writtenpostfix=""
+		for coloredtext in self.writtenpostfix:
+			writtenpostfix+=str(coloredtext)
+		return writtenpostfix
 	def getWritten(self):
-		return self.writtenprefix+self.getWrittenText()+self.writteninfix+self.getWrittenSuffix()+self.writtenpostfix
+		return self.getWrittenPrefix()+self.getWrittenText()+self.getWrittenInfix()+self.getWrittenSuffix()+self.getWrittenPostfix()
 	# getRepresentation() returns the type in gray and the text itself in black
 	def getRepresentation(self):
 		return getColorText(INFO_COLOR)+' '+self.getText()+getColorText(DEBUG_COLOR)+":"+getTokentypeRepresentation(self.type)
@@ -1174,15 +1198,6 @@ class Token:
 				return self
 			self.error="Failed to 'ignore' "+_tokenchar+"."
 		return None
-		""" replacing:
-		if self.output:
-			self.writtentexts.append("") # a new text to be written
-		self.discontinued() # remember whether or not discontinued for the first time
-		if self.output:
-			self.suffix+=self.write(_tokenchar)
-		else:
-			self.suffix+=_tokenchar
-		"""
 	def isEnded(self):
 		return self.ended
 	def isContinuable(self):
@@ -1249,6 +1264,8 @@ class Token:
 	def getType(self):
 		return self.type
 	# NOTE setType() won't change the coloring...
+	# MDH@31AUG2017: let's see whether we can actually change the coloring if the type changes
+	#                assuming that this is the current token being written actively i.e. it is not ended or discontinued
 	def setType(self,_tokentype):
 		self.type=_tokentype
 		if self.output:
@@ -1256,174 +1273,12 @@ class Token:
 		# TODO how do we want to treat whitespace?????
 		if self.type<=0: # only whitespace characters allowed, so everything that follows is whitespace!!
 			self.discontinued()
+		# rewrite the entire text in the new color if the type changed
 		return self.type
 	def __repr__(self):
 		return self.getText()
 	def __str__(self):
 		return self.getText()
-""" replacing:
-# MDH@29JUL2017: it's more convenient/reliable to remember the token in a separate class
-# MDH@30JUL2017: let Token itself keep track of what was written by it, so it can reproduce it
-# MDH@01AUG2017: Token writes without a color i.e. calls the main write()
-class Token:
-	# NOTE do NOT call write unless self.output is True
-	def write(self,_towrite,_color=None):
-		self.writtentexts[-1]+=write(_towrite,(self.color,_color)[isinstance(_color,int)])
-		return _towrite
-	def append(self,_tokenchar):
-		# if not of the right type throw an exception
-		if not isinstance(_tokenchar,str):
-			raise Exception("Type of item to append to token text not text.")
-		if len(_tokenchar)>0: # something to append for real
-			if self.output:
-				self.writtentexts.append("") # a new text element starts
-				self.text+=self.write(_tokenchar)
-			else: # just append as is
-				self.text+=_tokenchar
-	def __init__(self,_tokentype,_tokenchar=None,_output=True):
-		self.debug=DEBUG # do NOT change DEBUG while constructing a token????
-		self.error=None # MDH@21AUG2017: the backspace() method requires the use of self.error here as well
-		self.text="" # the meaningful text
-		self.suffix="" # what's appended to the token AFTER it ends (typically whitespace or a comment)
-		self.output=_output # whether we should output anything at all
-		self.continuable=True # assume to be continuable to start with
-		self.ended=False # not ended until end() is actually called!!!
-		self.setType(_tokentype)
-		# what used to go in start
-		if self.output:
-			self.writtentexts=[] # start with empty list
-			if self.debug&6: # something to write immediately
-				self.writtentexts.append("")
-				if self.debug&2: # immediately write the start of token text
-					self.write('[',DEBUG_COLOR)
-				if self.debug&4:
-					self.write(getTokentypeRepresentation(self.type)+":",DEBUG_COLOR)
-		else: # no need to keep track of the written text
-			self.writtentexts=None
-		# append whatever token we received
-		if isinstance(_tokenchar,str):
-			self.append(_tokenchar)
-	# MDH@21AUG2017: support for error reporting
-	def getError(self):
-		return self.error
-	def isEmpty(self):
-		return len(self.suffix)==0 and len(self.text)==0
-	def discontinued(self): # call whenever meaningful text can no longer be entered (e.g. when adding whitespace)
-		# allow discontinuation once
-		result=self.continuable
-		if result:
-			self.continuable=False
-			if self.output:
-				if self.debug&2:
-					self.write("|",DEBUG_COLOR)
-		return result
-	def undiscontinued(self): # we might want to undiscontinue (when the suffix is removed)
-		result=not self.continuable
-		if result:
-			self.continuable=True
-			# TODO what else????
-		return result
-	def end(self):
-		if not self.ended: # once suffices!!
-			self.ended=True # mark as discontinuable although perhaps it's better not to if I'm not discontinued somehow, in which case it remains continuable even though it ended!!!
-			# any operator that might have been continued, register it as operator immediately, so one cannot continue it with the second character!!!
-			if self.type>0 and self.type<OPERATOR_TOKENTYPE:
-				self.type=OPERATOR_TOKENTYPE
-			if self.output:
-				if self.debug&2:
-					self.write(']',DEBUG_COLOR)
-		return self
-	def unend(self): # which undo any assumed end (what we'll do with the last token in an expression), so it can be continued again
-		# unending doesn't change the continuability (anymore)
-		if self.ended: # something to unend, therefore we have to remove the ] written at the end
-			self.ended=False
-			if self.output:
-				if self.debug&2:
-					if len(self.writtentexts[-1])>0:
-						self.writtentexts[-1]=self.writtentexts[-1][:-1] # cut off the last character written (which would be the ] character!!!)
-		return self
-	def getWritten(self):
-		written=""
-		if self.writtentexts is not None:
-			for writtentext in self.writtentexts:
-				written+=writtentext
-		return written
-	# getRepresentation() returns the type in gray and the text itself in black
-	def getRepresentation(self):
-		return getColorText(INFO_COLOR)+' '+self.text+getColorText(DEBUG_COLOR)+":"+getTokentypeRepresentation(self.type)
-	def ignore(self,_tokenchar): # any whitespace that's in the token needs to be displayed but does not change the type
-		# TODO perhaps it's better to change this is making this thing discontinuable, and then add it
-		# we'll be appending at least one character
-		if self.output:
-			self.writtentexts.append("") # a new text to be written
-		self.discontinued() # remember whether or not discontinued for the first time
-		if self.output:
-			self.suffix+=self.write(_tokenchar)
-		else:
-			self.suffix+=_tokenchar
-		return self
-	def isEnded(self):
-		return self.ended
-	def isContinuable(self):
-		return self.continuable
-	# add() should raise an Exception if some low-level error occurs (like memory problems)
-	def add(self,_tokenchar):
-		# ASSERTION _tokenchar should be of type String
-		# returns any error that might occur, when attempting to add the
-		if _tokenchar is None:
-			raise Exception("Undefined input character.")
-		if not self.continuable: # if not continuable, the character cannot be added
-			raise Exception("Cannot add "+_tokenchar+" to a finished token.")
-		self.append(_tokenchar)
-		return self
-	# MDH@21AUG2017: removing the last character is fun
-	def backspace(self):
-		# NOTE it's possible that we're NOT continuable AND there's no suffix!!!
-		#			 it's also possible that a character is not whitespace in which case we need to remove another character
-		# NOTE we shouldn't forget to remove the last writtentexts as well
-		if not self.continuable: # in the suffix (if any)
-			toremove=self.suffix[-1] # the last character of the suffix to remove
-			note("Removing character '"+toremove+"' from suffix '"+self.suffix+"'...")
-			del self.writtentexts[-1]
-			self.suffix=self.suffix[:-1]
-			# if the suffix is now empty, we're continuable again
-			if len(self.suffix)==0:
-				self.continuable=True
-			# TODO is this true?????
-			if toremove in w: # a whitespace character was removed, and so we're done
-				return self
-		# if we get here, we're supposed to remove the last character of self.text
-		tokentext=self.text
-		if len(tokentext)==0:
-			self.error="Please report the following bug: No character left in token to remove!"
-			return None
-		self.text=tokentext[:-1] # token character removed...
-		del self.writtentexts[-1]
-		return self
-	def getText(self):
-		result=self.text
-		# append all non-w characters in the suffix
-		for sch in self.suffix:
-			if sch in w:
-				break
-			result+=sch
-		return result
-	def getType(self):
-		return self.type
-	# NOTE setType() won't change the coloring...
-	def setType(self,_tokentype):
-		self.type=_tokentype
-		if self.output:
-			self.color=getTokentypeColor(self.type) # initiate the color to use when writing once
-		# TODO how do we want to treat whitespace?????
-		if self.type<=0: # only whitespace characters allowed, so everything that follows is whitespace!!
-			self.discontinued()
-		return self.type
-	def __repr__(self):
-		return self.text
-	def __str__(self):
-		return self.text
-"""
 # we have to either choose to append a token immediately when it is created, or until it ends (as we used to)
 # nevertheless we can keep track of the current token in self.token (which is the active token)
 # and as long as we let the token's add method to do the writing, and the constructor to write the tokens color
@@ -1432,15 +1287,6 @@ class Token:
 # if we make Expression a Token as well, we can store subexpression as tokens itself
 # we simply need to override some of the simple Token methods
 class Expression(Token):
-	"""
-	def notoken(self): # only to be called when self.token is not None
-		# show the type of the token label if so requested
-		if DEBUG&4:
-			self.token.write(':'+getTokentypeRepresentation(self.token.getType()),DEBUG_COLOR)
-		# mostly in combination with the above, show the end of token character
-		self.token.end() # which will take care of writing the ] if need be
-		self.token=None # the current token (as long as it wasn't recognized yet)
-	"""
 	def reset(self):
 		# no need to keep track of the expression and/or written expression anymore with the tokens in place
 		self.tokens=[]
@@ -1453,23 +1299,11 @@ class Expression(Token):
 		if self.output:
 			if self.debug&6: # something to write immediately
 				if self.debug&2: # immediately write the start of token text
-					self.writtenprefix+=write('{',DEBUG_COLOR) # an empty token character
+					self.writtenprefix.append(write('{',DEBUG_COLOR)) # an empty token character
 				if self.debug&4:
-					self.writtenprefix+=write(getTokentypeRepresentation(self.type)+":",DEBUG_COLOR)
-			""" replacing:
-			self.writtentexts=[] # start with empty list
-			if self.debug&6: # something to write immediately
-				self.writtentexts.append("")
-				if self.debug&2: # immediately write the start of token text
-					self.write('[',DEBUG_COLOR)
-				if self.debug&4:
-					self.write(getTokentypeRepresentation(self.type)+":",DEBUG_COLOR)
-			"""
+					self.writtenprefix.append(write(getTokentypeRepresentation(self.type)+":",DEBUG_COLOR))
 		else: # no need to keep track of the written text
 			pass
-			""" replacing:
-			self.writtentexts=None
-			"""
 	def __init__(self,_environment,_debug=None,_parent=None,_tokenchar=None):
 		Token.__init__(self,EXPRESSION_TOKENTYPE,_debug,_tokenchar)
 		self.declared=False # initially assumably not declared...
@@ -1497,6 +1331,8 @@ class Expression(Token):
 	def identifierExists(self,_identifiername):
 		# always look in the global pool first (that's quickest)
 		return self.environment.identifierExists(_identifiername) or self.initializedIdentifier(_identifiername)
+	def getIdentifier(self,_identifiername): # MDH@31AUG2017: this is basically about existing identifier of which we want to check the value
+		return self.environment.getExistingIdentifier(_identifiername)
 	def identifiersExistStartingWith(self,_identifierprefix):
 		# if in the global pool, we're done immediately
 		if self.environment.identifiersExistStartingWith(_identifierprefix):
@@ -1726,8 +1562,9 @@ class Expression(Token):
 								tokentext=self.token.getText()
 								if self.getFunctionIndex(tokentext)==0: # not a function therefore NOT allowed
 									# now allowed to index an existing variable of which the current value is a list (i.e. list)
-									if self.identifierExists(tokentext): # an existing variable # MDH@30AUG2017: allow for 'locally' defined identifiers as well
-										identifiervalue=identifiers[tokentext].getValue()
+									identifier=self.getIdentifier(tokentext)
+									if identifier is not None: # an existing variable # MDH@30AUG2017: allow for 'locally' defined identifiers as well
+										identifiervalue=identifier.getValue()
 										if isinstance(identifiervalue,list): # can be indexed
 											# we're going to replace the identifier by an IdentifierElementExpression
 											self.endToken() # have to do this explicitly here because I removed it from newToken() (and into addToken())
@@ -1790,6 +1627,14 @@ class Expression(Token):
 							#### replacing allowing the period as part of the identifier: self.token.add(_tokenchar)
 						else:
 							self.error="Period not allowed here."
+					elif _tokenchar==declarationchar: # MDH@31AUG2017: also quite easy to interpret, as it's only allowed behind an identifier that is not a function name
+						if abs(tokentype)<IDENTIFIER_TOKENTYPE:
+							self.error="The declaration operator needs to be preceded by a variable name."
+						elif self.getFunctionIndex(self.token.getText())>0:
+							self.error="The declaration operator cannot follow a function name, a variable name is required."
+						else:
+							self.addToken(OPERATOR_TOKENTYPE,_tokenchar,_output).discontinued() # nothing else goes
+							result=self.addToken(0,"",_output).flagAsDeclared() # mark as being declared, so we can end it with Enter
 					else: # not the start (end) of string literal, the start or end of a subexpression, whitespace
 						# ALL CODE ABOVE SHOULD BE SELF_CONTAINED BECAUSE ALL CODE BELOW FIRST CHECKS CONTINUATION FOLLOWED BY CREATING NEW TOKENS
 						# it's probably best to deal with some of the possible input characters first and determine when they are not allowed
@@ -1860,19 +1705,12 @@ class Expression(Token):
 							if not _tokenchar in a and not _tokenchar in A and not _tokenchar in d: # we are allowed to continue an active identifier with a, A or d but not when in whitespace!!!
 								# unless the new token is the assignment operator
 								# NOTE we have to perform the check again when registering the == two-character comparison operator (because then the test will fail!!!)
+								# MDH@31AUG2017: tokenchar equal to the declarationchar already taken care of above (removed here)
 								tokentext=self.getLastTokenText()
 								functionindex=self.getFunctionIndex(tokentext)
 								if functionindex>0: # a function name, and only ( is basically allowed behind it
 									if not _tokenchar in ls:
 										self.error="Function "+tokentext+" should now be applied to an argument (inside parentheses)."
-								elif _tokenchar==declarationchar: # doesn't matter if the thing is already declared or not
-									# similar to what happens when an opening parenthesis is encountered
-									# if we do NOT give it a parent only the Enter key can end it (which is exactly what we want)
-									# except that we won't be able to find the parent anymore (and we'd have to remember the main expression elsewhere)
-									self.addToken(OPERATOR_TOKENTYPE,declarationchar,_output) # same as with the assignment operator
-									self.endToken() # have to do this explicitly here because I removed it from newToken() (and into addToken())
-									result=self.addToken(0,"",_output).flagAsDeclared() # mark as being declared, so we can end it with Enter
-									_tokenchar=None
 								elif not self.identifierExists(tokentext): # MDH@30AUG2017: same here, allow for variables initialized in this expression before
 									# if this identifier is used as value, it should NOT be accepted here and now...
 									# i.e. basically you can only assign a value to it, i.e. it should be the first token in the expression
@@ -2014,7 +1852,7 @@ class Expression(Token):
 		return result
 	def getWritten(self,_showcomment=True):
 		# being a token means that there might be a writtenprefix (i.e. something written in front of the first character)
-		written=self.writtenprefix+Token.getWrittenText(self) # the whitespace in front of the expression, but should I call getWritten??????
+		written=self.getWrittenPrefix()+Token.getWrittenText(self) # the whitespace in front of the expression, but should I call getWritten??????
 		if self.debug&32:
 			written+=getColoredText(":0",33)
 			ti=0
@@ -2025,12 +1863,12 @@ class Expression(Token):
 				ti+=1
 				written+=getColoredText(":"+str(ti),33)
 		if _showcomment:
-			written+=self.writteninfix # is this to be placed here?????
+			written+=self.getWrittenInfix() # is this to be placed here?????
 			written+=self.getWrittenSuffix() # replacing: self.suffix
 			if self.debug&32:
 				ti+=1
 				written+=getColoredText(":"+str(ti),33)
-		written+=self.writtenpostfix
+		written+=self.getWrittenPostfix()
 		return written
 	def getText(self):
 		text=Token.getText(self) ### replacing: self.text
@@ -2062,7 +1900,7 @@ class Expression(Token):
 		value=undefined.getValue() # which at the moment is also None, so cannot be used to determine whether or not an error occurred!!!!
 		self.error=None
 		try:
-			if self.debug&1:
+			if self.debug&8:
 				valueText=self.getRepresentation()
 			# MDH@18AUG2017: an expression with no tokens will return the undefined identifier!!!
 			#								 in order to be able to assign this we need to return the empty list!!!
@@ -2257,7 +2095,7 @@ class Expression(Token):
 					value=getValue(elements[0])
 				else:
 					value=getValue(elements)
-				if self.debug&1:
+				if self.debug&8:
 					output("\n\t"+valueText)
 					write(" = ",0)
 					if value is None:
@@ -2445,6 +2283,8 @@ class ExpressionEvaluator:
 	def __init__(self,_expression,_environment):
 		self.expression=_expression
 		self.environment=_environment
+	def __str__(self):
+		return str(self.expression)
 	def getExpression(self):
 		return self.expression
 	def getEnvironment(self):
@@ -2680,22 +2520,17 @@ def main():
 						break
 				elif mexpression.ends() is None: # expression complete, so ready to be evaluated, so there's no need to set mexpression_new anyway!!!
 					break
-				if mexpression.parent is None:
+				continueprompt() # change the prompt to the continuation prompt (not including M(<index>)
+				if mexpression.parent is None: # in the main expression
 					# let's display the result, and return to the current position
-					emptyline=True # get rid of the result showing as soon as receiving the next character
-					expressionvalue=mexpression.getValue()
-					expressionvaluetext=" = "+getText(expressionvalue)
-					write(expressionvaluetext,DEBUG_COLOR)
-					if DEBUG:
-						sys.stdout.write("\033["+str(len(expressionvaluetext))+"D") # return to the original cursor position
-					else:
-						showprompt() ## replacing:
 					error=mexpression.getError()
 					if error is not None:
 						writeerror(error)
 						showprompt()
 						writeagain(mexpression)
-				else: # in some subexpression, allow continuation
+					else:
+						showprompt()
+				else:
 					showprompt()
 			# if some error occurred (e.g. that the expression is not yet complete when the user presses the Enter/Return key)
 			if expressionerror is not None: # some error occurred (stored with mexpression)
@@ -2707,6 +2542,15 @@ def main():
 				writeagain(mexpression)
 			else: # cannot except a vanishing expression!!!
 				mexpression=mexpression_new
+				# MDH@31AUG2017: it's neat to show the value of the expression in debug mode when it could end
+				if DEBUG&1:
+					if mexpression.parent is None: # we're at the top level
+						if mexpression.ends() is None: # expression is considered complete
+							emptyline=True
+							expressionvalue=mexpression.getValue(MEnvironment)
+							expressionvaluetext=" = "+getText(expressionvalue)
+							write(expressionvaluetext,DEBUG_COLOR)
+							sys.stdout.write("\033["+str(len(expressionvaluetext))+"D") # return to the original cursor position
 			# ready to read and process the next character!!!
 			tokenchar=getexprch()
 			if emptyline:
