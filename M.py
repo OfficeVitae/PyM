@@ -96,8 +96,8 @@ def output(_tooutput):
 
 # methods that write to the console themselves, and should be called by all other output producing functions/methods
 # MDH@31AUG2017: it's going to be dificult to keep track of what's written on the same line behind the prompt and to rewrite it
-#                therefore we let write() keep track of all ColoredText instance written, and by separating the token characters by None ColoredText instances
-#                we can remove the last token character entered until None are left on the line!!!
+#								 therefore we let write() keep track of all ColoredText instance written, and by separating the token characters by None ColoredText instances
+#								 we can remove the last token character entered until None are left on the line!!!
 def beep():
 	output('\a')
 def emptyline(): # clears the current line and puts the cursor at the beginning of the current line
@@ -120,9 +120,16 @@ def newline():
 	linecoloredtexts=[] # start over collecting linecoloredtext elements
 	output("\n\033[0m") # it makes sense to reset the coloring at the start of each next line!!!
 # end of output producing methods
+def rewriteline():
+	# write the rest on the line again (this would include the prompt!!!)
+	emptyline() # clear the current text line...
+	for linecoloredtext in linecoloredtexts:
+		if linecoloredtext is not None:
+			output(str(linecoloredtext))
 def removeDeletedTokenchar(): # removes the last token char written from the current line
 	# keep popping ColoredText elements until we pop a None object, then write what's remaining
 	global linecoloredtexts
+	linecoloredtext=linecoloredtexts.pop() # most likely None ending the tokenchar
 	while len(linecoloredtexts)>0:
 		linecoloredtext=linecoloredtexts.pop()
 		if linecoloredtext is None: # separator popped
@@ -132,11 +139,7 @@ def removeDeletedTokenchar(): # removes the last token char written from the cur
 			linecoloredtexts.append(linecoloredtext)
 			beep()
 			break
-	# write the rest on the line again (this would include the prompt!!!)
-	emptyline() # clear the current text line...
-	for linecoloredtext in linecoloredtexts:
-		if linecoloredtext is not None:
-			output(str(linecoloredtext))
+	rewriteline()
 # helper functions for outputting text
 def writeln(_linetowrite,_backcolor=None,_color=None): # writes a line in black
 	write(_linetowrite,_color,_backcolor) #####write(_linetowrite+'\n',_color,_backcolor)
@@ -973,6 +976,7 @@ class TokenChar:
 		return self
 	# you can only define significant character text once
 	def start(self):
+		####write(None)
 		if self.debug&2:
 			self.append("(",DEBUG_COLOR)
 	def __init__(self,_debug):
@@ -986,10 +990,12 @@ class TokenChar:
 	def end(self):
 		if self.ended<0:
 			self.ended=len(self.writtentext)
+			# MDH@31AUG2017: we want to be able to return to just before the ) is written (as would be the effect of calling unend() on the
+			#								 last written token
+			write(None) # by writing None (i.e. no text), write will insert a None ColoredText instance, that will be used to remove this token char from what it wrote on the current line
 			# keep track of the number of characters actually written (so we can remove them on unend)
 			if self.debug&2:
 				self.append(")",DEBUG_COLOR)
-			write(None) # by writing None (i.e. no text), write will insert a None ColoredText instance, that will be used to remove this token char from what it wrote on the current line
 	def unend(self):
 		if self.ended>=0: # return to whatever we had when we ended!!!
 			self.writtentext=self.writtentext[:self.ended]
@@ -1133,7 +1139,7 @@ class Token:
 			self.unendText() # e.g. to be overridden by subclasses
 			if self.output:
 				if self.debug&2: # indicates the start of the suffix (if any)
-					self.writteninfix=""
+					self.writteninfix=[]
 			# this could be the first character of a possible two-character operator
 		return result
 	def end(self):
@@ -1183,7 +1189,7 @@ class Token:
 			# NOTE perhaps we can empty the writtenpostfix no matter?????
 			if self.output:
 				if self.debug&2:
-					self.writtenpostfix=""
+					self.writtenpostfix=[]
 		return self
 	def getSuffix(self): # to return the suffix text
 		result=""
@@ -1301,7 +1307,7 @@ class Token:
 		return self.type
 	# NOTE setType() won't change the coloring...
 	# MDH@31AUG2017: let's see whether we can actually change the coloring if the type changes
-	#                assuming that this is the current token being written actively i.e. it is not ended or discontinued
+	#								 assuming that this is the current token being written actively i.e. it is not ended or discontinued
 	def setType(self,_tokentype):
 		self.type=_tokentype
 		if self.output:
@@ -1462,7 +1468,7 @@ class Expression(Token):
 				self.text[-1].unend()
 			if self.output:
 				if self.debug&2:
-					self.writtenpostfix=""
+					self.writtenpostfix=[]
 		""" replacing:
 		if self.parent is None: # only the suffix at the top level should be removed (which always is the comment)
 			if not self.continuable:
@@ -2584,7 +2590,7 @@ def main():
 			if expressionerror is not None: # some error occurred (stored with mexpression)
 				# write the error and redisplay the expression
 				writeerror(expressionerror)
-				writeagain(mexpression)
+				rewriteline() ######writeagain(mexpression)
 			elif mexpression_new is None:
 				writeerror("No (sub)expression")
 				writeagain(mexpression)
