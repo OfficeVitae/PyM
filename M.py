@@ -2,6 +2,8 @@
 Marc's expression tokenizer and evaluator
 """
 """ History
+01SEP2017:
+- replacing remembering ALL ColoredText instance of the current user input line I remember the TokenChar instance (which should be unendable easily)
 31AUG2017:
 - we want to change the color of an identifier when it is a known variable or function
 18AUG2017:
@@ -176,21 +178,20 @@ def writeprompt():
 def reprompt():
 	emptyline()
 	writeprompt()
-def showprompt():
-	newline()
-	writeprompt()
 def newprompt():
 	#########lnwrite('Press Ctrl-D anytime to exit M, Ctrl-C to cancel any input.')
 	updateprompt() # MDH@27AUG2017: we need a new prompt
-	showprompt()
+	newline()
+	writeprompt()
 def note(_note):
 	lnwrite('\t'+_note)
 def writeerror(_error):
-	lnwrite(" "*len(prompt))
+	lnwrite(" "*len(prompt)) # go to a new line and start with as many blanks as the length of the prompt
+	# write the error followed by a newline so we can show the user input line immediately
 	if isinstance(_error,str) and len(_error)>0:
-		write(_error,ERROR_COLOR) # we have to go to a new line afterwards because prompt(False) will clear the current line
+		writeln(_error,None,ERROR_COLOR) # we have to go to a new line afterwards because prompt(False) will clear the current line
 	else:
-		write("Unknown error ("+str(_error)+")",ERROR_COLOR)
+		writeln("Unknown error ("+str(_error)+")",None,ERROR_COLOR)
 
 # let's given all the token types a constant, so we will be able to change them more easily
 OPERATOR_TOKENTYPE=11
@@ -960,6 +961,40 @@ class Operator:
 	def __str__(self):
 		return self.text
 ####newlinechar='\n' # the newline character for use in multiline expressions
+# MDH@01SEP2017: keep track of the TokenChars on a single line, so it's easy to remove one!!!
+class UserInputLine(list):
+	# given that we descend from list there's not much that we need to do in this class
+	def removeLastCharacter(self): 
+		if len(self)>0:
+			return self.pop() # really the most convenient way to go
+		return None
+	def __str__(self):
+		written=""
+		for tokenchar in self:
+			written+=tokenchar.getWritten()
+		return written
+	def append(self,_tokenchar):
+		list.append(self,_tokenchar)
+		if DEBUG&128:
+			write("$",DEBUG_COLOR)
+	def extend(self,_tokenchars):
+		list.extend(self,_tokenchars)
+		if DEBUG&128:
+			write("$",DEBUG_COLOR)
+	def reset(self,_characters=None):
+		del self[:]
+		if isinstance(_characters,list) and len(_characters)>0:
+			self.extend(_characters)
+		if DEBUG&128:
+			write("@",DEBUG_COLOR) # for testing purposes
+userInputLine=UserInputLine() # we only need a single instance
+# updateUserInputLine() is typically called after every successful backspace!!!
+def updateUserInputLine(_emptyline=True):
+	if _emptyline: # supposed to clear the current line????
+		reprompt() # clear the current line
+	else:
+		writeprompt() # output the prompt (alone) again
+	output(str(userInputLine)) # write all input line token chars (not through write() of course because all color formatting is already in there!!)
 # MDH@22AUG2017: also more reliable to keep any token character is a separate class instance
 #								 this can be a character that is to be written (when _color is given) or not
 # MDH@23AUG2017: TokenChar is to be used to store a single user input token character exactly
@@ -967,16 +1002,20 @@ class Operator:
 #								 setText should fail if
 class TokenChar:
 	# write allows additional colored text to be written (even if there's no token character
+	# append() is doing all the writing!!!
 	def append(self,_towrite,_color=None):
 		if not isinstance(_towrite,str):
 			return None
 		if isinstance(_color,int):
 			self.color=_color
+		# if this is the first write of anything of this TokenChar (no matter where it came from), we should register
+		# this would be the safest place to do so (we could have did it in the constructor or even better start though)
+		if len(self.writtentext)==0:
+			userInputLine.append(self)
 		self.writtentext.append(write(_towrite,_color)) # MDH@31AUG2017: now turned into a list of ColoredText instances
 		return self
 	# you can only define significant character text once
 	def start(self):
-		####write(None)
 		if self.debug&2:
 			self.append("(",DEBUG_COLOR)
 	def __init__(self,_debug):
@@ -992,7 +1031,7 @@ class TokenChar:
 			self.ended=len(self.writtentext)
 			# MDH@31AUG2017: we want to be able to return to just before the ) is written (as would be the effect of calling unend() on the
 			#								 last written token
-			write(None) # by writing None (i.e. no text), write will insert a None ColoredText instance, that will be used to remove this token char from what it wrote on the current line
+			#######write(None) # by writing None (i.e. no text), write will insert a None ColoredText instance, that will be used to remove this token char from what it wrote on the current line
 			# keep track of the number of characters actually written (so we can remove them on unend)
 			if self.debug&2:
 				self.append(")",DEBUG_COLOR)
@@ -1221,6 +1260,15 @@ class Token:
 		for coloredtext in self.writtenpostfix:
 			writtenpostfix+=str(coloredtext)
 		return writtenpostfix
+	# MDH@01SEP2017: now we have getCharacters() we should be able to make getWritten() obsolete at some point!!!
+	def getCharacters(self):
+		characters=[]
+		characters.extend(self.writtenprefix)
+		characters.extend(self.text)
+		characters.extend(self.writteninfix)
+		characters.extend(self.suffix)
+		characters.extend(self.writtenpostfix)
+		return characters
 	def getWritten(self):
 		return self.getWrittenPrefix()+self.getWrittenText()+self.getWrittenInfix()+self.getWrittenSuffix()+self.getWrittenPostfix()
 	# getRepresentation() returns the type in gray and the text itself in black
@@ -1892,6 +1940,18 @@ class Expression(Token):
 			else:
 				self.error="ERROR: '"+str(ex)+"' adding "+_tokenchar+"."
 		return result
+	# useful to be able to obtain a list of all token characters to be appended to the user input line when choosing an existing expression to continue
+	# NOTE we won't be needing getWritten() anymore soon, as we can suffice with using the token characters for rewriting the expression
+	def getCharacters(self):
+		characters=[]
+		characters.extend(self.writtenprefix)
+		characters.extend(self.text)
+		for token in self.tokens:
+			characters.extend(token.getCharacters())
+		characters.extend(self.writteninfix)
+		characters.extend(self.suffix)
+		characters.extend(self.writtenpostfix)
+		return characters
 	def getWritten(self,_showcomment=True):
 		# being a token means that there might be a writtenprefix (i.e. something written in front of the first character)
 		written=self.getWrittenPrefix()+Token.getWrittenText(self) # the whitespace in front of the expression, but should I call getWritten??????
@@ -1925,7 +1985,7 @@ class Expression(Token):
 		expression=self
 		while expression.parent is not None:
 			expression=expression.parent
-		sys.stdout.write(expression.getWritten(_showcomment))
+		output(expression.getWritten(_showcomment))
 	def __str__(self):
 		return self.getText() # write the whitespace at the beginning as well!!!
 	# override Token.getRepresentation() to return the representation of the list of tokens
@@ -2172,59 +2232,66 @@ class Expression(Token):
 			self.token=None
 		return self
 	def backspace(self):
+		# MDH@01SEP2017: how about checking userInputLine first?????
+		#                we shouldn't thrown an error just return None if we're at the start of the current user input line
+		#                ALSO it's better to not do any beeping here, as that's I/O to the user console
 		self.error=None
-		result=self
-		if self.isContinuable(): # not in the comment part
-			if self.token is not None: # there is an token currently active
-				# we should let the token do the backspace (given the recursive nature of tokens in an expression)
-				# NOTE if we delete the last character in a token, we should also remove the token itself
-				# NOTE now the problem is whether or not we should distinguish between a Token token or an Expression token
-				#			 this way we need to make Token have an self.error as well (which we didn't have so far)
-				if self.token.backspace() is None:
-					self.error=self.token.getError()
-				else: # backspace() successful, but the token could now be empty
-					if self.token.isEmpty(): # the token is now empty, so should be removed from the expression
-						self.removeLastToken()
-					else: # now comes the interesting part
-						if isinstance(self.token,Expression): # we've deleted a tokenchar in a subexpression, that must have been the closing parenthesis
-							result=self.token # continue with the subexpression
-			else: # somewhere in the prefix probably
-				# NOTE as soon as we empty this (sub)expression we should move back to the parent expression if any, to take it from there
-				#			 but we shouldn't call the backspace on self.token because we just removed the last token char on this (sub) expression
-				if len(self.text)>0:
-					if self.text[-1].getText()==newlinechar: # do NOT allow popping a newline character
+		result=(None,self)[len(userInputLine)>0]
+		if result: # still TokenChar's on the user input line to remove
+			if self.isContinuable(): # not in the comment part
+				if self.token is not None: # there is an token currently active
+					# we should let the token do the backspace (given the recursive nature of tokens in an expression)
+					# NOTE if we delete the last character in a token, we should also remove the token itself
+					# NOTE now the problem is whether or not we should distinguish between a Token token or an Expression token
+					#			 this way we need to make Token have an self.error as well (which we didn't have so far)
+					if self.token.backspace() is None:
+						self.error=self.token.getError()
+					else: # backspace() successful, but the token could now be empty
+						if self.token.isEmpty(): # the token is now empty, so should be removed from the expression
+							self.removeLastToken()
+						else: # now comes the interesting part
+							if isinstance(self.token,Expression): # we've deleted a tokenchar in a subexpression, that must have been the closing parenthesis
+								result=self.token # continue with the subexpression
+				else: # somewhere in the prefix probably
+					# NOTE as soon as we empty this (sub)expression we should move back to the parent expression if any, to take it from there
+					#			 but we shouldn't call the backspace on self.token because we just removed the last token char on this (sub) expression
+					if len(self.text)>0:
+						""" MDH@01SEP2017: it's best NOT to store the newline characters in the expression (so we won't have to remove them later on!!!!)
+						if self.text[-1].getText()==newlinechar: # do NOT allow popping a newline character
+							self.error="Please report the following bug: new line character encountered even with characters left on the current user input line."
+							return None
+						"""
+						self.text.pop()
+					# have we emptied this (sub)expression
+					if len(self.text)>0:
+						self.text[-1].unend()
+					elif self.parent is not None:
+						#########result=self.parent # definitely
+						# this is dangerous territory because if we removed the , separator just now that starts a new expression in a list, result should be that subexpression!!!
+						# remove the last token (which is me), so it'll be ready to continue this token (or delete token characters of it)
+						# we can solve that by making removeLastToken return either self or self.token (if the latter is an expression)
+						result=self.parent.removeLastToken()
+					else: # we've reached the end of the main expression, so nothing to remove!!!
+						self.error="Please report the following bug: start of expression reached with characters left to delete on the user input line."
+			else: # in the suffix (comment part)
+				# NOT allowed to remove a newline token character
+				if len(self.suffix)>0:
+					""" MDH@01SEP2017: same here
+					if self.suffix[-1].getText()==newlinechar:
 						self.error="It is not possible to return to a previous text line."
-						beep() # we can do this
 						return None
-					self.text.pop()
-				# have we emptied this (sub)expression
-				if len(self.text)>0:
-					self.text[-1].unend()
-				elif self.parent is not None:
-					#########result=self.parent # definitely
-					# this is dangerous territory because if we removed the , separator just now that starts a new expression in a list, result should be that subexpression!!!
-					# remove the last token (which is me), so it'll be ready to continue this token (or delete token characters of it)
-					# we can solve that by making removeLastToken return either self or self.token (if the latter is an expression)
-					result=self.parent.removeLastToken()
-				else: # we've reached the end of the main expression, so nothing to remove!!!
-					beep()
-		else: # in the suffix (comment part)
-			# NOT allowed to remove a newline token character
-			if len(self.suffix)>0:
-				if self.suffix[-1].getText()==newlinechar:
-					self.error="It is not possible to return to a previous text line."
-					beep() # we can do this
-					return None
-				self.suffix.pop() ### replacing: self.suffix=self.suffix[:-1]
-				if len(self.suffix)==0: # comment character removed
-					self.undiscontinued() # which will call unendText() on success (which we have to override to prevent Token.unendText() to unend the last tokenchar in self.text
+					"""
+					self.suffix.pop() ### replacing: self.suffix=self.suffix[:-1]
+					if len(self.suffix)==0: # comment character removed
+						self.undiscontinued() # which will call unendText() on success (which we have to override to prevent Token.unendText() to unend the last tokenchar in self.text
+					else:
+						self.suffix[-1].unend()
 				else:
-					self.suffix[-1].unend()
+					self.error="Please report the following bug: no comment characters left to remove."
+			if self.error is not None: # any error should make result None for sure
+				result=None
 			else:
-				self.error="Please report the following bug: no comment characters left to remove."
-		if self.error is not None:
-			return None
-		removeDeletedTokenchar() # should take care of showing the line again
+				userInputLine.removeLastCharacter() ####removeDeletedTokenchar() # should take care of showing the line again
 		return result
 # MDH@17AUG2017: when an identifier is 'applied' to an expression the expression indicates an index
 # such an expression behaves like any other expression except that it returns the value
@@ -2357,7 +2424,7 @@ class ExpressionEvaluator:
 # and here some additional utility functions
 def writeagain(_expression):
 	#####writeln("Write again!")
-	showprompt()
+	writeprompt()
 	# we might be in a subexpression, so we need to start all over
 	expression=_expression
 	while expression.parent is not None:
@@ -2392,9 +2459,13 @@ def main():
 		# display the prompt (with the info line in front of it)
 		newprompt()
 		emptyline=False # whether to clear the remainder of the line after receiving a character
-		# we have to write whatever current expression we have immediately BEFORE even reading the first character
+		# MDH@01SEP2017: if we have an expression defined at the moment, we simply retrieve all token characters in it, and display them
 		if mexpression is not None:
-			mexpression.echo()
+			userInputLine.reset(mexpression.getCharacters())
+			output(str(userInputLine)) # write right after the prompt
+		else:
+			userInputLine.reset()
+			# replacing: mexpression.echo() which still uses .getWritten()
 		# otherwise the first character on the new expression is allowed to be Ctr-D or the backtick
 		tokenchar=getch()
 		# special tokens are permitted when starting with a new expression which we have to process first
@@ -2535,6 +2606,7 @@ def main():
 					if mexpressionretrieved is not None:
 						######print("Printing the expression!")
 						mexpressionretrieved.unend().echo(False) # we need to write the unended version as that's the one that is to be continued...
+						# we have to show it anyway I suppose without registering with userInputLine
 				# read the next character (which might be another Escape character)
 				tokenchar=getch() # get the first character
 			if mexpressionretrieved is not None:
@@ -2542,29 +2614,34 @@ def main():
 		# if we haven't got an expression (to continue) at this moment, we create a new one
 		if mexpression is None:
 			mexpression=Expression(MEnvironment,DEBUG) # start a new expression at the main debug level (DEBUG) which is the default!!
+		else: # TODO is this only possible from selecting a previous expression???? (in which case the token characters are already visible!!!)
+			userInputLine.reset(mexpression.getCharacters())
+			########output(str(userInputLine)) # MDH@01SEP2017: no need to do this we've already echoed the unended expression!!!
 		# I guess we can allow Ctrl-D at any moment as well
 		# NOTE a newline (Enter) shouldn't end the expression input per se
 		##### see the use of Expression.echo() to rewrite the entire expression again!!! Mexpression=mexpression # MDH@25APR2017: we need a reference to the main level expression, so we can rewrite it (e.g. after a backspace!!)
+		# MDH@01SEP2017: it's probably best to deal with all situations separately (i.e. following either backspace(), add() or processing the newline character???
 		while ord(tokenchar)!=3 and ord(tokenchar)!=4: # not Ctrl-C or Ctrl-D
 			expressionerror=None
 			if ord(tokenchar)!=10 and ord(tokenchar)!=13: # tokenchar!='\n' didn't work!!
 				# if we've received a backspace character (ASCII 127 on iMac), we tell the expression to execute the backspace
 				if ord(tokenchar)==127: # a backspace
-					if mexpression.isEmpty() and mexpression.parent is None: # nothing left to delete
-						mexpression_new=mexpression
-						beep()
-					else:
-						mexpression_new=mexpression.backspace() # returns None if some error occurred
-						""" MDH@31AUG2017: backspace() should take of calling removeLastTokenchar which will display again all ColoredText instance as part of the last Tokenchar written!!!
-						if mexpression_new is not None: # expression data model adapted accordingly
-							# we have to rewrite the entire expression as it is now
-							reprompt() # clears the line and prompt again
-							mexpression_new.echo() # write the main expression in the original colouring (that is what echo does, go all the way up to the main expression!!)
-						"""
+					mexpression_new=mexpression.backspace() # returns None if some error occurred
+					expressionerror=mexpression.getError()
+					# write the error first (if so required)
+					if expressionerror is not None:
+						writeerror(expressionerror)
+					if mexpression_new is not None: # success i.e. definitely NO error
+						updateUserInputLine(expressionerror is None) # rewrite the user input line (as we removed the last input character), if no error empty line first
+					elif expressionerror is None: # NO success AND NO error
+						beep() # start of user input line reached
 				else: # not a backspace
 					mexpression_new=mexpression.add(tokenchar)
-				expressionerror=mexpression.getError()
-			else: # attempt to end the expression which might not be allowed right now
+					expressionerror=mexpression.getError()
+					if expressionerror is not None:
+						writeerror(expressionerror)
+						updateUserInputLine(False) # no need to empty the line because it is already empty after writing the error
+			elif len(userInputLine)>0: # Enter pressed, with something on the current input line
 				# MDH@25AUG2017: we'll evaluate the expression until now and continue on the next line, which would be neat
 				#								 but let's decide to only do that when we're at the top level
 				#######note("Checking whether the expression is complete!")
@@ -2574,27 +2651,19 @@ def main():
 						break
 				elif mexpression.ends() is None: # expression complete, so ready to be evaluated, so there's no need to set mexpression_new anyway!!!
 					break
-				mexpression_new=mexpression.add(newlinechar) # add the newline char (which we know is whitespace)
+				# let's NOT add the newline character to the expression anymore, so the expression itself does NO longer contain newline characters
+				# this means that when requesting such an expression again, it will occupy a single input line
+				# this might be bad if the text line is long, but continuing an expression on the next line is only there for debugging (showing intermediate results)
+				########mexpression_new=mexpression.add(newlinechar) # add the newline char (which we know is whitespace)
+				newline()
 				continueprompt() # change the prompt to the continuation prompt (not including M(<index>)
-				if mexpression.parent is None: # in the main expression
-					# let's display the result, and return to the current position
-					error=mexpression.getError()
-					if error is not None:
-						writeerror(error)
-						writeagain(mexpression) # already shows the prompt again!!
-					else:
-						writeprompt()
-				else:
-					writeprompt()
-			# if some error occurred (e.g. that the expression is not yet complete when the user presses the Enter/Return key)
-			if expressionerror is not None: # some error occurred (stored with mexpression)
-				# write the error and redisplay the expression
-				writeerror(expressionerror)
-				rewriteline() ######writeagain(mexpression)
-			elif mexpression_new is None:
-				writeerror("No (sub)expression")
-				writeagain(mexpression)
-			else: # cannot except a vanishing expression!!!
+				userInputLine.reset() # start a new user input line by clearing the displayed token characters
+				writeprompt()
+			else: # just ignore
+				beep()
+				mexpression_new=None # force skip the following, so we'll be reading the next character next!!!
+			# FINAL PROCESSING OF THE RESULT OF PROCESSING THE CHARACTER INPUT BY THE USER
+			if mexpression_new is not None: # whatever we did we succeeded!!!
 				mexpression=mexpression_new
 				# MDH@31AUG2017: it's neat to show the value of the expression in debug mode when it could end
 				if DEBUG&1:
@@ -2618,6 +2687,8 @@ def main():
 			if sch=="y" or sch=="Y":
 				break
 			continue
+		# in all other situations will we be starting a new user input line
+		####### NOT HERE!!!! userInputLine.reset()
 		if ord(tokenchar)==3: # Ctrl-C
 			mexpression=None
 			continue
@@ -2662,7 +2733,7 @@ def main():
 	newline()
 	writeln("Thank you for using M.")
 
-DEBUG=0
+DEBUG=1 # by default, shows the intermediate result!!
 if __name__=="__main__":
 	try:
 		if len(sys.argv)>1:
