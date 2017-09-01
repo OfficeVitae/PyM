@@ -107,7 +107,7 @@ def emptyline(): # clears the current line and puts the cursor at the beginning 
 def backspace(): # means go one position to the left on the current line, and clear the rest of the line
 	output("\033[D") # go left one character
 	output("\033[K") # clear the rest of the line
-linecoloredtexts=[] # keep a list of ColoredText instances written on the current input (behind the prompt line)
+########## MDH@01SEP2017 replaced by UserInputLine stuff: linecoloredtexts=[] # keep a list of ColoredText instances written on the current input (behind the prompt line)
 # write outputs text to be colored
 def write(_towrite,_color=None,_backcolor=None):
 	if isinstance(_towrite,str): # if something to write, go ahead and write it
@@ -115,13 +115,16 @@ def write(_towrite,_color=None,_backcolor=None):
 		output(str(result))
 	else: # we're appending it as well to linecoloredtexts
 		result=None
-	linecoloredtexts.append(result)
+	########linecoloredtexts.append(result)
 	return result # thus allowing manipulation of background and text color later on
 def newline():
+	"""
 	global linecoloredtexts
 	linecoloredtexts=[] # start over collecting linecoloredtext elements
+	"""
 	output("\n\033[0m") # it makes sense to reset the coloring at the start of each next line!!!
 # end of output producing methods
+"""
 def rewriteline():
 	# write the rest on the line again (this would include the prompt!!!)
 	emptyline() # clear the current text line...
@@ -142,6 +145,7 @@ def removeDeletedTokenchar(): # removes the last token char written from the cur
 			beep()
 			break
 	rewriteline()
+"""
 # helper functions for outputting text
 def writeln(_linetowrite,_backcolor=None,_color=None): # writes a line in black
 	write(_linetowrite,_color,_backcolor) #####write(_linetowrite+'\n',_color,_backcolor)
