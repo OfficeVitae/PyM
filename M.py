@@ -207,7 +207,7 @@ def writeerror(_error):
 	if isinstance(_error,str) and len(_error)>0:
 		writeln(_error,None,ERROR_COLOR) # we have to go to a new line afterwards because prompt(False) will clear the current line
 	else:
-		writeln("Unknown error ("+str(_error)+")",None,ERROR_COLOR)
+		writeln(str(_error),None,ERROR_COLOR)
 
 # let's given all the token types a constant, so we will be able to change them more easily
 OPERATOR_TOKENTYPE=11
@@ -233,6 +233,7 @@ def isIterable(_obj):
 		return not isinstance(_obj,str) and hasattr(_obj,'__iter__')
 	except Exception,ex:
 		note("ERROR: '"+str(ex)+"' checking on the iterability of "+str(_obj)+".")
+	return False
 def isIndexable(_obj):
 	try:
 		return hasattr(_obj,'__getitem__')
@@ -294,6 +295,14 @@ def eval(_expressiontext,_environment,_debug=None):
 	if debug&8:
 		note("Expression to evaluate: "+expression.getText()+".")
 	return expression.getValue(_environment)
+class ReturnException(BaseException):
+	def __init__(self,args):
+		BaseException.__init__(self,None)
+		self.value=args[0]
+	def getValue(self):
+		return self.value
+	def __str__(self):
+		return str(self.value)
 class Function:
 	def __init__(self,_functionindex):
 		self.functionindex=_functionindex
@@ -303,9 +312,13 @@ class Function:
 	def setDebug(self,_debug):
 		self.debug=_debug
 		return self
-	def apply(self,_value): # the function to be applied to a single argument
-		value=getValue(_value)
-		if self.functionindex==1: # the list function only needs to evaluate the arguments!!!
+	def apply(self,value): # the function to be applied to a single argument
+		####### value=getValue(_value) # MDH@02SEP2017: arguments must be evaluated beforehand
+		if self.functionindex==1:
+			if value is not None:
+				raise ReturnException((value,))
+			return value # just return identity but that makes it hard I guess
+		if self.functionindex==2: # the list function only needs to evaluate the arguments!!!
 			return value
 		if value!=undefined.getValue():
 			if self.functionindex>=50: # a list function
@@ -469,49 +482,59 @@ class Function:
 # as we can have subfunctions
 class UserFunction(Function):
 	# TODO do we need to know the environment in the constructor?
-	def __init__(self,_name,_parameterdefaults):
+	def __init__(self,_name,_resultidentifiername,_parameterdefaults,_environment=None):
 		Function.__init__(self,0) # all user functions have function index 0
-		self.environment=None
 		self.expressions=[]
 		self.name=_name
+		if isinstance(_resultidentifiername,str) and len(_resultidentifiername)>0:
+			self.resultidentifiername=_resultidentifiername
+		else: # let's use $ as default
+			self.resultidentifiername="$"
 		self.parameterdefaults=_parameterdefaults # this should be a dictionary of parameter names and default values
-	def end(self):
-		if self.environment is not None:
-			self.expressions=self.environment.getExpressions()
-		if len(self.expressions)==0:
-			note("No expressions in the body of function "+self.name+".")
+		# immediately register this new function with the root environment
+		self.rootenvironment=_environment.addFunction(self.name,self) # so it may call itself (although the result will be undefined until it is completed!!!)
+		self.rootenvironment.append(self) # the environment keeps a stack of functions being created
+		# a function should be able to call itself??
+	def addExpression(self,_expression): # to called with every expression successfully processed...
+		self.expressions.append(_expression)
+	def setExpressions(self,_expressions):
+		if isIterable(_expressions):
+			self.expressions=_expressions
 	# exposes a method to return a (sub)environment to use in entering function body expressions
-	def getEnvironment(self,_environment):
-		if self.environment is None:
-			self.environment=Environment(self.name,_environment)
-			for (parametername,parameterdefault) in self.parameterdefaults:
-				self.environment.addIdentifier(parametername,Identifier(parametername).setValue(parameterdefault))
-		return self.environment
+	def getEnvironment(self,_arglist=None):
+		# create a subenvironment below the UserFunction (root) environment
+		environment=Environment(self.name,self.rootenvironment)
+		# add the result identifier name immediately as local variable!!
+		if len(self.resultidentifiername)>0:
+			environment.addIdentifier(self.resultidentifiername,Identifier(self.resultidentifiername))
+		# use arguments when available and the defaults otherwise
+		for (parameterindex,(parametername,parameterdefault)) in enumerate(self.parameterdefaults):
+			if isIterable(_arglist) and parameterindex<len(_arglist):
+				environment.addIdentifier(parametername,Identifier(parametername).setValue(_arglist[parameterindex]))
+			else:
+				environment.addIdentifier(parametername,Identifier(parametername).setValue(parameterdefault))
+		return environment
 	def getName(self):
 		return self.name
-	def getParameterDefaults(self):
-		return self.parameterdefaults
-	def getValue(self,_arglist,_environment=None): # operates in an environment
+	def getValue(self,_arglist): # already knows it's environment (the one it was created in plus the argument list)
 		# execute the expressions in
-		l=len(self.expressions)
-		if l>0:
-			result=list()
-			# create an environment to add the parameters to (should we keep track of the invocation count???)
-			environment=Environment(self.name,_environment)
-			for (parameterindex,(parametername,parameterdefault)) in enumerate(self.parameterdefaults):
-				if parameterindex<len(_arglist):
-					environment.addIdentifier(parametername,Identifier(parametername).setValue(_arglist[parameterindex]))
-				else:
-					environment.addIdentifier(parametername,Identifier(parametername).setValue(parameterdefault))
-			for expression in self.expressions:
-				expressionvalue=undefined.getValue()
-				try:
-					expressionvalue=expression.getValue(environment) # should be Ok this way????
-				finally:
-					result.append(expressionvalue)
-			return result
-		else:
-			return undefined.getValue()
+		result=None
+		if self.expressions is not None:
+			l=len(self.expressions)
+			if l>0:
+				########note("Number of expressions to evaluate "+str(l)+"...")
+				executionenvironment=self.getEnvironment(_arglist)
+				for expression in self.expressions:
+					try:
+						expression.getValue(executionenvironment) # evaluate the expression in the execution environment
+					except ReturnException,returnException:
+						result=returnException.getValue()
+				if result is None:
+					if len(self.resultidentifiername)>0:
+						result=executionenvironment.getIdentifierValue(self.resultidentifiername)
+				if isIterable(result) and len(result)==1:
+					result=result[0]
+		return (undefined.getValue,result)[result is not None]
 # keep track of the identifier (that have a value)
 class Identifier:
 	def setValue(self,_value=None):
@@ -597,13 +620,21 @@ class Environment(list):
 		for identifier in self.identifiers:
 			if identifier.startswith(_identifierprefix):
 				return True
-		return False
+		# I haven't got them!!!
+		if self.parent is None:
+			return False
+		# parent could have it!!!
+		return self.parent.identifiersExistStartingWith(_identifierprefix)
 	def identifierExists(self,_identifiername):
 		if _identifiername in self.identifiers:
 			return True
 		if self.parent is not None:
 			return self.parent.identifierExists(_identifiername)
 		return False # can't find it
+	def getExistingLocalIdentifier(self,_identifiername):
+		if _identifiername in self.identifiers:
+			return self.identifiers[_identifiername]
+		return None
 	def getIdentifier(self,_identifiername):
 		# creates the identifier if it does not exist anywhere
 		identifier=self.getExistingIdentifier(_identifiername)
@@ -630,8 +661,10 @@ class Environment(list):
 			return undefined.getValue()
 	def addIdentifier(self,_name,_identifier):
 		self.identifiers[_name]=_identifier
+		return self
 	def addFunction(self,_name,_function):
 		self.functions[_name]=_function
+		return self
 	# MDH@02SEP2017: addFunctionGroup() changed to provide a shortcut for adding M functions
 	def addFunctions(self,_functionindexdict):
 		for functionname in _functionindexdict:
@@ -648,7 +681,7 @@ environment.addIdentifier('pi',Identifier(_value=math.pi))
 environment.addIdentifier('e',Identifier(_value=math.e))
 environment.addIdentifier('M',Identifier(_value=[])) # so we can use it in expressions itself (NOT in user functions!!!)
 # MDH@31AUG2017: let's add the function groups as well
-environment.addFunctions({'list':1}) # I guess any number of arguments allowed (should a function always have at least one argument???)
+environment.addFunctions({'return':1,'list':2}) # I guess any number of arguments allowed (should a function always have at least one argument???)
 environment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99})
 environment.addFunctions({'while':100,'function':150,'join':199})
 environment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210})
@@ -752,54 +785,6 @@ o2=" != << <= >> >= == .. ** && || // %%" # the result of o2.find() should be no
 ts="'"+'"' # starts a string literal
 te="'"+'"' # ends a string literal
 # we have some predefined identifiers which are all functions of a fixed number of arguments
-"""
-# MDH@17AUG2017: if we want to be able to change an element of an identifier we need the indexable identifier and the index
-class IdentifierElement(Identifier):
-	def __init__(self,_identifier,_index):
-		Identifier.__init__(self,str(_identifier)+"("+str(_index)+")")
-		self.identifier=_identifier
-		self.index=_index
-	def getValue(self):
-		value=self.identifier.getValue() # which should be a list
-		if not isinstance(value,list):
-			raise Exception("Value of indexed variable "+str(self.identifier)+" not a list.")
-		maxindex=len(value) # get the
-		indexvalue=self.index #####getValue(self.index) # technically the index thingie
-		# technically the index can also be a list (of indices)
-		if isinstance(indexvalue,list):
-			valuelist=[]
-			for index in indexvalue:
-				if index>0 and index<=maxindex:
-					valuelist.append(value[index])
-				else:
-					valuelist.append(None)
-			return valuelist
-		if not isinstance(indexvalue,int):
-			raise Exception("Element index not an integer.")
-		if indexvalue<1 or indexvalue>len(value):
-			raise Exception("Index ("+str(indexvalue)+") of element in "+str(self.identifier)+" out of range.")
-		return value[indexvalue]
-	def setValue(self,_value):
-		value=self.identifier.getValue() # which should be a list
-		if not isinstance(value,list):
-			raise Exception("Value of indexed variable "+str(self.identifier)+" not a list.")
-		maxindex=len(value) # get the length of the list
-		indexvalue=self.index #####getValue(self.index) # technically the index thingie
-		# technically the index can also be a list (of indices)
-		if isinstance(indexvalue,list):
-			for index in indexvalue:
-				if not isinstance(index,int) or index<=0:
-					continue
-				while index>maxindex:
-					value.append(0)
-					maxindex+=1
-				value[index]=_value
-		if not isinstance(indexvalue,int):
-			raise Exception("Element index not an integer.")
-		if indexvalue<1 or indexvalue>maxindex:
-			raise Exception("Index ("+str(indexvalue)+") of element in "+str(self.identifier)+" out of range.")
-		value[indexvalue]=_value
-"""
 # and here's the dictionary in which the identifiers themselves are stored
 # we allow using M as variable, referring to the previously executed commands, given that the value is a list you can change elements (not recommended though)
 def getInteger(_value):
@@ -810,7 +795,7 @@ def getInteger(_value):
 			return ~getInteger(_value[1:])
 		return int(_value)
 	return None
-def getValue(_value,_environment=None):
+def getValue(_value):
 	if DEBUG&8:
 		note("Determining the value of "+str(_value)+"...")
 	if _value is not None:
@@ -820,8 +805,6 @@ def getValue(_value,_environment=None):
 			return _value
 		if isinstance(_value,str):
 			return _value
-		if isinstance(_value,Expression):
-			return _value.getValue(_environment)
 		# everything else is assumed to have a getValue() method (like Identifier and Expression)
 		return _value.getValue()
 	return _value
@@ -881,17 +864,22 @@ def getItem(_list,_index):
 truevalue=1
 falsevalue=0
 # MDH@15AUG2017: the way we're pushing the elements of the expression on the stack, we're always popping the second operand first, then the operator, then the first argument
-def getOperationResult(argument2,operator,argument1,_environment=None):
+def getOperationResult(argument2,operator,argument1,_environment):
 	result=None
 	if argument2 is not None and argument1 is not None:
 		if operator==declarationchar: # the expression assignment operator (which is very special indeed)
-			if not isinstance(argument1,Identifier) and not isinstance(argument1,IdentifierElementExpression):
-				raise Exception("Expression destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
 			if DEBUG&8:
 				note("Declaring "+str(argument2)+" as "+str(argument1)+".")
-			return (argument1.setValue(argument2)).getValue()
+			if isinstance(argument1,Identifier):
+				return argument1.setValue(argument2).getValue()
+			if isinstance(argument1,IdentifierElementExpression):
+				return argument1.setValue(argument2).getValue(_environment)
+			raise Exception("Expression destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
 		# MDH@27AUG2017: all other operations require evaluation of the RHS expression!!!
-		operand2=getValue(argument2,_environment) # TODO we have to think about this environment stuff
+		if isinstance(argument2,Expression):
+			operand2=argument2.getValue(_environment)
+		else:
+			operand2=getValue(argument2) # TODO we have to think about this environment stuff
 		if DEBUG&8:
 			note("Computing "+str(argument1)+" "+str(operator)+" "+str(argument2)+"...")
 		# with an assignment the left-hand side will not be a 'list' but the right-hand side can be a list to assign
@@ -901,13 +889,18 @@ def getOperationResult(argument2,operator,argument1,_environment=None):
 				operand1=argument1[0]
 			else: # which could be an empty list!!!
 				operand1=argument1
-			if not isinstance(operand1,Identifier) and not isinstance(operand1,IdentifierElementExpression):
-				raise Exception("Assignment destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
 			if DEBUG&8:
 				note("Assigning "+str(operand2)+" to "+str(operand1)+".")
-			return (operand1.setValue(operand2)).getValue()
+			if isinstance(operand1,Identifier):
+				return operand1.setValue(operand2).getValue()
+			if isinstance(argument1,IdentifierElementExpression):
+				return operand1.setValue(operand2).getValue(_environment)
+			raise Exception("Assignment destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
 		# if assigning do not evaluate the left-hand side
-		operand1=getValue(argument1,_environment)
+		if isinstance(argument1,Expression):
+			operand1=argument1.getValue(_environment)
+		else:
+			operand1=getValue(argument1)
 		# both operands need not be None
 		if operand1 is not None and operand2 is not None:
 			# with the period also defined as list concatenation operand we should simply extend operand1 with (listified) operand2
@@ -921,18 +914,18 @@ def getOperationResult(argument2,operator,argument1,_environment=None):
 				if len(operand2)==0:
 					return operand1
 				if not isinstance(operand1,list):
-					return getOperationResult(operand2,operator,[operand1],_environment)
+					return getOperationResult(operand2,operator,[operand1])
 				# delist if both arguments are one-element lists
 				if len(operand1)==1 and len(operand2)==1:
-					return getOperationResult(operand2[0],operator,operand1[0],_environment)
+					return getOperationResult(operand2[0],operator,operand1[0])
 				result=[]
 				for i in range(0,max(len(operand1),len(operand2))):
-					result.append(getOperationResult(getItem(operand2,i),operator,getItem(operand1,i),_environment))
+					result.append(getOperationResult(getItem(operand2,i),operator,getItem(operand1,i)))
 				return result # return as list!!!
 			if isinstance(operand1,list):
 				if len(operand1)==0:
 					return operand2
-				return getOperationResult([operand2],operator,operand1,_environment)
+				return getOperationResult([operand2],operator,operand1)
 			if operator=="..": # MDH@27AUG2017: replaced : because : is now the operator to defined a block of (unevaluated) expressions
 				if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
 					result=[operand1]
@@ -1607,6 +1600,10 @@ class Expression(Token):
 	# we might consider returning None when an error occurs
 	def getError(self):
 		return self.error
+	def getErrorText(self):
+		if self.error is None:
+			return None
+		return str(self.error)
 	# ending an Expression token is a little different than ending a Token token
 	def end(self):
 		if not self.ended: # once suffices!!
@@ -2129,6 +2126,10 @@ class Expression(Token):
 				#								 the point is that if we allow argument lists with multiple arguments (=values), it's easiest to store the list of these arguments in a single argument
 				#								 to which the function is to be applied, then the function has to take care of processing the list and apply itself to the number of arguments it needs
 				########evaluatedexpression=Expression() # the expression to populate with the values of the successive tokens and operators to apply
+				def getElementValue(_element):
+					if isinstance(_element,Expression):
+						return _element.getValue(_environment)
+					return getValue(_element)
 				elements=[] # arguments (functions and values) and operators intertwined
 				# as we will be applying functions to arguments multiple times, we create a subfunction to do that for us
 				def applyFunctions():
@@ -2169,7 +2170,11 @@ class Expression(Token):
 						function=elements.pop().setDebug(self.debug) # make the function take over
 						if self.debug&8:
 							note("Applying function "+str(function)+" to arguments "+str(arguments)+".")
-						arguments=function.getValue(arguments,_environment)
+						# MDH@02SEP2017: we cannot apply a function to arguments that are expressions
+						#                as the function does NOT know the environment
+						#                so any expression needs to be evaluated first
+						# TODO because we pre-evaluate function should NOT evaluate anymore!!!!!!
+						arguments=function.getValue(map(getElementValue,arguments))
 						# this would be an annoying step, we should let the function do that?????
 						if not isIterable(arguments):
 							arguments=[arguments]
@@ -2181,11 +2186,6 @@ class Expression(Token):
 					if isinstance(arguments,list):
 						if len(arguments)==1: # a single argument (which might be undefined though)
 							arguments=arguments[0]
-						""" MDH@25AUG2017: if someone wants to keep multiple elements they can just append None values to the end of a list
-						else:
-							while len(arguments)>0 and arguments[-1]==undefined.getValue():
-								del arguments[-1]
-						"""
 					elements.append(arguments) # which might be an empty list...
 				# process the tokens one at a time
 				# if we take the priorities into account
@@ -2234,9 +2234,9 @@ class Expression(Token):
 								note("Precedence of "+str(elements[-2])+": "+str(elements[-2].getPrecedence())+".")
 						while len(elements)>2 and elements[-2].getPrecedence()<=precedence: # a lower (=better) or equal precedence, i.e. we should apply that operator to the last two arguments on the stack
 							try:
-								elements.append(getOperationResult(elements.pop(),elements.pop().getText(),elements.pop())) # pretty neat to be able to do it this way (but I rewrote getOperationResult to accept the 2nd argument first!!!)
+								elements.append(getOperationResult(elements.pop(),elements.pop().getText(),elements.pop(),_environment)) # pretty neat to be able to do it this way (but I rewrote getOperationResult to accept the 2nd argument first!!!)
 							except Exception,ex:
-								self.error=str(ex)
+								self.error=ex
 								break
 						# remember this operator and its associated precedence
 						# MDH@15AUG2017: I need to be able to distinguish operators from operands
@@ -2271,7 +2271,7 @@ class Expression(Token):
 							else: # identifier that does not yet exist
 								argument=_environment.getIdentifier(tokentext)
 						else: # anything else (which is stored as text)
-							argument=getValue(tokentext,_environment) # like an expression
+							argument=getValue(tokentext) # like an expression
 						# MDH@15AUG2017: if we allow as many arguments as possible, we cannot immediately apply the functions to an argument, not until we come across an operator
 						#								 as soon as we come across the operator we should the functions to ALL arguments
 						"""
@@ -2296,11 +2296,12 @@ class Expression(Token):
 						try:
 							####note("Applying final functions!")
 							applyFunctions()
-							####note("Applying final operators!")
+							# the problem is that getOperationResult will receive expressions as well
+							# which it sometimes must evaluate and sometimes not, so it needs an environment
 							if len(elements)>2: # we should have at least an operator in front of it
 								elements.append(getOperationResult(elements.pop(),elements.pop().getText(),elements.pop(),_environment))
 						except Exception,ex:
-							self.error=str(ex)
+							self.error=ex
 							break
 				if self.error is None:
 					if self.debug&8:
@@ -2309,11 +2310,9 @@ class Expression(Token):
 						self.error="No operands left."
 					elif len(elements)>1:
 						self.error="Too few operators."
-				if len(elements)>0: # apparently not an intermediate result at all
-					######note("Evaluating the result of the expression evaluation: "+str(elements)+".")
-					value=getValue(elements[0],_environment)
-				else:
-					value=getValue(elements)
+				value=map(getElementValue,elements) # evaluate what's left
+				if isinstance(value,list) and len(value)==1:
+					value=value[0]
 				if self.debug&8:
 					output("\n\t"+valueText)
 					write(" = ",0)
@@ -2327,7 +2326,7 @@ class Expression(Token):
 		except Exception,ex:
 			value=None
 			if self.error is None:
-				self.error=str(ex)
+				self.error=ex
 		return value
 	def isEmpty(self):
 		return self.token is None and len(self.text)==0
@@ -2527,8 +2526,8 @@ class ExpressionEvaluator:
 		return self.environment
 	# because we know the 'parent' environment, when getValue is requested, we can pass that environment into the expression
 	# at the moment that the expression is to be evaluated, which can pass it along to any subexpression that are evaluated 'below' it
-	def getValue(self,_environment=None):
-		return self.expression.getValue((_environment,self.environment)[_environment is None])
+	def getValue(self):
+		return self.expression.getValue(self.environment)
 	def setValue(self,_value): # TODO do we need _environment here as well??????
 		self.expression.setValue(_value,self.environment)
 	def getIdentifier(self,_identifiername):
@@ -2665,7 +2664,12 @@ def main():
 					elif controlmessage[0]=="F": # starts a function
 						functionparts=controlmessage.split(" ")
 						if len(functionparts)>1: # name defined
-							functionname=functionparts[1]
+							functionnameparts=functionparts[1].split(":")
+							functionname=functionnameparts[0]
+							if len(functionnameparts)>1:
+								functionresultidentifiername=functionnameparts[-1]
+							else:
+								functionresultidentifiername=None
 							# we should not allow the definition of a function that already exists
 							functionparameters=list()
 							functionpartindex=1
@@ -2676,19 +2680,20 @@ def main():
 									functionparameters.append((functionparameterparts[0],eval(functionparameterparts[1],environment,8)))
 								else:
 									functionparameters.append((functionparameterparts[0],undefined.getValue()))
-							userfunction=UserFunction(functionname,functionparameters)
+							userfunction=UserFunction(functionname,functionresultidentifiername,functionparameters,environment) # create the function with its own creation environment
+							# TODO if we want the function to be callable in itself, we need to add it to the given environment immediately
 							# get the new child environment, to be used during creating the function
-							environment=userfunction.getEnvironment(environment)
-							# remember the function to be created
+							environment=userfunction.getEnvironment() # update the current environment with the operating environment using the defaults (i.e. there's NO argument list)
+							# remember the function being created TODO we still need to make it possible for a function to call itself
 							environment.append(userfunction) # append it to the list of function currently being created
 							lnwrite("Until you end "+functionname+" with `F the following expressions will use the parameter defaults.")
 						else: # no name defined, ends the current function definition
 							# register the function that ends to the current environment
-							if len(environment)>0:
-								function=environment.pop() # this is the last function being created
-								function.end() # will register all expressions entered in the function creation environment in the function as body
+							if len(environment)>0: # done with creating the function
+								function=environment.pop()
+								function.setExpressions(environment.getExpressions()) # register the collected expressions with the function
 								environment=environment.parent # return to the parent environment
-								environment.addFunction(function.getName(),function) # register the new function in the parent environment
+								note("End of defining function "+function.getName()+".")
 							else:
 								writeerror("No function being created right now.")
 					elif controlmessage[:2]=="d=" or controlmessage[:2]=="D=":
@@ -2853,8 +2858,11 @@ def main():
 					newresulttext=""
 					if mexpression.parent is None: # we're at the top level
 						if mexpression.ends() is None: # expression is considered complete
-							expressionvalue=mexpression.getValue(environment)
-							newresulttext=" = "+getText(expressionvalue)
+							try:
+								expressionvalue=mexpression.getValue(environment)
+								newresulttext=" = "+getText(expressionvalue)
+							except ReturnException,returnException:
+								newresulttext=str(returnException)
 					else: # when in a subexpression there's NO result to show until we leave it again
 						newresulttext=" "
 					# if the previous result was larger than the current result replace that
@@ -2895,7 +2903,10 @@ def main():
 			if len(expressiontext)>0: # something to evaluate at all
 				# better to show any syntax error first (because getValue() might also create an error
 				###sys.stdout.write("\n")
-				expressionvalue=mexpression.getValue(environment) # pass in the global environment to evaluate the expression
+				try:
+					expressionvalue=mexpression.getValue(environment) # pass in the global environment to evaluate the expression
+				except ReturnException,returnException:
+					expressionvalue=returnException.getValue()
 				# MDH@27AUG2017: write the result on the same line
 				if expressionvalue is not None:
 					write(getColoredText(" = ",INFO_COLOR)+getColoredText(getText(expressionvalue),RESULT_COLOR,RESULT_BACKCOLOR))
@@ -2921,6 +2932,11 @@ def main():
 					environment.addExpression(mexpression) # MDH@17AUG2017: storing the expression itself (which value might change dynamically)
 				else:
 					environment.addExpression(expressionvalue) # MDH@17AUG2017: for now let's see if we can do this!!
+				# if there's a function being created right now register it with the function being created right away
+				"""
+				if len(environment)>0:
+					environment[-1].addExpression(mexpression)
+				"""
 			mexpression=None # thus forcing to have to create a new one instead of continueing with the incompleted one
 		else:
 			writeerror("No expression to evaluate!")
