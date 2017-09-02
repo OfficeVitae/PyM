@@ -2,6 +2,12 @@
 Marc's expression tokenizer and evaluator
 """
 """ History
+02SEP2017:
+- ability to start/end a function with a control message
+		this is probably the easiest way to create a function and still have text input coloring while doing so
+		I might need to adjust the prompt though (which we could change into the name of the function? which makes sense)
+		this also allows creating subfunctions i.e. functions in functions
+		we should also be able to store a function, I guess M could be considered a function as well
 01SEP2017:
 - replacing remembering ALL ColoredText instance of the current user input line I remember the TokenChar instance (which should be unendable easily)
 31AUG2017:
@@ -253,6 +259,7 @@ def group(_by,_list):
 			return result
 	return None
 # helper classes Function, Identifier and Token
+DEBUG=1
 class Function:
 	def __init__(self,_functionindex):
 		self.functionindex=_functionindex
@@ -313,7 +320,7 @@ class Function:
 				if self.functionindex==21: # eval
 					# __value is supposed to be a string which is a bit of an issue if it isn't
 					# nevertheless we should treat __value as an expression that we need to evaluate
-					expression=Expression(MEnvironment,0) # do not show any debug information while constructing the expression from the expression text!!!
+					expression=Expression(environment,0) # do not show any debug information while constructing the expression from the expression text!!!
 					expressionerror=None
 					expressiontext=dequote(value)[0]
 					if self.debug&8:
@@ -444,6 +451,29 @@ class Function:
 					else:
 						note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
 		return fvalue
+# MDH@02SEP2017: have to think about how to implement the user functions though
+# the user functions defined should be kept in the current Environment which makes sense
+# as we can have subfunctions
+class UserFunction(Function):
+	# TODO do we need to know the environment in the constructor?
+	def __init__(self,_name,_parameters):
+		Function.__init__(self,0) # all user functions have function index 0
+		self.environment=None
+		self.name=_name
+		self.parameters=_parameters # this should be a dictionary of parameter names and default values
+	# exposes a method to return a (sub)environment to use in entering function body expressions
+	def getEnvironment(self,_environment):
+		if self.environment is None:
+			self.environment=Environment(_environment)
+			for parameter in self.parameters:
+				self.environment.addIdentifier(Identifier(parameter).setValue(self.parameters[parameter]))
+		return self.environment
+	def getName(self):
+		return self.name
+	def getParameters(self):
+		return self.parameters
+	def getValue(self,_environment,_arglist): # operates in an environment
+		pass
 # keep track of the identifier (that have a value)
 class Identifier:
 	def setValue(self,_value=None):
@@ -462,23 +492,25 @@ class Identifier:
 		return self.name
 undefined=Identifier() # the identifier with None value is used to indicate an undefined value
 # MDH@30AUG2017: an 'environment is basically a dictionary of identifiers
-class Environment:
+# MDH@02SEP2017: we're gonna let Environment keep a list of user functions being created
+#                as it otherwise would need to keep a list of pending function creations
+class Environment(list):
 	def __init__(self,_parent=None):
 		if isinstance(_parent,Environment):
 			self.parent=_parent
 		else:
 			self.parent=None
 		self.identifiers=dict()
-		self.functiongroups=[]
-	def getFunctionIndex(self,_identifier):
-		for functiondict in self.functiongroups:
-			if _identifier in functiondict:
-				return functiondict[_identifier]
-		return 0 # not a function
+		self.functions=dict()
+	def functionExists(self,_functionname):
+		return _functionname in self.functions
+	def getFunction(self,_functionname):
+		if _functionname in self.functions:
+			return self.functions[_functionname]
+		return None # not a function
 	def functionsExistStartingWith(self,_functionprefix):
-		for functiongroup in self.functiongroups:
-			for function in functiongroup:
-				if function.startswith(_functionprefix):
+		for functionname in self.functions:
+			if functionname.startswith(_functionprefix):
 					return True
 		return False
 	def identifiersExistStartingWith(self,_identifierprefix):
@@ -518,23 +550,26 @@ class Environment:
 		self.identifiers[_name]=_identifier
 	def addFunction(self,_name,_function,_functiongroup):
 		self.functions[_name]=_function
+	# MDH@02SEP2017: addFunctionGroup() changed to provide a shortcut for adding M functions
 	def addFunctionGroup(self,_functiongroup):
-		self.functiongroups.append(_functiongroup)
+		for functionname in _functiongroup:
+			self.functions[functionname]=Function(_functiongroup[functionname])
 # create the main M environment
 import math
-MEnvironment=Environment()
+# create the root environment
+environment=Environment()
 # populate the M environment with the predefined constants/variables
-MEnvironment.addIdentifier('undefined',undefined)
-MEnvironment.addIdentifier('false',Identifier(_value=0))
-MEnvironment.addIdentifier('true',Identifier(_value=1))
-MEnvironment.addIdentifier('pi',Identifier(_value=math.pi))
-MEnvironment.addIdentifier('e',Identifier(_value=math.e))
-MEnvironment.addIdentifier('M',Identifier(_value=[]))
+environment.addIdentifier('undefined',undefined)
+environment.addIdentifier('false',Identifier(_value=0))
+environment.addIdentifier('true',Identifier(_value=1))
+environment.addIdentifier('pi',Identifier(_value=math.pi))
+environment.addIdentifier('e',Identifier(_value=math.e))
+environment.addIdentifier('M',Identifier(_value=[]))
 # MDH@31AUG2017: let's add the function groups as well
-MEnvironment.addFunctionGroup({'list':1}) # I guess any number of arguments allowed (should a function always have at least one argument???)
-MEnvironment.addFunctionGroup({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99})
-MEnvironment.addFunctionGroup({'while':100,'function':150,'join':199})
-MEnvironment.addFunctionGroup({'if':200,'select':201,'case':202,'switch':203,'for':210})
+environment.addFunctionGroup({'list':1}) # I guess any number of arguments allowed (should a function always have at least one argument???)
+environment.addFunctionGroup({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99})
+environment.addFunctionGroup({'while':100,'function':150,'join':199})
+environment.addFunctionGroup({'if':200,'select':201,'case':202,'switch':203,'for':210})
 
 # MDH@30AUG2017:
 # the user is allowed to create functions with the function function
@@ -1453,11 +1488,17 @@ class Expression(Token):
 				return True
 		# NOPE nobody
 		return False
-	def getFunctionIndex(self,_identifiername):
-		functionindex=self.environment.getFunctionIndex(_identifiername)
-		if functionindex<=0 and self.parent is not None:
-			functionindex=self.parent.getFunctionIndex(_identifiername)
-		return functionindex
+	def functionExists(self,_identifiername):
+		if self.environment.functionExists(_identifiername):
+			return True
+		if self.parent is None:
+			return False
+		return self.parent.functionExists(_identifiername)
+	def getFunction(self,_identifiername):
+		function=self.environment.getFunction(_identifiername)
+		if function is None and self.parent is not None:
+			function=self.parent.getFunction(_identifiername)
+		return function
 	def getText(self):
 		result=Token.getText(self) ###self.text # this would be the whitespace at the beginning...
 		# NOTE if the token is a subexpression, the subexpression will enclose it's text in parenthesis (so I won't have to check for that type of token myself)
@@ -1656,7 +1697,7 @@ class Expression(Token):
 								self.error="Cannot start a subexpression right behind another subexpression."
 							elif abs(tokentype)>=IDENTIFIER_TOKENTYPE: # in/behind an identifier
 								tokentext=self.token.getText()
-								if self.getFunctionIndex(tokentext)==0: # not a function therefore NOT allowed
+								if self.functionExists(tokentext): # not a function therefore NOT allowed
 									# now allowed to index an existing variable of which the current value is a list (i.e. list)
 									identifier=self.getIdentifier(tokentext)
 									if identifier is not None: # an existing variable # MDH@30AUG2017: allow for 'locally' defined identifiers as well
@@ -1726,7 +1767,7 @@ class Expression(Token):
 					elif _tokenchar==declarationchar: # MDH@31AUG2017: also quite easy to interpret, as it's only allowed behind an identifier that is not a function name
 						if abs(tokentype)<IDENTIFIER_TOKENTYPE:
 							self.error="The declaration operator needs to be preceded by a variable name."
-						elif self.getFunctionIndex(self.token.getText())>0:
+						elif self.functionExists(self.token.getText()):
 							self.error="The declaration operator cannot follow a function name, a variable name is required."
 						else:
 							self.addToken(OPERATOR_TOKENTYPE,_tokenchar,_output).discontinued() # nothing else goes
@@ -1803,8 +1844,7 @@ class Expression(Token):
 								# NOTE we have to perform the check again when registering the == two-character comparison operator (because then the test will fail!!!)
 								# MDH@31AUG2017: tokenchar equal to the declarationchar already taken care of above (removed here)
 								tokentext=self.getLastTokenText()
-								functionindex=self.getFunctionIndex(tokentext)
-								if functionindex>0: # a function name, and only ( is basically allowed behind it
+								if self.functionExists(tokentext): # a function name, and only ( is basically allowed behind it
 									if not _tokenchar in ls:
 										self.error="Function "+tokentext+" should now be applied to an argument (inside parentheses)."
 								elif not self.identifierExists(tokentext): # MDH@30AUG2017: same here, allow for variables initialized in this expression before
@@ -2154,9 +2194,9 @@ class Expression(Token):
 							# whether it's a function or identifier
 							# on the other hand if there's nothing behind the identifier it's an existing identifier
 							# so if it's an existing identifier assume it's an identifier, and correct when an opening parenthesis comes next
-							functionindex=self.getFunctionIndex(tokentext)
-							if functionindex>0:
-								argument=Function(functionindex) # remember the function until we have the argument to apply it to
+							function=self.getFunction(tokentext)
+							if function is not None:
+								argument=function # remember the function until we have the argument to apply it to
 							else: # identifier that does not yet exist
 								argument=_environment.getIdentifier(tokentext)
 						else: # anything else (which is stored as text)
@@ -2454,6 +2494,7 @@ def getexprch():
 		exprch=getch() # read the next keyboard character
 	return exprch
 def main():
+	global environment
 	# keep a list of statements, every line is one statement
 	write("Welcome to M.")
 	#####print("Start control messages with a backtick (`)!")
@@ -2498,7 +2539,7 @@ def main():
 						sys.stdout.write(controlch)
 						controlmessage+=controlch
 					# if this is the first character and it's not a d, done
-					if len(controlmessage)==1 and controlch!='d' and controlch!='c':
+					if len(controlmessage)==1 and controlch!='d' and controlch!='c' and controlch!='F':
 						break
 				######newline()
 				if ord(controlch)!=3 and ord(controlch)!=4 and len(controlmessage)>0:
@@ -2514,6 +2555,7 @@ def main():
 						lnwriteleft("x "+(" "*33)+" to exit M immediately.",130,DEBUG_BACKCOLOR)
 						lnwrite(": "+(" "*33)+" to switch to declaration mode (default).")
 						lnwriteleft("= "+(" "*33)+" to switch to evaluation mode.",130,DEBUG_BACKCOLOR)
+						lnwriteleft("F <name> <parameterlist>[Enter]"+(" "*4)+" to create function <name> with parameters <parameterlist>, to end with single F.") # MDH@02SEP2017: do we want something else????
 					elif controlmessage[0]=="x" or controlmessage[0]=="X":
 						break
 						"""
@@ -2524,7 +2566,7 @@ def main():
 							break
 						continue
 						"""
-					elif controlmessage[0]=="f" or controlmessage[0]=="F":
+					elif controlmessage[0]=="f":
 						argcount=0
 						for functionlist in functions:
 							argcount+=1
@@ -2542,13 +2584,40 @@ def main():
 						lnwrite("Unary operators:\t= ! ~ - +")
 					elif controlmessage[0]=="v" or controlmessage[0]=="V":
 						lnwrite("Variables:")
-						for identifier in MEnvironment.identifiers:
+						for identifier in environment.identifiers:
 							write(" "+identifier)
 						#####newline()
 					elif controlmessage[0]==":": # MDH@27AUG2017: switch to declaration mode
 						setMode(0)
 					elif controlmessage[0]=="=": # MDH@27AUG2017: switch to evaluation mode
 						setMode(1)
+					elif controlmessage[0]=="F": # starts a function
+						functionparts=controlmessage.split(" ")
+						if len(functionparts)>1: # name defined
+							functionname=functionparts[1]
+							# we should not allow the definition of a function that already exists
+							functionparameters=dict()
+							functionpartindex=len(functionparts)
+							while functionpartindex>2:
+								functionpartindex-=1
+								functionparameterparts=functionparts[functionpartindex].split("=")
+								functionparametername=functionparameterparts[0]
+								# are we allowing expression in the parameter list defaults????
+								functionparameters[functionparametername]=getValue(functionparameterparts[1])
+							userfunction=UserFunction(functionname,functionparameters)
+							# get the new child environment, to be used during creating the function
+							environment=userfunction.getEnvironment(environment)
+							# remember the function to be created
+							environment.append(userfunction) # append it to the list of function currently being created
+							lnwrite("Until you end "+functionname+" with `F the following expressions will use the parameter defaults.")
+						else: # no name defined, ends the current function definition
+							# register the function that ends to the current environment
+							if len(environment)>0:
+								function=environment.pop() # this is the last function being created
+								environment=environment.parent
+								environment.addFunction(function) # should now become available
+							else:
+								writeerror("No function being created right now.")
 					elif controlmessage[:2]=="d=" or controlmessage[:2]=="D=":
 						global DEBUG
 						DEBUG=int(controlmessage[2:])
@@ -2621,7 +2690,7 @@ def main():
 				mexpression=copy.deepcopy(mexpressionretrieved) # NO need to unend here because we already did that when showing the expression!!!
 		# if we haven't got an expression (to continue) at this moment, we create a new one
 		if mexpression is None:
-			mexpression=Expression(MEnvironment,DEBUG) # start a new expression at the main debug level (DEBUG) which is the default!!
+			mexpression=Expression(environment,DEBUG) # start a new expression at the main debug level (DEBUG) which is the default!!
 			########output(str(userInputLine)) # MDH@01SEP2017: no need to do this we've already echoed the unended expression!!!
 		# I guess we can allow Ctrl-D at any moment as well
 		# NOTE a newline (Enter) shouldn't end the expression input per se
@@ -2688,7 +2757,7 @@ def main():
 					newresulttext=""
 					if mexpression.parent is None: # we're at the top level
 						if mexpression.ends() is None: # expression is considered complete
-							expressionvalue=mexpression.getValue(MEnvironment)
+							expressionvalue=mexpression.getValue(environment)
 							newresulttext=" = "+getText(expressionvalue)
 					else: # when in a subexpression there's NO result to show until we leave it again
 						newresulttext=" "
@@ -2730,7 +2799,7 @@ def main():
 			if len(expressiontext)>0: # something to evaluate at all
 				# better to show any syntax error first (because getValue() might also create an error
 				###sys.stdout.write("\n")
-				expressionvalue=mexpression.getValue(MEnvironment) # pass in the global environment to evaluate the expression
+				expressionvalue=mexpression.getValue(environment) # pass in the global environment to evaluate the expression
 				# MDH@27AUG2017: write the result on the same line
 				if expressionvalue is not None:
 					write(getColoredText(" = ",INFO_COLOR)+getColoredText(getText(expressionvalue),RESULT_COLOR,RESULT_BACKCOLOR))
@@ -2751,11 +2820,11 @@ def main():
 				#####expressiontext=mexpression.getText() ####Representation() #####mexpression.getWritten()+getColorText(INFO_COLOR) # ascertain to end with the default coloring
 				# MDH@18AUG2017: TODO if we store the expression (or expression tokens) itself, we can use val() instead of eval() to evaluate it!!!
 				#											but this would also mean that we should be allowed to store/serialize tokenized versions of expression text (source) actually Expression instances
-				# MDH@30AUG2017: the global M variable is now defined in MEnvironment
+				# MDH@30AUG2017: the global M variable is now defined in environment
 				if mode==0: # declaration mode
-					MEnvironment.getIdentifierValue('M').append(mexpression) # MDH@17AUG2017: storing the expression itself (which value might change dynamically)
+					environment.getIdentifierValue('M').append(mexpression) # MDH@17AUG2017: storing the expression itself (which value might change dynamically)
 				else:
-					MEnvironment.getIdentifierValue('M').append(expressionvalue) # MDH@17AUG2017: for now let's see if we can do this!!
+					environment.getIdentifierValue('M').append(expressionvalue) # MDH@17AUG2017: for now let's see if we can do this!!
 			mexpression=None # thus forcing to have to create a new one instead of continueing with the incompleted one
 		else:
 			writeerror("No expression to evaluate!")
@@ -2763,7 +2832,7 @@ def main():
 	newline()
 	writeln("Thank you for using M.")
 
-DEBUG=1 # by default, shows the intermediate result!!
+####DEBUG=1 # by default, shows the intermediate result!!
 if __name__=="__main__":
 	try:
 		if len(sys.argv)>1:
