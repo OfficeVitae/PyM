@@ -2,6 +2,9 @@
 Marc's expression tokenizer and evaluator
 """
 """ History
+03SEP2017:
+- some personalization by requiring a 'login' by name (only), I suppose we make it
+	impersonal if no Musers file is found!!!
 02SEP2017:
 - ability to start/end a function with a control message
 		this is probably the easiest way to create a function and still have text input coloring while doing so
@@ -560,17 +563,21 @@ undefined=Identifier() # the identifier with None value is used to indicate an u
 #								 as it otherwise would need to keep a list of pending function creations
 #								 I've changed this to have Environment
 class Environment(list):
-	def __init__(self,_name,_parent=None):
+	def __init__(self,_name=None,_parent=None):
 		if isinstance(_parent,Environment):
 			self.parent=_parent
 			self.mode=_parent.getMode()
 		else:
 			self.parent=None
 			self.mode=0
+		self.externalidentifiernames=list() # the list of external variables used by this environment that cannot be created locally
 		self.identifiers=dict()
 		self.functions=dict()
 		self.expressions=list() # keep a list of expressions, to be able to re-use them
-		self.name=_name # this would become the prefix to the prompt
+		if isinstance(_name,str):
+			self.name=_name # this would become the prefix to the prompt
+		else: # anonymous
+			self.name=""
 	def getMode(self):
 		return self.mode
 	def getNumberOfExpressions(self):
@@ -584,7 +591,10 @@ class Environment(list):
 	def __str__(self):
 		result=self.name
 		if self.parent is not None:
-			result=str(self.parent)+"."+result
+			if len(result)>0:
+				result=str(self.parent)+"."+result
+			else:
+				result=str(self.parent)
 		####print result
 		return result
 	def __repr__(self):
@@ -672,22 +682,24 @@ class Environment(list):
 	def addFunctions(self,_functionindexdict):
 		for functionname in _functionindexdict:
 			self.addFunction(functionname,Function(_functionindexdict[functionname]))
+
 # create the main M environment
 import math
 # create the root environment
-environment=Environment("M") # MDH@02SEP2017: the name becomes the prompt
+Menvironment=Environment("M") # MDH@03SEP2017: the root M environment containing the M identifiers and functions always accessible
 # populate the M environment with the predefined constants/variables
-environment.addIdentifier('undefined',undefined)
-environment.addIdentifier('false',Identifier(_value=0))
-environment.addIdentifier('true',Identifier(_value=1))
-environment.addIdentifier('pi',Identifier(_value=math.pi))
-environment.addIdentifier('e',Identifier(_value=math.e))
-environment.addIdentifier('M',Identifier(_value=[])) # so we can use it in expressions itself (NOT in user functions!!!)
+Menvironment.addIdentifier('undefined',undefined)
+Menvironment.addIdentifier('false',Identifier(_value=0))
+Menvironment.addIdentifier('true',Identifier(_value=1))
+Menvironment.addIdentifier('pi',Identifier(_value=math.pi))
+Menvironment.addIdentifier('e',Identifier(_value=math.e))
 # MDH@31AUG2017: let's add the function groups as well
-environment.addFunctions({'return':1,'list':2}) # I guess any number of arguments allowed (should a function always have at least one argument???)
-environment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99})
-environment.addFunctions({'while':100,'function':150,'join':199})
-environment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210})
+Menvironment.addFunctions({'return':1,'list':2}) # I guess any number of arguments allowed (should a function always have at least one argument???)
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99})
+Menvironment.addFunctions({'while':100,'join':199}) # 'function':150
+Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210})
+
+environment=None # MDH@03SEP2017: wait for the user name to be known!!!
 
 def getTokentypeRepresentation(_tokentype):
 	tokentype=abs(_tokentype)
@@ -2566,17 +2578,83 @@ def getexprch():
 		beep()
 		exprch=getch() # read the next keyboard character
 	return exprch
+def writeInstructionsForUse():
+	lnwrite("Please take note of the following general instructions for use.")
+	lnwrite("\tUse a backtick character (i.e. `) to enter control mode.")
+	lnwrite("\tWhen you're asked to answer a question (as opposed to selecting an option), always end with pressing the Enter key.")
+	lnwrite("\tUse Ctrl-D to exit M or Ctrl-C to cancel input in (expression) input mode.")
+import os
+import os.path
 def main():
 	global DEBUG
-	global environment
+	global environment,Menvironment
 	global INFO_BACKCOLOR,LITERAL_BACKCOLOR,OPERATOR_BACKCOLOR,DEBUG_BACKCOLOR,IDENTIFIER_BACKCOLOR,RESULT_BACKCOLOR,ERROR_BACKCOLOR
 	global INFO_COLOR,LITERAL_COLOR,OPERATOR_COLOR,DEBUG_COLOR,IDENTIFIER_COLOR,RESULT_COLOR,ERROR_COLOR
 	# keep a list of statements, every line is one statement
-	write("Welcome to M.")
+	# MDH@03SEP2017: I suppose we can let M remember the last user
+	newuser=False # assume not a new user
+	currentusername=None # the current user!
+	usernames=[]
+	if os.path.exists("Musers"):
+		fuser=open("Musers",'r')
+		if fuser:
+			while 1:
+				userline=fuser.readline().rstrip('\n\r')
+				if len(userline)==0:
+					break
+				username=userline[1:]
+				usernames.append(username)
+				if userline[0]=='*':
+					currentusername=username
+			fuser.close()
+		# let the user confirm!
+		if currentusername is not None:
+			write("Welcome to M. Are you "+currentusername+"? [y|n] ")
+			ch=getch()
+			writeln(ch)
+			if ch!='y' and ch!='Y':
+				currentusername=""
+		if currentusername is None or len(currentusername)==0: # either no current user or not the current user
+			if currentusername is None: # first time
+				write("Welcome! I am M. Who are you? ")
+			else:
+				write("Then, who are you? ")
+			while 1:
+				# NOTE user is allowed to enter an existing user name
+				currentusername=raw_input().strip()
+				if len(currentusername)>0:
+					newuser=not currentusername in usernames
+					if newuser:
+						usernames.append(currentusername) # now the current user
+						writeln("You are now registered as "+currentusername+".")
+					# update the Musers file!!!
+					fuser=open("Musers",'w') # rewrite the user names to Musers
+					if fuser:
+						for username in usernames:
+							if username==currentusername:
+								fuser.write("*")
+							else:
+								fuser.write(" ")
+							fuser.write(username+os.linesep) # MDH@03SEP2017: using the official line separator
+						fuser.close()
+						break
+					else:
+						writeln("ERROR: Failed to update the Musers file, please try again!")
+				else:
+					writeln("Please enter a (valid) name.")
+				write("Who are you? ")
+		else:
+			lnwrite("Welcome back, "+currentusername+".")
+	else:
+		newuser=True
+		currentusername="" # anonymous user allround
+		lnwrite("Welcome to M. If you want to identify yourself, please create a file called Musers in the current directory before running M.")
+	if newuser:
+		writeInstructionsForUse()
+	environment=Environment(currentusername,Menvironment)
+	# make it possible to retrieve previous expressions entered
+	environment.addIdentifier('M',Identifier(_value=[])) # so we can use it in expressions itself (NOT in user functions!!!)
 	#####print("Start control messages with a backtick (`)!")
-	lnwrite("Use a backtick character (i.e. `) to enter control mode.")
-	lnwrite("NOTE: When you're asked to enter text, instead of selecting an option, always conclude with pressing the Enter key.")
-	lnwrite("Use Ctrl-D to exit M or Ctrl-C to cancel input in (expression) input mode.")
 	######### MDH@02SEP2017 the environment will keep the list of entered expressions: global mexpressions
 	mexpression=None
 	while 1:
@@ -2599,7 +2677,7 @@ def main():
 			if tokenchar=='`': # ` means the user wants to set an M option (and not enter an M expression)
 				# MDH@02SEP2017: it might be a good idea to to a Q&A
 				while 1:
-					lnwrite("What can I do for you? [:|=|c|d|f|h|x] ") #### replacing: write(tokenchar)
+					lnwrite("What can I do for you? [:|=|c|d|f|h|o|v|x] ") #### replacing: write(tokenchar)
 					controlch=getch()
 					if ord(controlch)==3 or ord(controlch)==4 or ord(controlch)==10 or ord(controlch)==13:
 						break
@@ -2652,6 +2730,7 @@ def main():
 						lnwrite("Enter the name of the function to create: ")
 						functionname=raw_input().strip()
 						if len(functionname)>0:
+							# I need to know which external variables the user wants to use
 							write("What local variable will contain the result (default: $)? ")
 							functionresultidentifiername=raw_input().strip()
 							# get the parameters/local variables
@@ -2971,7 +3050,7 @@ def main():
 			writeerror("No expression to evaluate!")
 	######emptyline() # clear the current input line
 	newline()
-	writeln("Thank you for using M.")
+	writeln("Thank you for using M"+("",", "+currentusername)[len(currentusername)>0]+".")
 
 ####DEBUG=1 # by default, shows the intermediate result!!
 if __name__=="__main__":
