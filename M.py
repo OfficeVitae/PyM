@@ -484,10 +484,8 @@ class Function:
 # the user functions defined should be kept in the current Environment which makes sense
 # as we can have subfunctions
 class UserFunction(Function):
-	# TODO do we need to know the environment in the constructor?
-	def __init__(self,_name,_resultidentifiername,_parameterdefaults,_rootenvironment,_standalone):
+	def __init__(self,_name,_resultidentifiername,_parameterdefaults,_environment,_rootenvironment):
 		Function.__init__(self,0) # all user functions have function index 0
-		self.standalone=_standalone # when standalone no access to the root environment
 		self.expressions=[]
 		self.name=_name
 		if isinstance(_resultidentifiername,str) and len(_resultidentifiername)>0:
@@ -496,20 +494,21 @@ class UserFunction(Function):
 			self.resultidentifiername="$"
 		self.parameterdefaults=_parameterdefaults # this should be a dictionary of parameter names and default values
 		# immediately register this new function with the root environment
-		self.rootenvironment=_rootenvironment.addFunction(self.name,self) # so it may call itself (although the result will be undefined until it is completed!!!)
-		self.rootenvironment.append(self) # the environment keeps a stack of functions being created
+		self.environment=_environment.addFunction(self.name,self) # so it may call itself (although the result will be undefined until it is completed!!!)
+		self.environment.append(self) # the environment keeps a stack of functions being created
 		# a function should be able to call itself??
-	def getRootEnvironment(self):
-		return self.rootenvironment
+		self.rootenvironment=_rootenvironment
+	def getEnvironment(self):
+		return self.environment
 	def addExpression(self,_expression): # to called with every expression successfully processed...
 		self.expressions.append(_expression)
 	def setExpressions(self,_expressions):
 		if isIterable(_expressions):
 			self.expressions=_expressions
 	# exposes a method to return a (sub)environment to use in entering function body expressions
-	def getEnvironment(self,_arglist=None):
+	def getExecutionEnvironment(self,_arglist=None):
 		# create a subenvironment below the UserFunction (root) environment
-		environment=Environment(self.name,(self.rootenvironment,None)[self.standalone]) # when standalone NO access to the root environment
+		environment=Environment(self.name,self.rootenvironment) # when standalone NO access to the root environment
 		# add the result identifier name immediately as local variable!!
 		if len(self.resultidentifiername)>0:
 			environment.addIdentifier(self.resultidentifiername,Identifier(self.resultidentifiername))
@@ -529,7 +528,7 @@ class UserFunction(Function):
 			l=len(self.expressions)
 			if l>0:
 				########note("Number of expressions to evaluate "+str(l)+"...")
-				executionenvironment=self.getEnvironment(_arglist)
+				executionenvironment=self.getExecutionEnvironment(_arglist)
 				for expression in self.expressions:
 					try:
 						expression.getValue(executionenvironment) # evaluate the expression in the execution environment
@@ -619,16 +618,24 @@ class Environment(list):
 		identifiernames.extend(self.identifiers.keys())
 		return identifiernames
 	def getFunctionNames(self):
-		return self.functions.keys()
+		functionnames=[]
+		if self.parent is not None:
+			functionnames.extend(self.parent.getFunctionNames())
+		functionnames.extend(self.functions.keys())
+		return functionnames
 	def getFunction(self,_functionname):
 		if _functionname in self.functions:
 			return self.functions[_functionname]
+		if self.parent is not None:
+			return self.parent.getFunction(_functionname)
 		return None # not a function
 	def functionsExistStartingWith(self,_functionprefix):
 		for functionname in self.functions:
 			if functionname.startswith(_functionprefix):
 					return True
-		return False
+		if self.parent is None:
+			return False
+		return self.parent.functionsExistStartingWith(_functionprefix)
 	def identifiersExistStartingWith(self,_identifierprefix):
 		for identifier in self.identifiers:
 			if identifier.startswith(_identifierprefix):
@@ -2579,12 +2586,30 @@ def getexprch():
 		exprch=getch() # read the next keyboard character
 	return exprch
 def writeInstructionsForUse():
-	lnwrite("Please take note of the following general instructions for use.")
-	lnwrite("\tUse a backtick character (i.e. `) to enter control mode.")
-	lnwrite("\tWhen you're asked to answer a question (as opposed to selecting an option), always end with pressing the Enter key.")
-	lnwrite("\tUse Ctrl-D to exit M or Ctrl-C to cancel input in (expression) input mode.")
-import os
-import os.path
+	lnwrite("Please take note of the following general usage instructions.")
+	lnwrite("- M will start in (expression) input mode. Use a backtick character (i.e. `) to enter control mode.")
+	lnwrite("- When you're asked to answer a question (as opposed to selecting an option), always end with pressing the Enter key.")
+	lnwrite("- Use Ctrl-C to cancel the current expression, Ctrl-D to either exit M or the function being created.")
+currentusername=""
+def endFunctionCreation():
+	global environment,currentusername
+	if len(environment)>0: # done with creating the function
+		function=environment.pop()
+		function.setExpressions(environment.getExpressions()) # register the collected expressions with the function
+		environment=function.getEnvironment() # return to the parent environment (which is NOT the parent of the current environment when it's a standalone function)
+		note("End of defining function "+function.getName()+".")
+		# how about writing it to a file??????
+
+	else:
+		writeerror("No function being created right now to end.")
+	lnwrite("Functions:")
+	for functionname in environment.getFunctionNames():
+		write(" "+functionname)
+"""
+READY FOR THE MAIN USER INPUT LOOP
+"""
+import os as opsys # os is already used as variable name, so we have to change the name
+import os.path as opsyspath
 def main():
 	global DEBUG
 	global environment,Menvironment
@@ -2595,7 +2620,7 @@ def main():
 	newuser=False # assume not a new user
 	currentusername=None # the current user!
 	usernames=[]
-	if os.path.exists("Musers"):
+	if opsyspath.exists("Musers"):
 		fuser=open("Musers",'r')
 		if fuser:
 			while 1:
@@ -2609,7 +2634,7 @@ def main():
 			fuser.close()
 		# let the user confirm!
 		if currentusername is not None:
-			write("Welcome to M. Are you "+currentusername+"? [y|n] ")
+			write("Welcome to M. Is it you, "+currentusername+"? [y|n] ")
 			ch=getch()
 			writeln(ch)
 			if ch!='y' and ch!='Y':
@@ -2635,7 +2660,7 @@ def main():
 								fuser.write("*")
 							else:
 								fuser.write(" ")
-							fuser.write(username+os.linesep) # MDH@03SEP2017: using the official line separator
+							fuser.write(username+opsys.linesep) # MDH@03SEP2017: using the official line separator
 						fuser.close()
 						break
 					else:
@@ -2644,7 +2669,7 @@ def main():
 					writeln("Please enter a (valid) name.")
 				write("Who are you? ")
 		else:
-			lnwrite("Welcome back, "+currentusername+".")
+			lnwrite("Good to see you again, "+currentusername+".")
 	else:
 		newuser=True
 		currentusername="" # anonymous user allround
@@ -2672,12 +2697,16 @@ def main():
 		tokenchar=getch()
 		# special tokens are permitted when starting with a new expression which we have to process first
 		if mexpression is None:
-			if ord(tokenchar)==4: # Ctrl-D on a new expression means exit M
-				break
+			if ord(tokenchar)==4: # Ctrl-D
+				# MDH@03SEP2017: at the top level exit M otherwise exit the function creation
+				if len(environment)==0: # not creating a function right now
+					break
+				endFunctionCreation()
+				continue
 			if tokenchar=='`': # ` means the user wants to set an M option (and not enter an M expression)
 				# MDH@02SEP2017: it might be a good idea to to a Q&A
 				while 1:
-					lnwrite("What can I do for you? [:|=|c|d|f|h|o|v|x] ") #### replacing: write(tokenchar)
+					lnwrite("What would you like to do? [:|=|b|c|d|f|h|o|v|x] ") #### replacing: write(tokenchar)
 					controlch=getch()
 					if ord(controlch)==3 or ord(controlch)==4 or ord(controlch)==10 or ord(controlch)==13:
 						break
@@ -2695,16 +2724,7 @@ def main():
 						lnwrite("=\tto switch to evaluation mode.")
 					elif controlch=="F": # end the current function
 						# register the function that ends to the current environment
-						if len(environment)>0: # done with creating the function
-							function=environment.pop()
-							function.setExpressions(environment.getExpressions()) # register the collected expressions with the function
-							environment=function.getRootEnvironment() # return to the parent environment
-							note("End of defining function "+function.getName()+".")
-						else:
-							writeerror("No function being created right now.")
-						lnwrite("Functions:")
-						for functionname in environment.getFunctionNames():
-							write(" "+functionname)
+						endFunctionCreation()
 							#######newline()
 					elif controlch=="o" or controlch=="O":
 						lnwrite("Binary operators:")
@@ -2760,14 +2780,14 @@ def main():
 									if len(parametername)==0:
 										break
 									functionparameters.append((parametername,undefined.getValue()))
-							# when running standalone NO access to the (current) environment
-							userfunction=UserFunction(functionname,functionresultidentifiername,functionparameters,environment,standalone) # create the function with its own creation environment
+							# when running standalone NO access to the (current) environment but only to the (global) Menvironment
+							userfunction=UserFunction(functionname,functionresultidentifiername,functionparameters,environment,(environment,Menvironment)[standalone]) # create the function with its own creation environment
 							# TODO if we want the function to be callable in itself, we need to add it to the given environment immediately
 							# get the new child environment, to be used during creating the function
-							environment=userfunction.getEnvironment() # update the current environment with the operating environment using the defaults (i.e. there's NO argument list)
+							environment=userfunction.getExecutionEnvironment() # update the current environment with the operating environment using the defaults (i.e. there's NO argument list)
 							# remember the function being created TODO we still need to make it possible for a function to call itself
 							environment.append(userfunction) # append it to the list of function currently being created
-							lnwrite("Until you end "+functionname+" with `F the following expressions will use the parameter defaults (as a test).")
+							lnwrite("Until you end "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
 					elif controlch=="b": # the back color
 						# allow changing multiple backcolor in a row
 						lnwrite("Text backcolor codes: debug="+str(DEBUG_BACKCOLOR)+", error="+str(ERROR_BACKCOLOR)+", identifier="+str(IDENTIFIER_BACKCOLOR)+", literal="+str(LITERAL_BACKCOLOR)+", operator="+str(OPERATOR_BACKCOLOR)+", prompt="+str(INFO_BACKCOLOR)+", result="+str(RESULT_BACKCOLOR)+".")
@@ -2851,6 +2871,9 @@ def main():
 						break
 					else:
 						lnwrite("Unrecognized control message.")
+					# only the b, c and d control characters allow further setting
+					if controlch!='b' and controlch!='c' and controlch!='d':
+						break
 				if controlch=="x" or controlch=="X":
 					break
 				continue
