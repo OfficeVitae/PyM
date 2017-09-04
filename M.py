@@ -330,6 +330,30 @@ class Function:
 		if value!=undefined.getValue():
 			if self.functionindex>=50: # a list function
 				if isIterable(value): # as it should be
+					if self.functionindex==96: # product
+						i=len(value)-1
+						if i>=0:
+							try:
+								product=value[i]
+								while i>0:
+									i=i-1
+									product*=value[i]
+								return product
+							except Exception,ex:
+								pass
+						return undefined.getValue()
+					if self.functionindex==95: # sum
+						i=len(value)-1
+						if i>=0:
+							try:
+								sum=value[i]
+								while i>0:
+									i=i-1
+									sum+=value[i]
+								return sum
+							except Exception,ex:
+								pass
+						return undefined.getValue()
 					if self.functionindex==97: # length
 						i=len(value)
 						while i>0 and value[i-1]==undefined.getValue():
@@ -503,8 +527,8 @@ class UserFunction(Function):
 			self.resultidentifiername="$"
 		self.parameterdefaults=_parameterdefaults # this should be a dictionary of parameter names and default values
 		# immediately register this new function with the root environment
-		self.environment=_environment.addFunction(self.name,self) # so it may call itself (although the result will be undefined until it is completed!!!)
-		self.environment.append(self) # the environment keeps a stack of functions being created
+		self.environment=_environment #####.addFunction(self.name,self) # so it may call itself (although the result will be undefined until it is completed!!!)
+		#### NO THIS WILL NOT BE THE EXECUTION ENVIRONMENT IN WHICH THE FUNCTION IS CREATED!!!! self.environment.append(self) # the environment keeps a stack of functions being created
 		# a function should be able to call itself??
 		self.rootenvironment=_rootenvironment
 	def getEnvironment(self):
@@ -517,19 +541,21 @@ class UserFunction(Function):
 	# exposes a method to return a (sub)environment to use in entering function body expressions
 	def getExecutionEnvironment(self,_arglist=None):
 		# create a subenvironment below the UserFunction (root) environment
-		environment=Environment(self.name,self.rootenvironment) # when standalone NO access to the root environment
+		result=Environment(self.name,self.rootenvironment) # when standalone NO access to the root environment
 		# add the result identifier name immediately as local variable!!
 		if len(self.resultidentifiername)>0:
-			environment.addIdentifier(self.resultidentifiername,Identifier(self.resultidentifiername))
+			result.addIdentifier(self.resultidentifiername,Identifier(self.resultidentifiername))
 		# to allow recursive calls, the function needs to be added to this environment as well
-		environment.addFunction(self.name,self)
+		result.addFunction(self.name,self)
 		# use arguments when available and the defaults otherwise
 		for (parameterindex,(parametername,parameterdefault)) in enumerate(self.parameterdefaults):
 			if isIterable(_arglist) and parameterindex<len(_arglist):
-				environment.addIdentifier(parametername,Identifier(parametername).setValue(_arglist[parameterindex]))
+				argumentvalue=getValue(_arglist[parameterindex])
+				debugnote("Value of argument #"+str(parameterindex)+": "+str(argumentvalue)+".")
+				result.addIdentifier(parametername,Identifier(parametername).setValue(argumentvalue))
 			else:
-				environment.addIdentifier(parametername,Identifier(parametername).setValue(parameterdefault))
-		return environment
+				result.addIdentifier(parametername,Identifier(parametername).setValue(parameterdefault))
+		return result
 	def getName(self):
 		return self.name
 	def getValue(self,_arglist): # already knows it's environment (the one it was created in plus the argument list)
@@ -542,16 +568,17 @@ class UserFunction(Function):
 				executionenvironment=self.getExecutionEnvironment(_arglist)
 				for expression in self.expressions:
 					try:
-						expression.getValue(expression) # evaluate the expression in the execution environment
+						expression.getValue(executionenvironment) # evaluate the expression in the execution environment
 						#######debugnote("Value of "+str(expression)+": "+str(expressionvalue)+".")
 					except ReturnException,returnException:
 						result=returnException.getValue()
-				if result is None:
-					if len(self.resultidentifiername)>0:
+				# what have we got in this execution environment???
+				if result is None: # no explicitly returned value using the return function
+					if len(self.resultidentifiername)>0: # there's a regular result variable
 						result=executionenvironment.getIdentifierValue(self.resultidentifiername)
 				if isIterable(result) and len(result)==1:
 					result=result[0]
-		return (undefined.getValue,result)[result is not None]
+		return (undefined.getValue(),result)[result is not None]
 # keep track of the identifier (that have a value)
 class Identifier:
 	def setValue(self,_value=None):
@@ -686,11 +713,19 @@ class Environment(list):
 	def deleteIdentifier(self,_identifiername): # for now allow only deleting 'local' identifiers
 		del self.identifiers[_identifiername]
 	def getIdentifierValue(self,_identifiername):
-		try:
-			return self.getIdentifier(_identifiername).getValue()
-		except:
-			note("Can't find "+_identifiername+".")
-			return undefined.getValue()
+		result=undefined.getValue()
+		identifier=self.getExistingIdentifier(_identifiername) # no sense to look for a non-existing one
+		if identifier is not None:
+			result=identifier.getValue()
+			debugnote("Value of '"+_identifiername+"': '"+(str(result),"?")[result is None]+"'.")
+		else:
+			debugnote("Identifier '"+_identifiername+"' not found!")
+		return result
+	def getIdentifierValues(self):
+		result=dict()
+		for _identifiername in self.identifiers:
+			result[_identifiername]=self.identifiers[_identifiername].getValue()
+		return result
 	def addIdentifier(self,_name,_identifier):
 		self.identifiers[_name]=_identifier
 		return self
@@ -714,7 +749,7 @@ Menvironment.addIdentifier('pi',Identifier(_value=math.pi))
 Menvironment.addIdentifier('e',Identifier(_value=math.e))
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':1,'list':2}) # I guess any number of arguments allowed (should a function always have at least one argument???)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'len':97,'size':98,'sorti':99})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'sum':95,'product':96,'len':97,'size':98,'sorti':99})
 Menvironment.addFunctions({'while':100,'join':199}) # 'function':150
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210})
 
@@ -2620,11 +2655,17 @@ def endFunctionCreation():
 	global environment,currentusername
 	if len(environment)>0: # done with creating the function
 		function=environment.pop()
-		function.setExpressions(environment.getExpressions()) # register the collected expressions with the function
-		environment=function.getEnvironment() # return to the parent environment (which is NOT the parent of the current environment when it's a standalone function)
+		function.setExpressions(environment.getExpressions()) # salvage the function expressions from the environment expression history
 		note("End of defining function "+function.getName()+".")
+		note("At the end of this trial execution the function-local variable values are:")
+		valuestext=""
+		identifiervalues=environment.getIdentifierValues()
+		for identifiername in identifiervalues:
+			valuestext+=" "+identifiername+"="+str(identifiervalues[identifiername])
+		note(valuestext)
+		environment=function.getEnvironment() # return to the parent environment (which is NOT the parent of the current environment when it's a standalone function)
+		environment.addFunction(function.getName(),function) # make it accessible!!!
 		# how about writing it to a file??????
-
 	else:
 		writeerror("No function being created right now to end.")
 	lnwrite("Functions:")
@@ -2811,8 +2852,8 @@ def main():
 							# TODO if we want the function to be callable in itself, we need to add it to the given environment immediately
 							# get the new child environment, to be used during creating the function
 							environment=userfunction.getExecutionEnvironment() # update the current environment with the operating environment using the defaults (i.e. there's NO argument list)
+							environment.append(userfunction) # pushing the user function to pop off when done creating!!!
 							# remember the function being created TODO we still need to make it possible for a function to call itself
-							environment.append(userfunction) # append it to the list of function currently being created
 							lnwrite("Until you end "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
 							lnwrite("Available variables:")
 							for variablename in environment.getIdentifierNames():
@@ -2901,7 +2942,7 @@ def main():
 					else:
 						lnwrite("Unrecognized control message.")
 					# only the b, c and d control characters allow further setting
-					if controlch!='b' and controlch!='c' and controlch!='d':
+					if controlch!='b' and controlch!='c':
 						break
 				if controlch=="x" or controlch=="X":
 					break
