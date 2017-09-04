@@ -212,6 +212,9 @@ def writeerror(_error):
 	else:
 		writeln(str(_error),None,ERROR_COLOR)
 
+def debugnote(_debugnote):
+	#####note(_debugnote) # comment out when done
+	pass
 # let's given all the token types a constant, so we will be able to change them more easily
 OPERATOR_TOKENTYPE=11
 SIGN_TOKENTYPE=12
@@ -315,13 +318,14 @@ class Function:
 	def setDebug(self,_debug):
 		self.debug=_debug
 		return self
-	def apply(self,value): # the function to be applied to a single argument
-		####### value=getValue(_value) # MDH@02SEP2017: arguments must be evaluated beforehand
-		if self.functionindex==1:
+	def apply(self,_value): # the function to be applied to a single argument
+		value=getValue(_value) # MDH@02SEP2017: arguments must be evaluated beforehand
+		debugnote("Function #"+str(self.functionindex)+" to be applied to "+str(value)+".")
+		if self.functionindex==1: # return()
 			if value is not None:
 				raise ReturnException((value,))
 			return value # just return identity but that makes it hard I guess
-		if self.functionindex==2: # the list function only needs to evaluate the arguments!!!
+		if self.functionindex==2: # list(): only needs to evaluate the arguments!!!
 			return value
 		if value!=undefined.getValue():
 			if self.functionindex>=50: # a list function
@@ -350,6 +354,7 @@ class Function:
 				if self.functionindex==11:
 					return value
 				if self.functionindex==12:
+					######debugnote("Returning the square root!")
 					return math.sqrt(value)
 				if self.functionindex==13:
 					return abs(value)
@@ -382,103 +387,107 @@ class Function:
 						return []
 		# if we get here the function result is undefined
 		return undefined.getValue()
-	def getValue(self,_arglist,_environment=None):
+	def getValue(self,_arglist):
 		fvalue=undefined.getValue()
-		# this is the function application at the top level i.e. it will receive an argument list
-		argcount=1+(self.functionindex/100) # the number of arguments this function has
-		if len(_arglist)>=argcount:
-			if argcount==0:
-				if self.functionindex==1: # the list function
-					fvalue=map(self.apply,_arglist) # will always return a list
-			elif argcount==1:
-				if self.functionindex<23 and len(_arglist)==1: # a scalar function applied to a single-item argument list is to return a scalar
-					fvalue=self.apply(_arglist[0])
-				else: # apply the function to each separate element!!!
-					fvalue=map(self.apply,_arglist)
-					if self.functionindex>=23 and len(fvalue)==1:
-						fvalue=fvalue[0]
-			elif argcount==2: # two-argument functions like while and shape|format|arrange|group
-				fvalue=[]
-				# first all functions that consume all arguments in one go
-				if self.functionindex==100: # while
-					whilebody=_arglist[1:]
-					condition=_arglist[0] # or we might pop this last argument
-					conditionvalue=getValue(condition)
-					###note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
-					while conditionvalue!=0:
-						bodyvalues=map(getValue,whilebody)
-						###note("Value of body '"+str(whilebody)+"': '"+str(bodyvalue)+"'...")
-						fvalue.append(bodyvalues)
+		try:
+			# this is the function application at the top level i.e. it will receive an argument list
+			argcount=1+(self.functionindex/100) # the number of arguments this function has
+			if len(_arglist)>=argcount:
+				if argcount==0:
+					if self.functionindex==1: # the list function
+						fvalue=map(self.apply,_arglist) # will always return a list
+				elif argcount==1:
+					if self.functionindex<23 and len(_arglist)==1: # a scalar function applied to a single-item argument list is to return a scalar
+						fvalue=self.apply(_arglist[0])
+						debugnote("Single argument result value: "+str(fvalue)+".")
+					else: # apply the function to each separate element!!!
+						fvalue=map(self.apply,_arglist)
+						if self.functionindex>=23 and len(fvalue)==1:
+							fvalue=fvalue[0]
+				elif argcount==2: # two-argument functions like while and shape|format|arrange|group
+					fvalue=[]
+					# first all functions that consume all arguments in one go
+					if self.functionindex==100: # while
+						whilebody=_arglist[1:]
+						condition=_arglist[0] # or we might pop this last argument
 						conditionvalue=getValue(condition)
 						###note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
-				else:
-				# I guess we can pop two operands at a time into a result????
-					while len(_arglist)>0:
-						if self.functionindex==199: # the group function
-							fvalue.append(group(getValue(_arglist.pop()),getValue(_arglist.pop())))
-						elif self.functionindex==125: # while function application
-							whilebody=_arglist.pop()
-							condition=_arglist.pop()
-							whilevalue=[]
-				if len(fvalue)==1:
-					fvalue=fvalue[0]
-			elif argcount==3:
-				if self.functionindex==200 or self.functionindex==201 or self.functionindex==202 or self.functionindex==203: # the 'if' function
-					# NOTE we might expand if a bit but making it a multiselector
-					#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
-					conditionvalue=getValue(_arglist[0])
-					if isinstance(conditionvalue,int): # an acceptible outcome
-						# wrap around the condition value to be in the range [0,len(_arglist)-2]
-						if conditionvalue>0:
-							conditionvalue%=len(_arglist)-1
-						if conditionvalue>0: # evaluate one of the 'true' clauses
-							fvalue=getValue(_arglist[conditionvalue+1])
-						else: # evaluate the False clause
-							fvalue=getValue(_arglist[1])
-				elif self.functionindex==210: # for requires a total of three elements the loop variable, the list to iterate over, and what to do
-					# instead of a condition we have a list with values to iterate over
-					forindex=_arglist[0]
-					# NOTE any argument should always be an expression, which should create the identifier mentioned in it
-					#			 now, if it is not a single token in it of type identifier
-					if isinstance(forindex,ExpressionEvaluator): # which it should be
-						forindexvalues=getValue(_arglist[1]) # or we might pop this last argument
-						if isIterable(forindexvalues):
-							# create the identifier in forindex if need be (to be destroyed when done)
-							forindexidentifierexists=False
-							forindexexpression=forindex.getExpression()
-							forindexenvironment=forindex.getEnvironment()
-							if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType() in (IDENTIFIER_TOKENTYPE,VARIABLE_TOKENTYPE):
-								forindexidentifiername=forindexexpression.tokens[-1].getText()
-							else:
-								forindexidentifiername=None
-							# remember if it already existed
-							forindexidentifierexisted=forindexidentifiername is not None and forindexenvironment.identifierExists(forindexidentifiername)
-							# ready to rock'n'roll
-							getValue(forindex) # get the forindex expression executed (which will take care of creating the index identifier)
-							# the for index identifier should now definitely exist
-							if forindexidentifiername is not None: # the forindex identifies a single identifier to use as index variable
-								forindexidentifier=forindex.getIdentifier(forindexidentifiername)
-							else:
-								forindexidentifier=None
-							# do we have a for index identifier????
-							fvalue=[]
-							# NOTE we might consider leaving the loop if it's value changed within the loop
-							for forindexvalue in forindexvalues:
-								# update the value of the forindex identifier (if any)
-								if forindexidentifier is not None:
-									forindexidentifier.setValue(forindexvalue) # this is a bit of an issue
-								forbodyvalue=map(getValue,_arglist[2:]) # evaluate the remaining arguments
-								if not isIterable(forbodyvalue) or len(forbodyvalue)!=1:
-									fvalue.append(forbodyvalue)
-								else: # a single result
-									fvalue.append(forbodyvalue[0])
-							# if the for index identifier was created, it should be removed again
-							if forindexidentifiername is not None and not forindexidentifierexisted:
-								forindex.deleteIdentifier(forindexidentifiername)
-						else:
-							note("Second for loop argument not a list.")
+						while conditionvalue!=0:
+							bodyvalues=map(getValue,whilebody)
+							###note("Value of body '"+str(whilebody)+"': '"+str(bodyvalue)+"'...")
+							fvalue.append(bodyvalues)
+							conditionvalue=getValue(condition)
+							###note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
 					else:
-						note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
+					# I guess we can pop two operands at a time into a result????
+						while len(_arglist)>0:
+							if self.functionindex==199: # the group function
+								fvalue.append(group(getValue(_arglist.pop()),getValue(_arglist.pop())))
+							elif self.functionindex==125: # while function application
+								whilebody=_arglist.pop()
+								condition=_arglist.pop()
+								whilevalue=[]
+					if len(fvalue)==1:
+						fvalue=fvalue[0]
+				elif argcount==3:
+					if self.functionindex==200 or self.functionindex==201 or self.functionindex==202 or self.functionindex==203: # the 'if' function
+						# NOTE we might expand if a bit but making it a multiselector
+						#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
+						conditionvalue=getValue(_arglist[0])
+						if isinstance(conditionvalue,int): # an acceptible outcome
+							# wrap around the condition value to be in the range [0,len(_arglist)-2]
+							if conditionvalue>0:
+								conditionvalue%=len(_arglist)-1
+							if conditionvalue>0: # evaluate one of the 'true' clauses
+								fvalue=getValue(_arglist[conditionvalue+1])
+							else: # evaluate the False clause
+								fvalue=getValue(_arglist[1])
+					elif self.functionindex==210: # for requires a total of three elements the loop variable, the list to iterate over, and what to do
+						# instead of a condition we have a list with values to iterate over
+						forindex=_arglist[0]
+						# NOTE any argument should always be an expression, which should create the identifier mentioned in it
+						#			 now, if it is not a single token in it of type identifier
+						if isinstance(forindex,ExpressionEvaluator): # which it should be
+							forindexvalues=getValue(_arglist[1]) # or we might pop this last argument
+							if isIterable(forindexvalues):
+								# create the identifier in forindex if need be (to be destroyed when done)
+								forindexidentifierexists=False
+								forindexexpression=forindex.getExpression()
+								forindexenvironment=forindex.getEnvironment()
+								if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType() in (IDENTIFIER_TOKENTYPE,VARIABLE_TOKENTYPE):
+									forindexidentifiername=forindexexpression.tokens[-1].getText()
+								else:
+									forindexidentifiername=None
+								# remember if it already existed
+								forindexidentifierexisted=forindexidentifiername is not None and forindexenvironment.identifierExists(forindexidentifiername)
+								# ready to rock'n'roll
+								getValue(forindex) # get the forindex expression executed (which will take care of creating the index identifier)
+								# the for index identifier should now definitely exist
+								if forindexidentifiername is not None: # the forindex identifies a single identifier to use as index variable
+									forindexidentifier=forindex.getIdentifier(forindexidentifiername)
+								else:
+									forindexidentifier=None
+								# do we have a for index identifier????
+								fvalue=[]
+								# NOTE we might consider leaving the loop if it's value changed within the loop
+								for forindexvalue in forindexvalues:
+									# update the value of the forindex identifier (if any)
+									if forindexidentifier is not None:
+										forindexidentifier.setValue(forindexvalue) # this is a bit of an issue
+									forbodyvalue=map(getValue,_arglist[2:]) # evaluate the remaining arguments
+									if not isIterable(forbodyvalue) or len(forbodyvalue)!=1:
+										fvalue.append(forbodyvalue)
+									else: # a single result
+										fvalue.append(forbodyvalue[0])
+								# if the for index identifier was created, it should be removed again
+								if forindexidentifiername is not None and not forindexidentifierexisted:
+									forindex.deleteIdentifier(forindexidentifiername)
+							else:
+								note("Second for loop argument ("+str(forindexvalues)+") not a list.")
+						else:
+							note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
+		finally:
+			pass ####debugnote("Result of applying function #"+str(self.functionindex)+": "+str(fvalue)+".")
 		return fvalue
 # MDH@02SEP2017: have to think about how to implement the user functions though
 # the user functions defined should be kept in the current Environment which makes sense
@@ -512,6 +521,8 @@ class UserFunction(Function):
 		# add the result identifier name immediately as local variable!!
 		if len(self.resultidentifiername)>0:
 			environment.addIdentifier(self.resultidentifiername,Identifier(self.resultidentifiername))
+		# to allow recursive calls, the function needs to be added to this environment as well
+		environment.addFunction(self.name,self)
 		# use arguments when available and the defaults otherwise
 		for (parameterindex,(parametername,parameterdefault)) in enumerate(self.parameterdefaults):
 			if isIterable(_arglist) and parameterindex<len(_arglist):
@@ -531,7 +542,8 @@ class UserFunction(Function):
 				executionenvironment=self.getExecutionEnvironment(_arglist)
 				for expression in self.expressions:
 					try:
-						expression.getValue(executionenvironment) # evaluate the expression in the execution environment
+						expression.getValue(expression) # evaluate the expression in the execution environment
+						#######debugnote("Value of "+str(expression)+": "+str(expressionvalue)+".")
 					except ReturnException,returnException:
 						result=returnException.getValue()
 				if result is None:
@@ -819,7 +831,7 @@ def getInteger(_value):
 	return None
 def getValue(_value):
 	if DEBUG&8:
-		note("Determining the value of "+str(_value)+"...")
+		note("Obtaining the value of "+str(_value)+"...")
 	if _value is not None:
 		if isinstance(_value,list):
 			return map(getValue,_value)
@@ -828,6 +840,7 @@ def getValue(_value):
 		if isinstance(_value,str):
 			return _value
 		# everything else is assumed to have a getValue() method (like Identifier and Expression)
+		debugnote("Calling getValue() on the value of type "+str(type(_value))+".")
 		return _value.getValue()
 	return _value
 def listify(t):
@@ -936,18 +949,18 @@ def getOperationResult(argument2,operator,argument1,_environment):
 				if len(operand2)==0:
 					return operand1
 				if not isinstance(operand1,list):
-					return getOperationResult(operand2,operator,[operand1])
+					return getOperationResult(operand2,operator,[operand1],_environment)
 				# delist if both arguments are one-element lists
 				if len(operand1)==1 and len(operand2)==1:
-					return getOperationResult(operand2[0],operator,operand1[0])
+					return getOperationResult(operand2[0],operator,operand1[0],_environment)
 				result=[]
 				for i in range(0,max(len(operand1),len(operand2))):
-					result.append(getOperationResult(getItem(operand2,i),operator,getItem(operand1,i)))
+					result.append(getOperationResult(getItem(operand2,i),operator,getItem(operand1,i),_environment))
 				return result # return as list!!!
 			if isinstance(operand1,list):
 				if len(operand1)==0:
 					return operand2
-				return getOperationResult([operand2],operator,operand1)
+				return getOperationResult([operand2],operator,operand1,_environment)
 			if operator=="..": # MDH@27AUG2017: replaced : because : is now the operator to defined a block of (unevaluated) expressions
 				if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
 					result=[operand1]
@@ -1087,12 +1100,24 @@ class Operator:
 		return self.text
 ####newlinechar='\n' # the newline character for use in multiline expressions
 # MDH@01SEP2017: keep track of the TokenChars on a single line, so it's easy to remove one!!!
+userInputLine=None # predefinition so we can use it in updateUserInputLine()
+# updateUserInputLine() is typically called after every successful backspace!!!
+def updateUserInputLine(_emptyline):
+	if _emptyline: # supposed to clear the current line????
+		reprompt() # clear the current line
+	else:
+		writeprompt() # output the prompt (alone) again
+	output(str(userInputLine)) # write all input line token chars (not through write() of course because all color formatting is already in there!!)
 class UserInputLine(list):
 	# given that we descend from list there's not much that we need to do in this class
-	def removeLastCharacter(self):
+	def removeLastCharacter(self,_emptyline=True):
 		if len(self)>0:
-			return self.pop() # really the most convenient way to go
-		return None
+			result=self.pop()
+		else:
+			result=None
+		if result is not None:
+			updateUserInputLine(_emptyline)
+		return result
 	def __str__(self):
 		result=""
 		for character in self:
@@ -1113,13 +1138,7 @@ class UserInputLine(list):
 		if DEBUG&128:
 			write("@",DEBUG_COLOR) # for testing purposes
 userInputLine=UserInputLine() # we only need a single instance
-# updateUserInputLine() is typically called after every successful backspace!!!
-def updateUserInputLine(_emptyline=True):
-	if _emptyline: # supposed to clear the current line????
-		reprompt() # clear the current line
-	else:
-		writeprompt() # output the prompt (alone) again
-	output(str(userInputLine)) # write all input line token chars (not through write() of course because all color formatting is already in there!!)
+
 # MDH@22AUG2017: also more reliable to keep any token character is a separate class instance
 #								 this can be a character that is to be written (when _color is given) or not
 # MDH@23AUG2017: TokenChar is to be used to store a single user input token character exactly
@@ -1432,7 +1451,7 @@ class Token:
 				if len(_tokenchar)>1:
 					self.append(_tokenchar[:-1])
 				self.setType(REAL_TOKENTYPE)
-				self.append(periodchar,OPERATOR_COLOR) # show in the operator color
+				self.append(periodchar) # MDH@03SEP2017: no need for that anymore because it will be removed when followed by another period char!!!,OPERATOR_COLOR) # show in the operator color
 			else: # something else, so we'll do an ordinary append
 				self.append(_tokenchar)
 		return self
@@ -1836,7 +1855,7 @@ class Expression(Token):
 							if self.token.backspace() is not None: # i.e. remove the last token (which is the decimal separator)
 								# we can go one left on the screen
 								if _output: # too bad we have to do that here!!
-									backspace()
+									userInputLine.removeLastCharacter(True)
 								self.addToken(OPERATOR_TOKENTYPE,periodchar,_output).add(periodchar).discontinued()
 							else: # backspace() on the token failed somehow...
 								self.error=self.token.getError()
@@ -2196,7 +2215,10 @@ class Expression(Token):
 						#								 as the function does NOT know the environment
 						#								 so any expression needs to be evaluated first
 						# TODO because we pre-evaluate function should NOT evaluate anymore!!!!!!
-						arguments=function.getValue(map(getElementValue,arguments))
+						# MDH@04SEP2017: that is SO wrong because we already took care of converting
+						#                Expression instances to ExpressionEvaluator instances which
+						#                SO know in which environment to evaluate the expression
+						arguments=function.getValue(arguments) ###### NO NO NO map(getElementValue,arguments))
 						# this would be an annoying step, we should let the function do that?????
 						if not isIterable(arguments):
 							arguments=[arguments]
@@ -2324,6 +2346,7 @@ class Expression(Token):
 								elements.append(getOperationResult(elements.pop(),elements.pop().getText(),elements.pop(),_environment))
 						except Exception,ex:
 							self.error=ex
+							note("ERROR: '"+ex.getLocalizedMessage()+"'!")
 							break
 				if self.error is None:
 					if self.debug&8:
@@ -2549,7 +2572,9 @@ class ExpressionEvaluator:
 	# because we know the 'parent' environment, when getValue is requested, we can pass that environment into the expression
 	# at the moment that the expression is to be evaluated, which can pass it along to any subexpression that are evaluated 'below' it
 	def getValue(self):
-		return self.expression.getValue(self.environment)
+		expressionvalue=self.expression.getValue(self.environment)
+		debugnote("Value of expression "+str(self.expression)+": "+str(expressionvalue)+"...")
+		return expressionvalue
 	def setValue(self,_value): # TODO do we need _environment here as well??????
 		self.expression.setValue(_value,self.environment)
 	def getIdentifier(self,_identifiername):
@@ -2620,6 +2645,7 @@ def main():
 	newuser=False # assume not a new user
 	currentusername=None # the current user!
 	usernames=[]
+	newline() # we want to start with an empty line
 	if opsyspath.exists("Musers"):
 		fuser=open("Musers",'r')
 		if fuser:
@@ -2634,14 +2660,14 @@ def main():
 			fuser.close()
 		# let the user confirm!
 		if currentusername is not None:
-			write("Welcome to M. Is it you, "+currentusername+"? [y|n] ")
+			write("Welcome to M. Is it you, "+currentusername+"? [Press n for no] ")
 			ch=getch()
 			writeln(ch)
-			if ch!='y' and ch!='Y':
+			if ch=='n' or ch=='N':
 				currentusername=""
 		if currentusername is None or len(currentusername)==0: # either no current user or not the current user
 			if currentusername is None: # first time
-				write("Welcome! I am M. Who are you? ")
+				write("Hi, I'm M. Who are you? ")
 			else:
 				write("Then, who are you? ")
 			while 1:
@@ -2669,11 +2695,11 @@ def main():
 					writeln("Please enter a (valid) name.")
 				write("Who are you? ")
 		else:
-			lnwrite("Good to see you again, "+currentusername+".")
+			write("Good to see you again, "+currentusername+".")
 	else:
 		newuser=True
 		currentusername="" # anonymous user allround
-		lnwrite("Welcome to M. If you want to identify yourself, please create a file called Musers in the current directory before running M.")
+		lnwrite("Welcome to M. If you want to identify yourself or the projects you work on, create a file called Musers in the current directory prior to starting me.")
 	if newuser:
 		writeInstructionsForUse()
 	environment=Environment(currentusername,Menvironment)
@@ -2773,9 +2799,9 @@ def main():
 									functionparameters.append((parametername,undefined.getValue()))
 							# allow adding more local variables if not a standalone version
 							if not standalone:
-								write("Please define any local variable the function will use (masking any external variable with the same name)")
+								writeln("Please define any local variable the function will use (masking any external variable with the same name)")
 								while 1:
-									lnwrite("What is the name of the local variable? ")
+									write("What is the name of the local variable? ")
 									parametername=raw_input().strip()
 									if len(parametername)==0:
 										break
@@ -2788,6 +2814,9 @@ def main():
 							# remember the function being created TODO we still need to make it possible for a function to call itself
 							environment.append(userfunction) # append it to the list of function currently being created
 							lnwrite("Until you end "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
+							lnwrite("Available variables:")
+							for variablename in environment.getIdentifierNames():
+								write(" "+variablename)
 					elif controlch=="b": # the back color
 						# allow changing multiple backcolor in a row
 						lnwrite("Text backcolor codes: debug="+str(DEBUG_BACKCOLOR)+", error="+str(ERROR_BACKCOLOR)+", identifier="+str(IDENTIFIER_BACKCOLOR)+", literal="+str(LITERAL_BACKCOLOR)+", operator="+str(OPERATOR_BACKCOLOR)+", prompt="+str(INFO_BACKCOLOR)+", result="+str(RESULT_BACKCOLOR)+".")
@@ -2914,7 +2943,7 @@ def main():
 						######print("Printing the expression!")
 						mexpressionretrieved.unend() # we need to write the unended version as that's the one that is to be continued...
 						userInputLine.reset(mexpressionretrieved.getCharacters())
-						updateUserInputLine() # write the user input line again
+						updateUserInputLine(True) # write the user input line again
 						# we have to show it anyway I suppose without registering with userInputLine
 				# read the next character (which might be another Escape character)
 				tokenchar=getch() # get the first character
@@ -2947,8 +2976,7 @@ def main():
 						if expressionerror is not None:
 							writeerror(expressionerror)
 						if mexpression_new is not None: # success i.e. definitely NO error
-							userInputLine.removeLastCharacter()
-							updateUserInputLine(expressionerror is None) # rewrite the user input line (as we removed the last input character), if no error empty line first
+							userInputLine.removeLastCharacter(expressionerror is None)
 						elif expressionerror is None: # NO success AND NO error
 							beep() # shouldn't happen though!!!!
 					else: # nothing left on the input line
@@ -3003,8 +3031,8 @@ def main():
 					if newresultlength>0: # a new result to show
 						# clear the entire previous result
 						if resultlength>0:
-							output(" "*resultlength)
-							output("\033["+str(resultlength)+"D") # return to the previous cursor position
+							output(" "*(resultlength+1)) # MDH@04SEP2017: TODO or some more if there's debug information in the character removed!
+							output("\033["+str(resultlength+1)+"D") # return to the previous cursor position
 						resulttext=newresulttext
 						resultlength=newresultlength
 					if resultlength>0: # still some result to display
