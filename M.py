@@ -416,22 +416,23 @@ class Function:
 		try:
 			# this is the function application at the top level i.e. it will receive an argument list
 			argcount=1+(self.functionindex/100) # the number of arguments this function has
-			if len(_arglist)>=argcount:
-				if argcount==0:
-					if self.functionindex==1: # the list function
-						fvalue=map(self.apply,_arglist) # will always return a list
-				elif argcount==1:
-					if self.functionindex<23 and len(_arglist)==1: # a scalar function applied to a single-item argument list is to return a scalar
-						fvalue=self.apply(_arglist[0])
-						debugnote("Single argument result value: "+str(fvalue)+".")
-					else: # apply the function to each separate element!!!
-						fvalue=map(self.apply,_arglist)
-						if self.functionindex>=23 and len(fvalue)==1:
-							fvalue=fvalue[0]
-				elif argcount==2: # two-argument functions like while and shape|format|arrange|group
-					fvalue=[]
-					# first all functions that consume all arguments in one go
-					if self.functionindex==100: # while
+			# MDH@04SEP2017: some function can have less than argcount arguments (like if)
+			if argcount==0:
+				if self.functionindex==1: # the list function
+					fvalue=map(self.apply,_arglist) # will always return a list
+			elif argcount==1:
+				if self.functionindex<23 and len(_arglist)==1: # a scalar function applied to a single-item argument list is to return a scalar
+					fvalue=self.apply(_arglist[0])
+					debugnote("Single argument result value: "+str(fvalue)+".")
+				else: # apply the function to each separate element!!!
+					fvalue=map(self.apply,_arglist)
+					if self.functionindex>=23 and len(fvalue)==1:
+						fvalue=fvalue[0]
+			elif argcount==2: # two-argument functions like while and shape|format|arrange|group
+				fvalue=[]
+				# first all functions that consume all arguments in one go
+				if self.functionindex==100: # while
+					if len(_arglist)>1: # we really need two arguments here
 						whilebody=_arglist[1:]
 						condition=_arglist[0] # or we might pop this last argument
 						conditionvalue=getValue(condition)
@@ -442,23 +443,28 @@ class Function:
 							fvalue.append(bodyvalues)
 							conditionvalue=getValue(condition)
 							###note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
-					else:
+				elif self.functionindex==199: # join
 					# I guess we can pop two operands at a time into a result????
-						while len(_arglist)>0:
-							if self.functionindex==199: # the group function
+					while len(_arglist)>0:
+							if len(_arglist)>1: # same here
 								fvalue.append(group(getValue(_arglist.pop()),getValue(_arglist.pop())))
-							elif self.functionindex==125: # while function application
-								whilebody=_arglist.pop()
-								condition=_arglist.pop()
-								whilevalue=[]
-					if len(fvalue)==1:
-						fvalue=fvalue[0]
-				elif argcount==3:
-					if self.functionindex==200 or self.functionindex==201 or self.functionindex==202 or self.functionindex==203: # the 'if' function
-						# NOTE we might expand if a bit but making it a multiselector
-						#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
-						conditionvalue=getValue(_arglist[0])
-						if isinstance(conditionvalue,int): # an acceptible outcome
+				if len(fvalue)==1:
+					fvalue=fvalue[0]
+			elif argcount==3:
+				if self.functionindex==200 or self.functionindex==201 or self.functionindex==202 or self.functionindex==203: # the 'if' function
+					# NOTE we might expand if a bit but making it a multiselector
+					#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
+					conditionvalue=getValue(_arglist[0])
+					if isinstance(conditionvalue,int): # an acceptible outcome
+						# with the True and False clause switched, we should use ! to get the proper index
+						if self.functionindex==200: # if
+							if conditionvalue!=0: # condition evaluates to True
+								if len(_arglist)>1:
+									fvalue=getValue(_arglist[1])
+							else:
+								if len(_arglist)>2:
+									fvalue=getValue(_arglist[2])
+						else:
 							# wrap around the condition value to be in the range [0,len(_arglist)-2]
 							if conditionvalue>0:
 								conditionvalue%=len(_arglist)-1
@@ -466,8 +472,9 @@ class Function:
 								fvalue=getValue(_arglist[conditionvalue+1])
 							else: # evaluate the False clause
 								fvalue=getValue(_arglist[1])
-					elif self.functionindex==210: # for requires a total of three elements the loop variable, the list to iterate over, and what to do
-						# instead of a condition we have a list with values to iterate over
+				elif self.functionindex==210: # for requires a total of three elements the loop variable, the list to iterate over, and what to do
+					# instead of a condition we have a list with values to iterate over
+					if len(_arglist)>2:
 						forindex=_arglist[0]
 						# NOTE any argument should always be an expression, which should create the identifier mentioned in it
 						#			 now, if it is not a single token in it of type identifier
@@ -2251,8 +2258,8 @@ class Expression(Token):
 						#								 so any expression needs to be evaluated first
 						# TODO because we pre-evaluate function should NOT evaluate anymore!!!!!!
 						# MDH@04SEP2017: that is SO wrong because we already took care of converting
-						#                Expression instances to ExpressionEvaluator instances which
-						#                SO know in which environment to evaluate the expression
+						#								 Expression instances to ExpressionEvaluator instances which
+						#								 SO know in which environment to evaluate the expression
 						arguments=function.getValue(arguments) ###### NO NO NO map(getElementValue,arguments))
 						# this would be an annoying step, we should let the function do that?????
 						if not isIterable(arguments):
