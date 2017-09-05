@@ -310,7 +310,7 @@ class ReturnException(BaseException):
 	def __str__(self):
 		return str(self.value)
 # MDH@05SEP2017: excluding the execution of for, while, if and eval function because
-#                they need to know there execution environment
+#								 they need to know there execution environment
 class Function:
 	def __init__(self,_functionindex):
 		self.functionindex=_functionindex
@@ -1871,12 +1871,12 @@ class Expression(Token):
 						# NOTE do NOT forget to end any current token (this would be when the token type is positive)
 						if abs(tokentype)>0 and abs(tokentype)<=OPERATOR_TOKENTYPE: # behind a binary operator (if an unfinished single-character operator this might be the second character)
 							# MDH@05SEP2017: review of how to deal with the entered token character
-							#                ok, we want to know whether the current token character will end this operator if it is not yet finished
-							#                1. TOKENCHAR COULD CONTINUE THE UNFINISHED BINARY OPERATOR IE BE PROMOTED TO THE TWO-CHARACTER BINARY OPERATOR
-							operatortext=self.token.getText() # what the operator would become
-							# can this be the second order character????
-							secondoperatorchar=(tokentype>0 and tokentype<OPERATOR_TOKENTYPE and o2.find(" "+operatortext+_tokenchar)>=0)
+							#								 ok, we want to know whether the current token character will end this operator if it is not yet finished
+							#								 1. TOKENCHAR COULD CONTINUE THE UNFINISHED BINARY OPERATOR IE BE PROMOTED TO THE TWO-CHARACTER BINARY OPERATOR
 							if tokentype>0: # the token character can still be part of this operator in which case we add it and None it
+								operatortext=self.token.getText() # what the operator would become
+								# can this be the second order character????
+								secondoperatorchar=tokentype<OPERATOR_TOKENTYPE and o2.find(" "+operatortext+_tokenchar)>=0
 								if secondoperatorchar:
 									operatortext+=_tokenchar # the two-character binary operator
 									# we should NOT allow using == as operator behind an identifier that has not yet been defined
@@ -1892,6 +1892,7 @@ class Expression(Token):
 											# is this operator shortcuttable???? if not discontinue the token (we can still have whitespace after it!!!
 											if operatortext[-1]==assignmentchar or operatortext=='||' or operatortext=='&&' or operatortext=='..':
 												self.token.discontinued()
+												tokentype=-tokentype
 										else:
 											self.error="Failed to create two-character operator "+operatortext+"!"
 								elif _tokenchar==assignmentchar and self.tokens[-2].getType()==IDENTIFIER_TOKENTYPE and operatortext[-1]!=assignmentchar and operatortext!='||' and operatortext!='&&' and operatortext!='..': # yes, the shortcutter
@@ -1900,6 +1901,8 @@ class Expression(Token):
 										self.token.discontinued()
 									else:
 										self.error="Failed to shortcut operator "+operatortext+"!"
+								else: # cannot be a continuation of the operator
+									self.token.discontinued()
 								# promote the operator if no errors occurred because every unfinished binary operator also is an operator in its own rights
 								if self.error is None:
 									# anything left to do??????
@@ -2017,8 +2020,7 @@ class Expression(Token):
 											# do NOT allow using the power operator on a string literal
 											if (tokentype+SINGLEQUOTED_TOKENTYPE==0 or tokentype+DOUBLEQUOTED_TOKENTYPE==0) and osindex==3: # applying *
 												# NOTE here we do not insert characters ourselves, therefore no need to remember
-												self.addToken(OPERATOR_TOKENTYPE,_tokenchar,_output).discontinued()
-												########self.token.end() #### replacing: tokentype=self.setTokentype(self.tokenends())
+												self.addToken(OPERATOR_TOKENTYPE,_tokenchar,_output).discontinued() # cannot be continued...
 											else:
 												tokentype=self.setTokentype(osindex+1)
 									else: # behind binary or unary operator
@@ -2072,7 +2074,12 @@ class Expression(Token):
 								if self.error is None and tokentype>0:
 									self.addToken(tokentype,_tokenchar,_output)
 									# we can see in the previous M implementation (commented out above) that if the token type was set to 8 or 9 the token also ends
-									if tokentype==OPERATOR_TOKENTYPE or tokentype==SIGN_TOKENTYPE:
+									if tokentype==OPERATOR_TOKENTYPE:
+										# if the token cannot be continued with the shortcutter, discontinue the token
+										tokentext=self.token.getText()
+										if tokentext[-1]==assignmentchar or (len(tokentext)>1 and tokentext[0] in '.&|' and tokentext[-1]==tokentext[0]):
+											self.token.discontinued()
+									elif tokentype==SIGN_TOKENTYPE:
 										self.token.discontinued()
 							else: # continuation of a token
 								self.token.add(_tokenchar)
@@ -2142,8 +2149,8 @@ class Expression(Token):
 	# that we push on elements actually wraps the expression in an ExpressionEvaluator
 	# that way getOperationResult() and Function.getValue() never sees any expression that does NOT know it's environment
 	# MDH@05SEP2017: passing the execution environment to getValue() is not such a bad idea, although this would mean that we cannot use getValue() without it
-	#                in most cases the evalution environment will be the same as the creation environment as an expression is typically created and immediately executed
-	#                therefore: the default is to NOT have to specify an environment in the call to getValue()
+	#								 in most cases the evalution environment will be the same as the creation environment as an expression is typically created and immediately executed
+	#								 therefore: the default is to NOT have to specify an environment in the call to getValue()
 	def getValue(self,_environment=None):
 		evaluationenvironment=(self.environment,_environment)[_environment is not None]
 		# MDH@05SEP2017: we can define the while, for, if and eval 'function' calls here, as they need their execution environment
