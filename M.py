@@ -315,6 +315,8 @@ class Function:
 	def __init__(self,_functionindex):
 		self.functionindex=_functionindex
 		self.debug=DEBUG # the default to use the global debug mode...
+	def getIndex(self):
+		return self.functionindex
 	def __str__(self):
 		return "funct#"+str(self.functionindex)
 	def setDebug(self,_debug):
@@ -435,40 +437,6 @@ class Function:
 					fvalue=map(self.apply,_arglist)
 					if self.functionindex>=23 and len(fvalue)==1:
 						fvalue=fvalue[0]
-			elif argcount==2: # two-argument functions like while and shape|format|arrange|group
-				fvalue=[]
-				# first all functions that consume all arguments in one go
-				if self.functionindex==100: # while
-				elif self.functionindex==199: # join
-					# I guess we can pop two operands at a time into a result????
-					while len(_arglist)>0:
-							if len(_arglist)>1: # same here
-								fvalue.append(group(getValue(_arglist.pop()),getValue(_arglist.pop())))
-				if len(fvalue)==1:
-					fvalue=fvalue[0]
-			elif argcount==3:
-				if self.functionindex==200 or self.functionindex==201 or self.functionindex==202 or self.functionindex==203: # the 'if' function
-					# NOTE we might expand if a bit but making it a multiselector
-					#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
-					conditionvalue=getValue(_arglist[0])
-					if isinstance(conditionvalue,int): # an acceptible outcome
-						# with the True and False clause switched, we should use ! to get the proper index
-						if self.functionindex==200: # if
-							if conditionvalue!=0: # condition evaluates to True
-								if len(_arglist)>1:
-									fvalue=getValue(_arglist[1])
-							else:
-								if len(_arglist)>2:
-									fvalue=getValue(_arglist[2])
-						else:
-							# wrap around the condition value to be in the range [0,len(_arglist)-2]
-							if conditionvalue>0:
-								conditionvalue%=len(_arglist)-1
-							if conditionvalue>0: # evaluate one of the 'true' clauses
-								fvalue=getValue(_arglist[conditionvalue+1])
-							else: # evaluate the False clause
-								fvalue=getValue(_arglist[1])
-				elif self.functionindex==210: # for requires a total of three elements the loop variable, the list to iterate over, and what to do
 					# instead of a condition we have a list with values to iterate over
 		finally:
 			pass ####debugnote("Result of applying function #"+str(self.functionindex)+": "+str(fvalue)+".")
@@ -504,7 +472,7 @@ class UserFunction(Function):
 		result=Environment(self.name,self.rootenvironment) # when standalone NO access to the root environment
 		# add the result identifier name immediately as local variable!!
 		if len(self.resultidentifiername)>0:
-			result.addIdentifier(self.resultidentifiername,Identifier(self.resultidentifiername))
+			result.addIdentifier(Identifier(self.resultidentifiername))
 		# to allow recursive calls, the function needs to be added to this environment as well
 		result.addFunction(self.name,self)
 		# use arguments when available and the defaults otherwise
@@ -512,9 +480,9 @@ class UserFunction(Function):
 			if isIterable(_arglist) and parameterindex<len(_arglist):
 				argumentvalue=getValue(_arglist[parameterindex])
 				debugnote("Value of argument #"+str(parameterindex)+": "+str(argumentvalue)+".")
-				result.addIdentifier(parametername,Identifier(parametername).setValue(argumentvalue))
+				result.addIdentifier(Identifier(parametername).setValue(argumentvalue))
 			else:
-				result.addIdentifier(parametername,Identifier(parametername).setValue(parameterdefault))
+				result.addIdentifier(Identifier(parametername).setValue(parameterdefault))
 		return result
 	def getName(self):
 		return self.name
@@ -549,6 +517,8 @@ class Identifier:
 	def __init__(self,_name=None,_value=None):
 		self.name=_name
 		self.value=_value
+	def getName(self):
+		return self.name
 	def getValue(self):
 		return self.value
 	def __repr__(self):
@@ -686,14 +656,12 @@ class Environment(list):
 		for _identifiername in self.identifiers:
 			result[_identifiername]=self.identifiers[_identifiername].getValue()
 		return result
-	def addIdentifier(self,_name,_identifier):
-		self.identifiers[_name]=_identifier
-		return self
-	def addIdentifier(self,_identifier):
-		_identifiername=_identifier.getName()
-		if _identifiername is None:
+	def addIdentifier(self,_identifier,_name=None):
+		identifiername=(_name,_identifier.getName())[_name is None]
+		if identifiername is None:
 			return None
-		return self.addIdentifier(_identifiername,_identifier)
+		self.identifiers[identifiername]=_identifier
+		return self
 	def addFunction(self,_name,_function):
 		self.functions[_name]=_function
 		return self
@@ -702,9 +670,15 @@ class Environment(list):
 		for functionname in _functionindexdict:
 			self.addFunction(functionname,Function(_functionindexdict[functionname]))
 	# MDH@15AUG2017: the way we're pushing the elements of the expression on the stack, we're always popping the second operand first, then the operator, then the first argument
-	def getOperationResult(argument2,operator,argument1):
+	def getOperationResult(self,argument2,operator,argument1):
 		result=None
 		if argument2 is not None and argument1 is not None:
+			# determine whether or not a shortcutter operator, noting that != <= >= and == are not shortcut assignments
+			shortcutting=(operator[-1]==assignmentchar and (len(operator)>2 or not operator[0] in '!=<>'))
+			if shortcutting:
+				if not isinstance(argument1,Identifier) and not isinstance(argument1,IdentifierElementExpression):
+					raise Exception("Please report this bug. Shortcut assignment operator cannot be applied to a non-variable.")
+				operator=operator[:-1]
 			if operator==declarationchar: # the expression assignment operator (which is very special indeed)
 				if DEBUG&8:
 					note("Declaring "+str(argument2)+" as "+str(argument1)+".")
@@ -745,6 +719,8 @@ class Environment(list):
 				if operator==periodchar: # the list concatenation operator
 					result=list(operand1)
 					result.extend(listify(operand2)) # do NOT use listify() on operand1, because we need to actually extend a copy not the original
+					if shortcutting:
+						argument1.setValue(result)
 					return result
 				# ok, both elements should be either lists or scalars, at least to apply the non-assignment binary operators to
 				# although we should always obtain two list or two items, we make a list of either if need be
@@ -868,6 +844,9 @@ class Environment(list):
 					result=(falsevalue,truevalue)[operand1!=operand2]
 			if DEBUG&8:
 				note("Result of applying "+str(operator)+" to "+str(operand1)+" and "+str(operand2)+"="+str(result))
+		# MDH@05SEP2017: when a shortcut assignment place the result in the argument1 variable as well!!!
+		if shortcutting:
+			argument1.setValue(result)
 		return result
 
 # create the main M environment
@@ -875,11 +854,11 @@ import math
 # create the root environment
 Menvironment=Environment("M") # MDH@03SEP2017: the root M environment containing the M identifiers and functions always accessible
 # populate the M environment with the predefined constants/variables
-Menvironment.addIdentifier('undefined',undefined)
-Menvironment.addIdentifier('false',Identifier(_value=0))
-Menvironment.addIdentifier('true',Identifier(_value=1))
-Menvironment.addIdentifier('pi',Identifier(_value=math.pi))
-Menvironment.addIdentifier('e',Identifier(_value=math.e))
+Menvironment.addIdentifier(undefined,'undefined')
+Menvironment.addIdentifier(Identifier(_value=0),'false')
+Menvironment.addIdentifier(Identifier(_value=1),'true')
+Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
+Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':1,'list':2}) # I guess any number of arguments allowed (should a function always have at least one argument???)
 Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'sum':95,'product':96,'len':97,'size':98,'sorti':99})
@@ -923,23 +902,23 @@ def getOperatorPrecedence(_operator):
 		return 14
 	if _operator=="..":
 		return 2
-	if _operator=="**":
+	if _operator in ("**","**="):
 		return 3
-	if _operator in ("*","/","^","%","\\","//","%%"): # all single-character operators (accidently?)
+	if _operator in ("*","/","%","\\","//","%%","*=","/=","%=","\\=","//=","%%="): # all single-character operators (accidently?)
 		return 4
-	if _operator==periodchar or _operator in soro: # the bisexual operators
+	if _operator in (".","-","+",".=","-=","+="): # the bisexual operators
 		return 5
-	if _operator in ("<<",">>"):
+	if _operator in ("<<",">>","<<=",">>="):
 		return 6
 	if _operator in ("<","<=",">",">="):
 		return 7
 	if _operator in ("==","!="):
 		return 8
-	if _operator=="&":
+	if _operator in ("&","&="):
 		return 9
-	if _operator=="^":
+	if _operator in ("^","^="):
 		return 10
-	if _operator=="|":
+	if _operator in ("|","|="):
 		return 11
 	if _operator=="&&":
 		return 12
@@ -1426,6 +1405,9 @@ class Token:
 		# we'll be appending at least one character
 		if isinstance(_tokenchar,str) and len(_tokenchar)>0: # TODO this should be an assertion
 			self.discontinued() # the discontinuation debug text should come in front of the first suffix token char
+			# MDH@05SEP2017: any whitespace in an 'unfinished' binary operator should also be promoted to a finished binary operator
+			if self.type>0 and self.type<OPERATOR_TOKENTYPE:
+				self.type=OPERATOR_TOKENTYPE
 			self.getSuffixTokenchar(False).set(_tokenchar,(-1,self.color)[self.output]) # TODO what color????
 			if len(self.suffix)>0: # very likely though
 				return self
@@ -1887,51 +1869,56 @@ class Expression(Token):
 						# it's probably best to deal with some of the possible input characters first and determine when they are not allowed
 						# you can typically NOT start a string literal in a lot of places e.g. there are not very many operations allowed on it
 						# NOTE do NOT forget to end any current token (this would be when the token type is positive)
-						if abs(tokentype)>0 and abs(tokentype)<OPERATOR_TOKENTYPE: # behind a binary operator (if a single-character operator this might be the second character
-							# expecting either the continuation of the two-character operator or something that is NOT a binary operator
-							# given that this character is a operator by itself, another operator character is not allowed
-							# unless it's one of the characters that allowed to follow it
-							# any subsequent character ends the operator token
-							# it's a little easier to use o2 to determine whether the new token is the second character of a two-character binary operator
-							# NOTE there's NO need to check when tokentype=8 because in that case it's either already a two-character operator or a single-character operator
-							#			 that can not be continued (so in fact tokentype 8 indicates a finishes token, in which case tokentype I guess would be -8
-							#			 in which case the token is already finished, and our new token should start a new token if possible
-							operatortext=self.token.getText()
-							secondoperatorchar=(o2.find(" "+operatortext+_tokenchar)>=0)
-							# MDH@23AUG2017: you cannot interrupt a binary operator (so if there's whitespace and tokentype is negative)
-							#								 it's illegal, TODO prevent this from happening by ??????
-							if tokentype>0 and secondoperatorchar: #### replacing:	 _tokenchar in so[tokentype-1]: # the second character of the two-character operator
-								# we should NOT allow using == as operator behind an identifier that has not yet been defined
-								# although it's not always true that the == operator is applied to the value of this non-existing identifier per se
-								if len(self.tokens)>0 and self.tokens[-1].getType()==IDENTIFIER_TOKENTYPE and not self.identifierExists(self.tokens[-1].getText()):
-									self.error="It is not allowed to apply the equal comparison operator to a non-existing variable."
-								elif tokentype<=2 and len(self.tokens)>0 and operatortext==_tokenchar and self.tokens[-1].getType()==REAL_TOKENTYPE:
-									# someone is trying to apply the shift operator to a real number
-									self.error="It is not possible to shift a real number."
-								else:
-									if self.token.add(_tokenchar) is None: # append to create the two-character binary operator
-										self.error="Failed to create the two-character operator."
-									_tokenchar=None # no need to add the character to any (new) token
-							else:
-								# any character that unambiguously starts a binary operator should be prohibited
-								# any other character either in a, A, d, (, ), ' " is allowed
-								if _tokenchar in os or _tokenchar in o:
-									if _tokenchar!=assignmentchar: # TODO not very neat that = is also in os whereas it can also be a soro
-										if secondoperatorchar:
-											self.error="It is not allowed to separate operator characters."
+						if abs(tokentype)>0 and abs(tokentype)<=OPERATOR_TOKENTYPE: # behind a binary operator (if an unfinished single-character operator this might be the second character)
+							# MDH@05SEP2017: review of how to deal with the entered token character
+							#                ok, we want to know whether the current token character will end this operator if it is not yet finished
+							#                1. TOKENCHAR COULD CONTINUE THE UNFINISHED BINARY OPERATOR IE BE PROMOTED TO THE TWO-CHARACTER BINARY OPERATOR
+							operatortext=self.token.getText() # what the operator would become
+							# can this be the second order character????
+							secondoperatorchar=(tokentype>0 and tokentype<OPERATOR_TOKENTYPE and o2.find(" "+operatortext+_tokenchar)>=0)
+							if tokentype>0: # the token character can still be part of this operator in which case we add it and None it
+								if secondoperatorchar:
+									operatortext+=_tokenchar # the two-character binary operator
+									# we should NOT allow using == as operator behind an identifier that has not yet been defined
+									# although it's not always true that the == operator is applied to the value of this non-existing identifier per se
+									if len(self.tokens)>1 and self.tokens[-2].getType()==IDENTIFIER_TOKENTYPE and not self.identifierExists(self.tokens[-2].getText()):
+										self.error="It is not allowed to apply the equal comparison operator to a non-existing variable."
+									elif tokentype<=2 and len(self.tokens)>1 and (operatortext=='<<' or operatortext=='>>') and self.tokens[-2].getType()==REAL_TOKENTYPE:
+										# someone is trying to apply the shift operator to a real number
+										self.error="It is not possible to shift a real number."
+									else:
+										if self.token.add(_tokenchar) is not None:
+											_tokenchar=None
+											# is this operator shortcuttable???? if not discontinue the token (we can still have whitespace after it!!!
+											if operatortext[-1]==assignmentchar or operatortext=='||' or operatortext=='&&' or operatortext=='..':
+												self.token.discontinued()
 										else:
-											self.error="Binary operator "+(("(start) ","")[_tokenchar in o])+_tokenchar+" not allowed behind operator "+operatortext+"."
-							# still something left to do if no error occurred
-							if self.error is None:
-								# end of binary operator anyway
-								self.token.setType(OPERATOR_TOKENTYPE) # hmm, not sure whether I like this (TODO if we change the coloring, any token who's type changes would need to be rewritten)
-								self.token.end() # MDH@24AUG2017: we should NOT discontinue an operator that could still be continued (if behind a string literal we should though!!!)
-								# _tokenchar could still represent a sign operator
-								if _tokenchar is not None:
-									if _tokenchar in s or _tokenchar in soro: # a unary operator
-										# add the unary operators
-										self.addToken(SIGN_TOKENTYPE,_tokenchar,_output).discontinued()
-										_tokenchar=None # don't append again!!
+											self.error="Failed to create two-character operator "+operatortext+"!"
+								elif _tokenchar==assignmentchar and self.tokens[-2].getType()==IDENTIFIER_TOKENTYPE and operatortext[-1]!=assignmentchar and operatortext!='||' and operatortext!='&&' and operatortext!='..': # yes, the shortcutter
+									if self.token.add(_tokenchar) is not None:
+										_tokenchar=None
+										self.token.discontinued()
+									else:
+										self.error="Failed to shortcut operator "+operatortext+"!"
+								# promote the operator if no errors occurred because every unfinished binary operator also is an operator in its own rights
+								if self.error is None:
+									# anything left to do??????
+									if _tokenchar is not None: # no error, and _tokenchar not consumed yet
+										if _tokenchar in s or _tokenchar in soro: # a unary operator
+											# add the unary operators
+											self.addToken(SIGN_TOKENTYPE,_tokenchar,_output).discontinued()
+											_tokenchar=None # don't append again!!
+										# any character that unambiguously starts a binary operator should be prohibited
+										# any other character either in a, A, d, (, ), ' " is allowed
+										elif _tokenchar in os or _tokenchar in o:
+											if _tokenchar!=assignmentchar: # TODO not very neat that = is also in os whereas it can also be a soro
+												if secondoperatorchar:
+													self.error="It is not allowed to separate operator characters."
+												else:
+													self.error="Binary operator "+(("(start) ","")[_tokenchar in o])+_tokenchar+" not allowed behind operator "+operatortext+"."
+								if self.error is None:
+									if tokentype<OPERATOR_TOKENTYPE:
+										self.token.setType(OPERATOR_TOKENTYPE)
 						elif abs(tokentype)==INTEGER_TOKENTYPE or abs(tokentype)==REAL_TOKENTYPE: # in/behind a number
 							# it's better to only allow digits (periods and whitespace already handled above)
 							if not _tokenchar in d: # anything not a digit will discontinue the number
@@ -2034,10 +2021,11 @@ class Expression(Token):
 												########self.token.end() #### replacing: tokentype=self.setTokentype(self.tokenends())
 											else:
 												tokentype=self.setTokentype(osindex+1)
-									elif osindex==0: # assumed to be the unary = operator
-										self.addToken(SIGN_TOKENTYPE,_tokenchar,_output).discontinued()
-									else:
-										self.error="Operator not allowed behind operator or sign."
+									else: # behind binary or unary operator
+										if osindex==0: # assignment (equal) character
+											self.addToken(SIGN_TOKENTYPE,_tokenchar,_output).discontinued()
+										else:
+											self.error="Operator not allowed behind operator or sign."
 								elif _tokenchar in o: # a single-character binary operator
 									# not allowed behind another binary operator
 									if tokentype==0:
@@ -2203,7 +2191,7 @@ class Expression(Token):
 				forindexexpression=_arglist[0]
 				# NOTE any argument should always be an expression, which should create the identifier mentioned in it
 				#			 now, if it is not a single token in it of type identifier
-				if isinstance(forindexepression,Expression): # which it should be
+				if isinstance(forindexexpression,Expression): # which it should be
 					forindexvalues=_arglist[1].getValue(evaluationenvironment)
 					if isIterable(forindexvalues):
 						# it's MORE convenient to ALWAYS create a new environment, with the for index identifier as identifier
@@ -2234,10 +2222,31 @@ class Expression(Token):
 				else:
 					note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
 			return result
-		def getIfResult(condition,clauses):
-			pass
-		def getSwitchResult(expressiontext):
-			pass
+		def getIfResult(_arglist):
+			# NOTE we might expand if a bit but making it a multiselector
+			#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
+			result=list()
+			conditionvalue=_arglist[0].getValue(evaluationenvironment)
+			if isinstance(conditionvalue,int): # an acceptible outcome
+				if conditionvalue!=0: # condition evaluates to True
+					if len(_arglist)>1:
+						result.append(_arglist[1].getValue(evaluationenvironment))
+				else:
+					if len(_arglist)>2:
+						result.append(_arglist[2].getValue(evaluationenvironment))
+			return result
+		def getSwitchResult(_arglist):
+			result=list()
+			conditionvalue=_arglist[0].getValue(evaluationenvironment)
+			if isinstance(conditionvalue,int): # an acceptible outcome
+				# with the True and False clause switched, we should use ! to get the proper index
+				# wrap around the condition value to be in the range [0,len(_arglist)-2]
+				if conditionvalue>0:
+					conditionvalue%=len(_arglist)-1
+				if conditionvalue<0:
+					conditionvalue=0
+				result.append(_arglist[conditionvalue+1].getValue(evaluationenvironment))
+			return result
 		# best not to end with a period, given the possible color showing the last token
 		value=undefined.getValue() # which at the moment is also None, so cannot be used to determine whether or not an error occurred!!!!
 		self.error=None
@@ -2275,9 +2284,9 @@ class Expression(Token):
 						# MDH@04SEP2017: that is SO wrong because we already took care of converting
 						#								 Expression instances to ExpressionEvaluator instances which
 						#								 SO know in which environment to evaluate the expression
-						if function.index==21: # eval
+						if function.getIndex()==21: # eval
 							argument=getEvalResult(arguments)
-						elif function.index==100: # while
+						elif function.getIndex()==100: # while
 							argument=getWhileResult(arguments)
 						elif function.getIndex()==210: # for
 							arguments=getForResult(arguments)
@@ -2346,7 +2355,7 @@ class Expression(Token):
 								note("Precedence of "+str(elements[-2])+": "+str(elements[-2].getPrecedence())+".")
 						while len(elements)>2 and elements[-2].getPrecedence()<=precedence: # a lower (=better) or equal precedence, i.e. we should apply that operator to the last two arguments on the stack
 							try:
-								elements.append(executionenvironment.getOperationResult(elements.pop(),elements.pop().getText(),elements.pop())) # pretty neat to be able to do it this way (but I rewrote getOperationResult to accept the 2nd argument first!!!)
+								elements.append(evaluationenvironment.getOperationResult(elements.pop(),elements.pop().getText(),elements.pop())) # pretty neat to be able to do it this way (but I rewrote getOperationResult to accept the 2nd argument first!!!)
 							except Exception,ex:
 								self.error=ex
 								break
@@ -2363,6 +2372,8 @@ class Expression(Token):
 						elif tokentype==REAL_TOKENTYPE: # a float
 							argument=float(tokentext)
 						elif tokentype==EXPRESSION_TOKENTYPE: # a subexpression which we should evaluate now
+							argument=token # MDH@05SEP2017: now again allowed to pass along token of type expression!!!!
+							"""
 							# do NOT evaluate right now, because we might be trying to assign to it
 							# NO do NOT ask for the value of the token when dealing with an identifier element expression
 							#		 because we might be assigning to it!!!
@@ -2372,6 +2383,7 @@ class Expression(Token):
 									continue # i.e. do not append to elements (see below)
 								# TODO we need to combine it with the identifier element expression in front of it!!!
 							argument=ExpressionEvaluator(token,_environment) ######.getValue() # we need to evaluate it anyway!!!
+							"""
 						elif tokentype==IDENTIFIER_TOKENTYPE: # some identifier, either a function or an identifier
 							# although an identifier can also be a function, we allow using function names as identifiers, so it depends on what's behind the identifier name
 							# whether it's a function or identifier
@@ -2381,7 +2393,7 @@ class Expression(Token):
 							if function is not None:
 								argument=function # remember the function until we have the argument to apply it to
 							else: # identifier that does not yet exist
-								argument=_environment.getIdentifier(tokentext)
+								argument=evaluationenvironment.getIdentifier(tokentext)
 						else: # anything else (which is stored as text)
 							argument=getValue(tokentext) # like an expression
 						# MDH@15AUG2017: if we allow as many arguments as possible, we cannot immediately apply the functions to an argument, not until we come across an operator
@@ -2411,7 +2423,7 @@ class Expression(Token):
 							# the problem is that getOperationResult will receive expressions as well
 							# which it sometimes must evaluate and sometimes not, so it needs an environment
 							if len(elements)>2: # we should have at least an operator in front of it
-								elements.append(_environment.getOperationResult(elements.pop(),elements.pop().getText(),elements.pop()))
+								elements.append(evaluationenvironment.getOperationResult(elements.pop(),elements.pop().getText(),elements.pop()))
 						except Exception,ex:
 							self.error=ex
 							note("ERROR: '"+ex.getLocalizedMessage()+"'!")
@@ -2778,7 +2790,7 @@ def main():
 		writeInstructionsForUse()
 	environment=Environment(currentusername,Menvironment)
 	# make it possible to retrieve previous expressions entered
-	environment.addIdentifier('M',Identifier(_value=[])) # so we can use it in expressions itself (NOT in user functions!!!)
+	environment.addIdentifier(Identifier(_value=[]),"M") # so we can use it in expressions itself (NOT in user functions!!!)
 	#####print("Start control messages with a backtick (`)!")
 	######### MDH@02SEP2017 the environment will keep the list of entered expressions: global mexpressions
 	mexpression=None
