@@ -309,6 +309,8 @@ class ReturnException(BaseException):
 		return self.value
 	def __str__(self):
 		return str(self.value)
+# MDH@05SEP2017: excluding the execution of for, while, if and eval function because
+#                they need to know there execution environment
 class Function:
 	def __init__(self,_functionindex):
 		self.functionindex=_functionindex
@@ -321,12 +323,14 @@ class Function:
 	def apply(self,_value): # the function to be applied to a single argument
 		value=getValue(_value) # MDH@02SEP2017: arguments must be evaluated beforehand
 		debugnote("Function #"+str(self.functionindex)+" to be applied to "+str(value)+".")
+		"""
 		if self.functionindex==1: # return()
 			if value is not None:
 				raise ReturnException((value,))
 			return value # just return identity but that makes it hard I guess
 		if self.functionindex==2: # list(): only needs to evaluate the arguments!!!
 			return value
+		"""
 		if value!=undefined.getValue():
 			if self.functionindex>=50: # a list function
 				if isIterable(value): # as it should be
@@ -400,7 +404,7 @@ class Function:
 					# __value is supposed to be a string which is a bit of an issue if it isn't
 					# nevertheless we should treat __value as an expression that we need to evaluate
 					expressiontext=dequote(value)[0]
-					note("To evaluate: '"+expressiontext+"'.")
+					####note("To evaluate: '"+expressiontext+"'.")
 					return eval(expressiontext,_environment,0) # don't show debug information
 				if self.functionindex==22: # error
 					raise Exception(value) # generate an error
@@ -417,9 +421,12 @@ class Function:
 			# this is the function application at the top level i.e. it will receive an argument list
 			argcount=1+(self.functionindex/100) # the number of arguments this function has
 			# MDH@04SEP2017: some function can have less than argcount arguments (like if)
-			if argcount==0:
-				if self.functionindex==1: # the list function
-					fvalue=map(self.apply,_arglist) # will always return a list
+			if argcount==0: # these function do NOT call apply!!
+				if self.functionindex==1: # the return function
+					# do I always throw a ReturnException????
+					raise ReturnException((_arglist[0],_arglist)[len(_arglist)!=1])
+				if self.functionindex==2: # the list function
+					fvalue=_arglist # will always return the input as a list (which is is even if a single argument is specified)
 			elif argcount==1:
 				if self.functionindex<23 and len(_arglist)==1: # a scalar function applied to a single-item argument list is to return a scalar
 					fvalue=self.apply(_arglist[0])
@@ -432,17 +439,6 @@ class Function:
 				fvalue=[]
 				# first all functions that consume all arguments in one go
 				if self.functionindex==100: # while
-					if len(_arglist)>1: # we really need two arguments here
-						whilebody=_arglist[1:]
-						condition=_arglist[0] # or we might pop this last argument
-						conditionvalue=getValue(condition)
-						###note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
-						while conditionvalue!=0:
-							bodyvalues=map(getValue,whilebody)
-							###note("Value of body '"+str(whilebody)+"': '"+str(bodyvalue)+"'...")
-							fvalue.append(bodyvalues)
-							conditionvalue=getValue(condition)
-							###note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
 				elif self.functionindex==199: # join
 					# I guess we can pop two operands at a time into a result????
 					while len(_arglist)>0:
@@ -474,49 +470,6 @@ class Function:
 								fvalue=getValue(_arglist[1])
 				elif self.functionindex==210: # for requires a total of three elements the loop variable, the list to iterate over, and what to do
 					# instead of a condition we have a list with values to iterate over
-					if len(_arglist)>2:
-						forindex=_arglist[0]
-						# NOTE any argument should always be an expression, which should create the identifier mentioned in it
-						#			 now, if it is not a single token in it of type identifier
-						if isinstance(forindex,ExpressionEvaluator): # which it should be
-							forindexvalues=getValue(_arglist[1]) # or we might pop this last argument
-							if isIterable(forindexvalues):
-								# create the identifier in forindex if need be (to be destroyed when done)
-								forindexidentifierexists=False
-								forindexexpression=forindex.getExpression()
-								forindexenvironment=forindex.getEnvironment()
-								if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType() in (IDENTIFIER_TOKENTYPE,VARIABLE_TOKENTYPE):
-									forindexidentifiername=forindexexpression.tokens[-1].getText()
-								else:
-									forindexidentifiername=None
-								# remember if it already existed
-								forindexidentifierexisted=forindexidentifiername is not None and forindexenvironment.identifierExists(forindexidentifiername)
-								# ready to rock'n'roll
-								getValue(forindex) # get the forindex expression executed (which will take care of creating the index identifier)
-								# the for index identifier should now definitely exist
-								if forindexidentifiername is not None: # the forindex identifies a single identifier to use as index variable
-									forindexidentifier=forindex.getIdentifier(forindexidentifiername)
-								else:
-									forindexidentifier=None
-								# do we have a for index identifier????
-								fvalue=[]
-								# NOTE we might consider leaving the loop if it's value changed within the loop
-								for forindexvalue in forindexvalues:
-									# update the value of the forindex identifier (if any)
-									if forindexidentifier is not None:
-										forindexidentifier.setValue(forindexvalue) # this is a bit of an issue
-									forbodyvalue=map(getValue,_arglist[2:]) # evaluate the remaining arguments
-									if not isIterable(forbodyvalue) or len(forbodyvalue)!=1:
-										fvalue.append(forbodyvalue)
-									else: # a single result
-										fvalue.append(forbodyvalue[0])
-								# if the for index identifier was created, it should be removed again
-								if forindexidentifiername is not None and not forindexidentifierexisted:
-									forindex.deleteIdentifier(forindexidentifiername)
-							else:
-								note("Second for loop argument ("+str(forindexvalues)+") not a list.")
-						else:
-							note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
 		finally:
 			pass ####debugnote("Result of applying function #"+str(self.functionindex)+": "+str(fvalue)+".")
 		return fvalue
@@ -615,7 +568,7 @@ class Environment(list):
 		else:
 			self.parent=None
 			self.mode=0
-		self.externalidentifiernames=list() # the list of external variables used by this environment that cannot be created locally
+		#######self.externalidentifiernames=list() # the list of external variables used by this environment that cannot be created locally
 		self.identifiers=dict()
 		self.functions=dict()
 		self.expressions=list() # keep a list of expressions, to be able to re-use them
@@ -736,6 +689,11 @@ class Environment(list):
 	def addIdentifier(self,_name,_identifier):
 		self.identifiers[_name]=_identifier
 		return self
+	def addIdentifier(self,_identifier):
+		_identifiername=_identifier.getName()
+		if _identifiername is None:
+			return None
+		return self.addIdentifier(_identifiername,_identifier)
 	def addFunction(self,_name,_function):
 		self.functions[_name]=_function
 		return self
@@ -743,6 +701,174 @@ class Environment(list):
 	def addFunctions(self,_functionindexdict):
 		for functionname in _functionindexdict:
 			self.addFunction(functionname,Function(_functionindexdict[functionname]))
+	# MDH@15AUG2017: the way we're pushing the elements of the expression on the stack, we're always popping the second operand first, then the operator, then the first argument
+	def getOperationResult(argument2,operator,argument1):
+		result=None
+		if argument2 is not None and argument1 is not None:
+			if operator==declarationchar: # the expression assignment operator (which is very special indeed)
+				if DEBUG&8:
+					note("Declaring "+str(argument2)+" as "+str(argument1)+".")
+				if isinstance(argument1,Identifier):
+					return argument1.setValue(argument2).getValue()
+				if isinstance(argument1,IdentifierElementExpression):
+					return argument1.setValue(argument2).getValue(self)
+				raise Exception("Expression destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
+			# MDH@27AUG2017: all other operations require evaluation of the RHS expression!!!
+			if isinstance(argument2,Expression):
+				operand2=argument2.getValue(self)
+			else:
+				operand2=getValue(argument2) # TODO we have to think about this environment stuff
+			if DEBUG&8:
+				note("Computing "+str(argument1)+" "+str(operator)+" "+str(argument2)+"...")
+			# with an assignment the left-hand side will not be a 'list' but the right-hand side can be a list to assign
+			# so it's easist to deal with the assignment separately
+			if operator==assignmentchar:
+				if isinstance(argument1,list) and len(argument1)==1:
+					operand1=argument1[0]
+				else: # which could be an empty list!!!
+					operand1=argument1
+				if DEBUG&8:
+					note("Assigning "+str(operand2)+" to "+str(operand1)+".")
+				if isinstance(operand1,Identifier):
+					return operand1.setValue(operand2).getValue()
+				if isinstance(argument1,IdentifierElementExpression):
+					return operand1.setValue(operand2).getValue(self)
+				raise Exception("Assignment destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
+			# if assigning do not evaluate the left-hand side
+			if isinstance(argument1,Expression):
+				operand1=argument1.getValue(self)
+			else:
+				operand1=getValue(argument1)
+			# both operands need not be None
+			if operand1 is not None and operand2 is not None:
+				# with the period also defined as list concatenation operand we should simply extend operand1 with (listified) operand2
+				if operator==periodchar: # the list concatenation operator
+					result=list(operand1)
+					result.extend(listify(operand2)) # do NOT use listify() on operand1, because we need to actually extend a copy not the original
+					return result
+				# ok, both elements should be either lists or scalars, at least to apply the non-assignment binary operators to
+				# although we should always obtain two list or two items, we make a list of either if need be
+				if isinstance(operand2,list):
+					if len(operand2)==0:
+						return operand1
+					if not isinstance(operand1,list):
+						return self.getOperationResult(operand2,operator,[operand1])
+					# delist if both arguments are one-element lists
+					if len(operand1)==1 and len(operand2)==1:
+						return self.getOperationResult(operand2[0],operator,operand1[0])
+					result=[]
+					for i in range(0,max(len(operand1),len(operand2))):
+						result.append(self.getOperationResult(getItem(operand2,i),operator,getItem(operand1,i)))
+					return result # return as list!!!
+				if isinstance(operand1,list):
+					if len(operand1)==0:
+						return operand2
+					return self.getOperationResult([operand2],operator,operand1)
+				if operator=="..": # MDH@27AUG2017: replaced : because : is now the operator to defined a block of (unevaluated) expressions
+					if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
+						result=[operand1]
+						if operand1<operand2:
+							while operand1+1<=operand2:
+								operand1+=1
+								result.append(operand1)
+						elif operand1>operand2:
+							while operand1-1>=operand2:
+								operand1-=1
+								result.append(operand1)
+				elif operator=="-":
+					result=operand1-operand2
+				elif operator=="+":
+					# a bit of an issue if we have string concatenation which we should or should not allow
+					if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
+						result=operand1+operand2
+					else:
+						result=concatenate(operand1,operand2)
+				elif operator=="*":
+					if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
+						result=operand1*operand2
+					else:
+						result=repeat(operand1,operand2)
+				elif operator=="%" or operator=="%%": # modulo operators but the latter forces the result to be integer
+					if operand2!=0:
+						result=operand1%operand2
+						# second operator forces the result to be an integer (if not already)
+						if len(operator)>1 and isinstance(result,float):
+							result=math.trunc(result)
+					else:
+						raise Exception("Division by zero in an attempt to apply the modulo operator (%).")
+				elif operator=="\\" or operator=="//": # two styles of requesting integer division
+					if operand2!=0:
+						# integer division is something that returns an integer
+						# which means truncating the result to an integer
+						if isinstance(operand1,int) and isinstance(operand2,int):
+							result=operand1/operand2
+						else: # Python has a math.trunc() which seems to do just what we want!!
+							result=math.trunc(operand1/operand2)
+					else:
+						raise Exception("Integer division by zero attempted.")
+				elif operator=="/": # non-integer division
+					if operand2!=0:
+						# we'll have to force Python to do non-integer division
+						if isinstance(operand1,int) and isinstance(operand2,int):
+							result=float(operand1)/operand2
+						else:
+							result=operand1/operand2
+					else:
+						raise Exception("Division by zero attempted.")
+				elif operator=="^":
+					result=(falsevalue,truevalue)[operand1^operand2]
+				elif operator=="|":
+					result=(falsevalue,truevalue)[operand1|operand2]
+				elif operator=="||":
+					result=(falsevalue,truevalue)[operand1 or operand2]
+				elif operator=="&":
+					result=(falsevalue,truevalue)[operand1&operand2]
+				elif operator=="&&":
+					result=(falsevalue,truevalue)[operand1 and operand2]
+				elif operator=="<":
+					result=(falsevalue,truevalue)[operand1<operand2]
+				elif operator==">":
+					result=(falsevalue,truevalue)[operand1>operand2]
+				elif operator=="<=":
+					result=(falsevalue,truevalue)[operand1<=operand2]
+				elif operator==">=":
+					result=(falsevalue,truevalue)[operand1>=operand2]
+				elif operator=="==":
+					# here we have to deal with undefined as well (which is now defined as None
+					result=(falsevalue,truevalue)[operand1==operand2]
+				elif operator=="!=":
+					result=(falsevalue,truevalue)[operand1!=operand2]
+				elif operator=="<<":
+					result=shift(operand1,operand2)
+				elif operator==">>":
+					result=shift(operand1,-operand2)
+				elif operator=="**":
+					result=operand1**operand2
+			else: # one or either operands are None (i.e. undefined)
+				# comparison operators can still return something that is not None!!!
+				# basically anything that should return True (1) or false (0) should
+				# typically the || and && operators required boolean operands, I suppose we can map undefined to false, and anything else to true
+				# although zero should map to false, and 1 to true, I suppose if it's not 1 it's false
+				if operator=="||":
+					result=(falsevalue,truevalue)[operand1==truevalue or operand2==truevalue]
+				elif operator=="&&":
+					result=(falsevalue,truevalue)[operand1==truevalue and operand2==truevalue]
+				elif operator=="<":
+					result=(falsevalue,truevalue)[operand1<operand2]
+				elif operator==">":
+					result=(falsevalue,truevalue)[operand1>operand2]
+				elif operator=="<=":
+					result=(falsevalue,truevalue)[operand1<=operand2]
+				elif operator==">=":
+					result=(falsevalue,truevalue)[operand1>=operand2]
+				elif operator=="==":
+					# here we have to deal with undefined as well (which is now defined as None
+					result=(falsevalue,truevalue)[operand1==operand2]
+				elif operator=="!=":
+					result=(falsevalue,truevalue)[operand1!=operand2]
+			if DEBUG&8:
+				note("Result of applying "+str(operator)+" to "+str(operand1)+" and "+str(operand2)+"="+str(result))
+		return result
 
 # create the main M environment
 import math
@@ -940,174 +1066,7 @@ def getItem(_list,_index):
 # let's define two constants representing the value to use for true and the one for false
 truevalue=1
 falsevalue=0
-# MDH@15AUG2017: the way we're pushing the elements of the expression on the stack, we're always popping the second operand first, then the operator, then the first argument
-def getOperationResult(argument2,operator,argument1,_environment):
-	result=None
-	if argument2 is not None and argument1 is not None:
-		if operator==declarationchar: # the expression assignment operator (which is very special indeed)
-			if DEBUG&8:
-				note("Declaring "+str(argument2)+" as "+str(argument1)+".")
-			if isinstance(argument1,Identifier):
-				return argument1.setValue(argument2).getValue()
-			if isinstance(argument1,IdentifierElementExpression):
-				return argument1.setValue(argument2).getValue(_environment)
-			raise Exception("Expression destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
-		# MDH@27AUG2017: all other operations require evaluation of the RHS expression!!!
-		if isinstance(argument2,Expression):
-			operand2=argument2.getValue(_environment)
-		else:
-			operand2=getValue(argument2) # TODO we have to think about this environment stuff
-		if DEBUG&8:
-			note("Computing "+str(argument1)+" "+str(operator)+" "+str(argument2)+"...")
-		# with an assignment the left-hand side will not be a 'list' but the right-hand side can be a list to assign
-		# so it's easist to deal with the assignment separately
-		if operator==assignmentchar:
-			if isinstance(argument1,list) and len(argument1)==1:
-				operand1=argument1[0]
-			else: # which could be an empty list!!!
-				operand1=argument1
-			if DEBUG&8:
-				note("Assigning "+str(operand2)+" to "+str(operand1)+".")
-			if isinstance(operand1,Identifier):
-				return operand1.setValue(operand2).getValue()
-			if isinstance(argument1,IdentifierElementExpression):
-				return operand1.setValue(operand2).getValue(_environment)
-			raise Exception("Assignment destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
-		# if assigning do not evaluate the left-hand side
-		if isinstance(argument1,Expression):
-			operand1=argument1.getValue(_environment)
-		else:
-			operand1=getValue(argument1)
-		# both operands need not be None
-		if operand1 is not None and operand2 is not None:
-			# with the period also defined as list concatenation operand we should simply extend operand1 with (listified) operand2
-			if operator==periodchar: # the list concatenation operator
-				result=list(operand1)
-				result.extend(listify(operand2)) # do NOT use listify() on operand1, because we need to actually extend a copy not the original
-				return result
-			# ok, both elements should be either lists or scalars, at least to apply the non-assignment binary operators to
-			# although we should always obtain two list or two items, we make a list of either if need be
-			if isinstance(operand2,list):
-				if len(operand2)==0:
-					return operand1
-				if not isinstance(operand1,list):
-					return getOperationResult(operand2,operator,[operand1],_environment)
-				# delist if both arguments are one-element lists
-				if len(operand1)==1 and len(operand2)==1:
-					return getOperationResult(operand2[0],operator,operand1[0],_environment)
-				result=[]
-				for i in range(0,max(len(operand1),len(operand2))):
-					result.append(getOperationResult(getItem(operand2,i),operator,getItem(operand1,i),_environment))
-				return result # return as list!!!
-			if isinstance(operand1,list):
-				if len(operand1)==0:
-					return operand2
-				return getOperationResult([operand2],operator,operand1,_environment)
-			if operator=="..": # MDH@27AUG2017: replaced : because : is now the operator to defined a block of (unevaluated) expressions
-				if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
-					result=[operand1]
-					if operand1<operand2:
-						while operand1+1<=operand2:
-							operand1+=1
-							result.append(operand1)
-					elif operand1>operand2:
-						while operand1-1>=operand2:
-							operand1-=1
-							result.append(operand1)
-			elif operator=="-":
-				result=operand1-operand2
-			elif operator=="+":
-				# a bit of an issue if we have string concatenation which we should or should not allow
-				if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
-					result=operand1+operand2
-				else:
-					result=concatenate(operand1,operand2)
-			elif operator=="*":
-				if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
-					result=operand1*operand2
-				else:
-					result=repeat(operand1,operand2)
-			elif operator=="%" or operator=="%%": # modulo operators but the latter forces the result to be integer
-				if operand2!=0:
-					result=operand1%operand2
-					# second operator forces the result to be an integer (if not already)
-					if len(operator)>1 and isinstance(result,float):
-						result=math.trunc(result)
-				else:
-					raise Exception("Division by zero in an attempt to apply the modulo operator (%).")
-			elif operator=="\\" or operator=="//": # two styles of requesting integer division
-				if operand2!=0:
-					# integer division is something that returns an integer
-					# which means truncating the result to an integer
-					if isinstance(operand1,int) and isinstance(operand2,int):
-						result=operand1/operand2
-					else: # Python has a math.trunc() which seems to do just what we want!!
-						result=math.trunc(operand1/operand2)
-				else:
-					raise Exception("Integer division by zero attempted.")
-			elif operator=="/": # non-integer division
-				if operand2!=0:
-					# we'll have to force Python to do non-integer division
-					if isinstance(operand1,int) and isinstance(operand2,int):
-						result=float(operand1)/operand2
-					else:
-						result=operand1/operand2
-				else:
-					raise Exception("Division by zero attempted.")
-			elif operator=="^":
-				result=(falsevalue,truevalue)[operand1^operand2]
-			elif operator=="|":
-				result=(falsevalue,truevalue)[operand1|operand2]
-			elif operator=="||":
-				result=(falsevalue,truevalue)[operand1 or operand2]
-			elif operator=="&":
-				result=(falsevalue,truevalue)[operand1&operand2]
-			elif operator=="&&":
-				result=(falsevalue,truevalue)[operand1 and operand2]
-			elif operator=="<":
-				result=(falsevalue,truevalue)[operand1<operand2]
-			elif operator==">":
-				result=(falsevalue,truevalue)[operand1>operand2]
-			elif operator=="<=":
-				result=(falsevalue,truevalue)[operand1<=operand2]
-			elif operator==">=":
-				result=(falsevalue,truevalue)[operand1>=operand2]
-			elif operator=="==":
-				# here we have to deal with undefined as well (which is now defined as None
-				result=(falsevalue,truevalue)[operand1==operand2]
-			elif operator=="!=":
-				result=(falsevalue,truevalue)[operand1!=operand2]
-			elif operator=="<<":
-				result=shift(operand1,operand2)
-			elif operator==">>":
-				result=shift(operand1,-operand2)
-			elif operator=="**":
-				result=operand1**operand2
-		else: # one or either operands are None (i.e. undefined)
-			# comparison operators can still return something that is not None!!!
-			# basically anything that should return True (1) or false (0) should
-			# typically the || and && operators required boolean operands, I suppose we can map undefined to false, and anything else to true
-			# although zero should map to false, and 1 to true, I suppose if it's not 1 it's false
-			if operator=="||":
-				result=(falsevalue,truevalue)[operand1==truevalue or operand2==truevalue]
-			elif operator=="&&":
-				result=(falsevalue,truevalue)[operand1==truevalue and operand2==truevalue]
-			elif operator=="<":
-				result=(falsevalue,truevalue)[operand1<operand2]
-			elif operator==">":
-				result=(falsevalue,truevalue)[operand1>operand2]
-			elif operator=="<=":
-				result=(falsevalue,truevalue)[operand1<=operand2]
-			elif operator==">=":
-				result=(falsevalue,truevalue)[operand1>=operand2]
-			elif operator=="==":
-				# here we have to deal with undefined as well (which is now defined as None
-				result=(falsevalue,truevalue)[operand1==operand2]
-			elif operator=="!=":
-				result=(falsevalue,truevalue)[operand1!=operand2]
-		if DEBUG&8:
-			note("Result of applying "+str(operator)+" to "+str(operand1)+" and "+str(operand2)+"="+str(result))
-	return result
+# MDH@05SEP2017: by moving getOperationResult into Environment, it always knows the environment it is operating in
 import random
 # list of token types:
 # 0=unknown
@@ -2194,7 +2153,91 @@ class Expression(Token):
 	# if we pass the environment to getValue() which I suppose should then better be called evaluate or evaluatesTo we should ascertain that any subexpression
 	# that we push on elements actually wraps the expression in an ExpressionEvaluator
 	# that way getOperationResult() and Function.getValue() never sees any expression that does NOT know it's environment
+	# MDH@05SEP2017: passing the execution environment to getValue() is not such a bad idea, although this would mean that we cannot use getValue() without it
+	#                in most cases the evalution environment will be the same as the creation environment as an expression is typically created and immediately executed
+	#                therefore: the default is to NOT have to specify an environment in the call to getValue()
 	def getValue(self,_environment=None):
+		evaluationenvironment=(self.environment,_environment)[_environment is not None]
+		# MDH@05SEP2017: we can define the while, for, if and eval 'function' calls here, as they need their execution environment
+		def getEvalResult(arguments):
+			result=list()
+			if len(arguments)>0:
+				for argument in arguments:
+					# we need the text representation of the argument's value
+					argumenttext=getText(argument.getValue(evaluationenvironment))
+					if not isinstance(argumenttext,str):
+						continue
+					if len(argumenttext)>0:
+						argumentexpressionerror=None
+						argumentexpression=Expression(evaluationenvironment,0)
+						for argumentch in argumenttext:
+							newargumentexpression=argumentexpression.add(argumentch,False)
+							argumentexpressionerror=argumentexpression.getError()
+							if argumentexpressionerror is not None:
+								break
+							if newargumentexpression is None:
+								break
+							argumentexpression=newargumentexpression
+						if argumentexpressionerror is None:
+							result.append(argumentexpression.getValue())
+						else:
+							result.append(undefined.getValue())
+			return result
+		def getWhileResult(_arglist):
+			result=list()
+			if len(_arglist)>1: # we really need two arguments here
+				whilebody=_arglist[1:]
+				condition=_arglist[0] # or we might pop this last argument
+				conditionvalue=condition.getValue(evaluationenvironment)
+				###note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
+				while conditionvalue!=0:
+					bodyvalues=[bodyexpression.getValue(evaluationenvironment) for bodyexpression in whilebody]
+					###note("Value of body '"+str(whilebody)+"': '"+str(bodyvalue)+"'...")
+					result.append(bodyvalues)
+					conditionvalue=condition.getValue(evaluationenvironment)
+					###note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
+			return result
+		def getForResult(_arglist):
+			result=list()
+			if len(_arglist)>2:
+				forindexexpression=_arglist[0]
+				# NOTE any argument should always be an expression, which should create the identifier mentioned in it
+				#			 now, if it is not a single token in it of type identifier
+				if isinstance(forindexepression,Expression): # which it should be
+					forindexvalues=_arglist[1].getValue(evaluationenvironment)
+					if isIterable(forindexvalues):
+						# it's MORE convenient to ALWAYS create a new environment, with the for index identifier as identifier
+						if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType() in (IDENTIFIER_TOKENTYPE,VARIABLE_TOKENTYPE):
+							forindexidentifier=Identifier(forindexexpression.tokens[-1].getText())
+						else:
+							forindexidentifier=None
+						# create the for index environment BUT then the problem is that all variables declared in the for loop are local to the for loop and lost afterwards!!!
+						# which means that whatever is assigned to in the for loop should already exist!!
+						if forindexidentifier is not None:
+							forindexenvironment=Environment(None,evaluationenvironment).addIdentifier(forindexidentifier)
+						else: # just execute in the current 'global' environment
+							forindexenvironment=evaluationenvironment
+						# do we have a for index identifier????
+						# NOTE we might consider leaving the loop if it's value changed within the loop
+						forbodyexpressions=_arglist[2:]
+						for forindexvalue in forindexvalues:
+							# update the value of the forindex identifier (if any)
+							if forindexidentifier is not None:
+								forindexidentifier.setValue(forindexvalue) # this is a bit of an issue
+							forbodyvalues=[forbodyexpression.getValue(forindexenvironment) for forbodyexpression in forbodyexpressions] # evaluate the remaining arguments
+							if not isIterable(forbodyvalues) or len(forbodyvalues)!=1:
+								result.append(forbodyvalues)
+							else: # a single result
+								result.append(forbodyvalues[0])
+					else:
+						note("Second for loop argument ("+str(forindexvalues)+") not a list.")
+				else:
+					note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
+			return result
+		def getIfResult(condition,clauses):
+			pass
+		def getSwitchResult(expressiontext):
+			pass
 		# best not to end with a period, given the possible color showing the last token
 		value=undefined.getValue() # which at the moment is also None, so cannot be used to determine whether or not an error occurred!!!!
 		self.error=None
@@ -2211,40 +2254,12 @@ class Expression(Token):
 				########evaluatedexpression=Expression() # the expression to populate with the values of the successive tokens and operators to apply
 				def getElementValue(_element):
 					if isinstance(_element,Expression):
-						return _element.getValue(_environment)
+						return _element.getValue(evaluationenvironment)
 					return getValue(_element)
 				elements=[] # arguments (functions and values) and operators intertwined
 				# as we will be applying functions to arguments multiple times, we create a subfunction to do that for us
 				def applyFunctions():
-					# MDH@19AUG2017: we can do this another way:
-					#								 1. find the last function to apply if any
-					#								 2. pass the remaining arguments into the function and append the returned result
-					#								 for now assume that a function will not return another function, or perhaps it will???
-					""" the following should have worked (better) but it didn't don't know wy yet TODO
-					l=len(elements)
-					while l>0:
-						l-=1
-						if isinstance(elements[l],Operator):
-							break
-						if not isinstance(elements[l],Function):
-							continue
-						note("Applying function "+str(elements[l])+" to "+str(elements[l+1:])+" (position: "+str(l)+").")
-						# a function at position l to apply to all elements behind this position
-						arguments=elements[l+1:]
-						del elements[l+1:]
-						elements[l]=elements[l].getValue(arguments)
-					"""
-					# replacing the previous solution (18AUG2017)
-					# we do NOT want a scalar to be turned into a list which will happen because the arguments are 'enlisted' in the first step
-					# to apply any functions to
-					# the question is whether or not we should 'delist' them before applying the next function
-					# functions typically accept an argument list, so if multiple functions are to be applied
-					# each function result should also be 'enlisted' before applying the next function
-					# here the problem is that an identifier can be indexed by an expression representing the index
-					# this should be solved by replacing Identifier + expression by an expression that can have an identifier
-					# so it's still an expression
 					# 1. POP OFF ALL ARGUMENTS
-					######note("Popping arguments!")
 					arguments=[] # the list of arguments, there should be at least one
 					while len(elements)>0 and not isinstance(elements[-1],Operator) and not isinstance(elements[-1],Function):
 						arguments.insert(0,elements.pop())
@@ -2260,7 +2275,18 @@ class Expression(Token):
 						# MDH@04SEP2017: that is SO wrong because we already took care of converting
 						#								 Expression instances to ExpressionEvaluator instances which
 						#								 SO know in which environment to evaluate the expression
-						arguments=function.getValue(arguments) ###### NO NO NO map(getElementValue,arguments))
+						if function.index==21: # eval
+							argument=getEvalResult(arguments)
+						elif function.index==100: # while
+							argument=getWhileResult(arguments)
+						elif function.getIndex()==210: # for
+							arguments=getForResult(arguments)
+						elif function.getIndex()==200: # if
+							arguments=getIfResult(arguments)
+						elif function.getIndex() in (201,202,203): # select/case/switch
+							arguments=getSwitchResult(arguments)
+						else: # application of a normal function (directly passing in the evaluated arguments
+							arguments=function.getValue(map(getElementValue,arguments)) ###### NO NO NO map(getElementValue,arguments))
 						# this would be an annoying step, we should let the function do that?????
 						if not isIterable(arguments):
 							arguments=[arguments]
@@ -2320,7 +2346,7 @@ class Expression(Token):
 								note("Precedence of "+str(elements[-2])+": "+str(elements[-2].getPrecedence())+".")
 						while len(elements)>2 and elements[-2].getPrecedence()<=precedence: # a lower (=better) or equal precedence, i.e. we should apply that operator to the last two arguments on the stack
 							try:
-								elements.append(getOperationResult(elements.pop(),elements.pop().getText(),elements.pop(),_environment)) # pretty neat to be able to do it this way (but I rewrote getOperationResult to accept the 2nd argument first!!!)
+								elements.append(executionenvironment.getOperationResult(elements.pop(),elements.pop().getText(),elements.pop())) # pretty neat to be able to do it this way (but I rewrote getOperationResult to accept the 2nd argument first!!!)
 							except Exception,ex:
 								self.error=ex
 								break
@@ -2385,7 +2411,7 @@ class Expression(Token):
 							# the problem is that getOperationResult will receive expressions as well
 							# which it sometimes must evaluate and sometimes not, so it needs an environment
 							if len(elements)>2: # we should have at least an operator in front of it
-								elements.append(getOperationResult(elements.pop(),elements.pop().getText(),elements.pop(),_environment))
+								elements.append(_environment.getOperationResult(elements.pop(),elements.pop().getText(),elements.pop()))
 						except Exception,ex:
 							self.error=ex
 							note("ERROR: '"+ex.getLocalizedMessage()+"'!")
