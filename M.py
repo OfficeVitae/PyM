@@ -2823,6 +2823,7 @@ def setUsername(_username):
 					writeln("You will not be recognized as the last (default) user, unless you mark your name in the Musers file with an asterisk yourself.")
 	else: # use the global (M) environment, to which you can add functions shared by all projects!!!
 		environment=Menvironment
+	writeUsageNotes()
 def getUsername():
 	# NOTE we're using the global currentusername but as long as we do not try to change it we do not need to declare it as global I think
 	# allowing a user to logout by pressing Enter
