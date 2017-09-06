@@ -782,7 +782,7 @@ class Environment(UserFunction):
 						return operand2
 					return self.getOperationResult([operand2],operator,operand1)
 				if operator=="..": # MDH@27AUG2017: replaced : because : is now the operator to defined a block of (unevaluated) expressions
-					if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
+					if isinstance(operand1,(int,long,float)) and isinstance(operand2,(int,long,float)):
 						result=[operand1]
 						if operand1<operand2:
 							while operand1+1<=operand2:
@@ -796,12 +796,12 @@ class Environment(UserFunction):
 					result=operand1-operand2
 				elif operator=="+":
 					# a bit of an issue if we have string concatenation which we should or should not allow
-					if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
+					if isinstance(operand1,(int,long,float)) and isinstance(operand2,(int,long,float)):
 						result=operand1+operand2
 					else:
 						result=concatenate(operand1,operand2)
 				elif operator=="*":
-					if isinstance(operand1,(int,float)) and isinstance(operand2,(int,float)):
+					if isinstance(operand1,(int,long,float)) and isinstance(operand2,(int,long,float)):
 						result=operand1*operand2
 					else:
 						result=repeat(operand1,operand2)
@@ -817,7 +817,7 @@ class Environment(UserFunction):
 					if operand2!=0:
 						# integer division is something that returns an integer
 						# which means truncating the result to an integer
-						if isinstance(operand1,int) and isinstance(operand2,int):
+						if isinstance(operand1,(int,long)) and isinstance(operand2,(int,long)):
 							result=operand1/operand2
 						else: # Python has a math.trunc() which seems to do just what we want!!
 							result=math.trunc(operand1/operand2)
@@ -826,7 +826,7 @@ class Environment(UserFunction):
 				elif operator=="/": # non-integer division
 					if operand2!=0:
 						# we'll have to force Python to do non-integer division
-						if isinstance(operand1,int) and isinstance(operand2,int):
+						if isinstance(operand1,(int,long)) and isinstance(operand2,(int,long)):
 							result=float(operand1)/operand2
 						else:
 							result=operand1/operand2
@@ -1010,7 +1010,7 @@ te="'"+'"' # ends a string literal
 # and here's the dictionary in which the identifiers themselves are stored
 # we allow using M as variable, referring to the previously executed commands, given that the value is a list you can change elements (not recommended though)
 def getInteger(_value):
-	if isinstance(_value,int):
+	if isinstance(_value,(int,long)):
 		return _value
 	if isinstance(_value,str) and len(_value)>0:
 		if _value[0]=='~': # starts with complement 'sign'
@@ -1023,7 +1023,7 @@ def getValue(_value):
 	if _value is not None:
 		if isinstance(_value,list):
 			return map(getValue,_value)
-		if isinstance(_value,(int,float)):
+		if isinstance(_value,(int,long,float)):
 			return _value
 		if isinstance(_value,str):
 			return _value
@@ -1050,9 +1050,9 @@ def concatenate(operand1,operand2):
 	o2=dequote(stringify(operand2))[0]
 	return enquote(o1+o2,quotechar)
 def repeat(operand1,operand2):
-	if isinstance(operand1,(int,float)):
+	if isinstance(operand1,(int,long,float)):
 		return repeat(operand2,operand1)
-	if isinstance(operand2,(int,float)):
+	if isinstance(operand2,(int,long,float)):
 		(o,quotechar)=dequote(stringify(operand1))
 		return quotechar+(o*operand2)+quotechar
 	return None
@@ -1061,7 +1061,7 @@ def shift(operand,by):
 		return operand
 	# MDH@14AUG2017: if operand is alphanumeric we rotate it
 	if by<0:
-		if isinstance(operand,int):
+		if isinstance(operand,(int,long)):
 			return operand>>-by
 		(operandtext,quotechar)=dequote(stringify(operand))
 		# shift right means cut off the right-hand side and move it to the left-hand side
@@ -1070,7 +1070,7 @@ def shift(operand,by):
 			return operand
 		shiftby=(-by)%l
 		return quotechar+operandtext[-shiftby:]+operandtext[:l-shiftby]+quotechar
-	if isinstance(operand,int):
+	if isinstance(operand,(int,long)):
 		return operand<<by
 	(operandtext,quotechar)=dequote(stringify(operand))
 	# shift right means cut off the right-hand side and move it to the left-hand side
@@ -2275,7 +2275,7 @@ class Expression(Token):
 			#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
 			result=list()
 			conditionvalue=_arglist[0].getValue(evaluationenvironment)
-			if isinstance(conditionvalue,int): # an acceptible outcome
+			if isinstance(conditionvalue,(int,long)): # an acceptible outcome
 				if conditionvalue!=0: # condition evaluates to True
 					if len(_arglist)>1:
 						result.append(_arglist[1].getValue(evaluationenvironment))
@@ -2286,7 +2286,7 @@ class Expression(Token):
 		def getSwitchResult(_arglist):
 			result=list()
 			conditionvalue=_arglist[0].getValue(evaluationenvironment)
-			if isinstance(conditionvalue,int): # an acceptible outcome
+			if isinstance(conditionvalue,(int,long)): # an acceptible outcome
 				# with the True and False clause switched, we should use ! to get the proper index
 				# wrap around the condition value to be in the range [0,len(_arglist)-2]
 				if conditionvalue>0:
@@ -2629,7 +2629,7 @@ class IdentifierElementExpression(Expression):
 			return valuelist
 		if indexvalue==undefined.getValue():
 			return undefined.getValue()
-		if not isinstance(indexvalue,int):
+		if not isinstance(indexvalue,(int,long)):
 			raise Exception("Element index not an integer.")
 		if indexvalue==0:
 			raise Exception("Element with index 0 does not exist, as lists in M are one-based not zero-based.")
@@ -2652,7 +2652,7 @@ class IdentifierElementExpression(Expression):
 		# technically the index can also be a list (of indices)
 		if isinstance(indexvalue,list):
 			for (i,index) in enumerate(indexvalue):
-				if not isinstance(index,int):
+				if not isinstance(index,(int,long)):
 					continue
 				###note("Index value: "+str(index)+".")
 				if index==0: # prepend the given value
@@ -2671,7 +2671,7 @@ class IdentifierElementExpression(Expression):
 				self.indexvalue[i]=index # the actual index of the element we changed
 				value[index-1]=_value
 		else: # index not a list
-			if not isinstance(indexvalue,int):
+			if not isinstance(indexvalue,(int,long)):
 				raise Exception("Element index ("+getText(indexvalue)+") into variable "+self.identifiername+" not an integer.")
 			if indexvalue==0:
 				self.indexvalue=1 # the actual index of the element we changed (and thus to return)
