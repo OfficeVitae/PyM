@@ -419,6 +419,8 @@ class Function:
 						if value>0:
 							return [undefined.getValue()]*value
 						return []
+				if self.functionindex==49: # out
+					return write(" "+str(value))
 		# if we get here the function result is undefined
 		return undefined.getValue()
 	def getValue(self,_arglist):
@@ -472,7 +474,7 @@ class UserFunction(Function):
 			self.expressions=_expressions
 			note("Number of expressions in function "+self.name+": "+str(len(self.expressions))+".")
 		else:
-		  self.expressions=None
+			self.expressions=None
 	# exposes a method to return a (sub)environment to use in entering function body expressions
 	def getExecutionEnvironment(self,_arglist=None):
 		# create a subenvironment below the UserFunction (root) environment
@@ -499,12 +501,13 @@ class UserFunction(Function):
 		if self.expressions is not None:
 			l=len(self.expressions)
 			if l>0:
-				note("Number of expressions to evaluate "+str(l)+"...")
+				######note("Number of expressions to evaluate "+str(l)+"...")
 				executionenvironment=self.getExecutionEnvironment(_arglist)
 				for expression in self.expressions:
 					try:
-						expressionvalue=expression.getValue(executionenvironment) # evaluate the expression in the execution environment
-						note("Value of "+str(expression)+": "+str(expressionvalue)+".")
+						#####expressionvalue=
+						expression.getValue(executionenvironment) # evaluate the expression in the execution environment
+						#####note("Value of "+str(expression)+": "+str(expressionvalue)+".")
 					except ReturnException,returnException:
 						result=returnException.getValue()
 				# what have we got in this execution environment???
@@ -538,8 +541,8 @@ undefined=Identifier() # the identifier with None value is used to indicate an u
 #								 as it otherwise would need to keep a list of pending function creations
 #								 I've changed this to have Environment
 # MDH@06SEP2017: problem is that an Environment is not something on which getValue() can be called
-#                unless you want to be able to execute the Environment as a function????
-#                as such an environment could be considered a parameter-less function
+#								 unless you want to be able to execute the Environment as a function????
+#								 as such an environment could be considered a parameter-less function
 class Environment(UserFunction):
 	def __init__(self,_name=None,_parent=None):
 		if isinstance(_parent,Environment):
@@ -601,7 +604,7 @@ class Environment(UserFunction):
 		# returned to M as we cannot use the function name as we need that for calling itself
 		result=self.name
 		if len(result)>0:
-		  result+="."
+			result+="."
 		return result+"M("+str(len(self.expressions)+1)+")"+modechars[self.mode]+" "
 	def functionExists(self,_functionname):
 		###note("Looking for '"+_functionname+"' in functions "+str(self.getFunctionNames())+" of "+self.name+".")
@@ -899,7 +902,7 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':1,'list':2}) # I guess any number of arguments allowed (should a function always have at least one argument???)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'sum':95,'product':96,'len':97,'size':98,'sorti':99})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'list':23,'out':49,'sum':95,'product':96,'len':97,'size':98,'sorti':99})
 Menvironment.addFunctions({'while':100,'join':199}) # 'function':150
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210})
 
