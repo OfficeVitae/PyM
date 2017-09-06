@@ -450,7 +450,7 @@ class Function:
 # as we can have subfunctions
 class UserFunction(Function):
 	def __init__(self,_name,_resultidentifiername,_parameterdefaults,_environment,_rootenvironment):
-		Function.__init__(self,0) # all user functions have function index 0
+		Function.__init__(self,-1) # all user functions have function index -1 (0 now reserved for accessing the environment expressions)
 		self.expressions=[]
 		self.name=_name
 		if isinstance(_resultidentifiername,str) and len(_resultidentifiername)>0:
@@ -470,6 +470,9 @@ class UserFunction(Function):
 	def setExpressions(self,_expressions):
 		if isIterable(_expressions):
 			self.expressions=_expressions
+			note("Number of expressions in function "+self.name+": "+str(len(self.expressions))+".")
+		else:
+		  self.expressions=None
 	# exposes a method to return a (sub)environment to use in entering function body expressions
 	def getExecutionEnvironment(self,_arglist=None):
 		# create a subenvironment below the UserFunction (root) environment
@@ -496,12 +499,12 @@ class UserFunction(Function):
 		if self.expressions is not None:
 			l=len(self.expressions)
 			if l>0:
-				########note("Number of expressions to evaluate "+str(l)+"...")
+				note("Number of expressions to evaluate "+str(l)+"...")
 				executionenvironment=self.getExecutionEnvironment(_arglist)
 				for expression in self.expressions:
 					try:
-						expression.getValue(executionenvironment) # evaluate the expression in the execution environment
-						#######debugnote("Value of "+str(expression)+": "+str(expressionvalue)+".")
+						expressionvalue=expression.getValue(executionenvironment) # evaluate the expression in the execution environment
+						note("Value of "+str(expression)+": "+str(expressionvalue)+".")
 					except ReturnException,returnException:
 						result=returnException.getValue()
 				# what have we got in this execution environment???
@@ -554,8 +557,7 @@ class Environment(UserFunction):
 			self.name=_name # this would become the prefix to the prompt
 		else: # anonymous
 			self.name=""
-		# every enviroment should have an M variable to allow access to the expressions, although I suppose making it a function makes more sense!!!
-		# because the identifier would need to contain the expressions itself, I suppose we could store the expressions in M
+		# we ascertain to have a function with the same name BUT then we can't call the function recursively buggers
 		self.addFunction("M",Function(0)) # so we can use it in expressions itself (NOT in user functions!!!)
 	def startUserFunction(self,_userFunction):
 		self.startedUserFunctions.append(_userFunction)
@@ -596,8 +598,11 @@ class Environment(UserFunction):
 	def __repr__(self):
 		return str(self)
 	def getPrompt(self):
-		# instead of returning str(self) we return M() so that the user would know to use M(<index>) to access one of the stored expressions in this environment
-		return "M("+str(len(self.expressions)+1)+")"+modechars[self.mode]+" "
+		# returned to M as we cannot use the function name as we need that for calling itself
+		result=self.name
+		if len(result)>0:
+		  result+="."
+		return result+"M("+str(len(self.expressions)+1)+")"+modechars[self.mode]+" "
 	def functionExists(self,_functionname):
 		###note("Looking for '"+_functionname+"' in functions "+str(self.getFunctionNames())+" of "+self.name+".")
 		result=_functionname in self.functions
@@ -2326,7 +2331,7 @@ class Expression(Token):
 						#								 SO know in which environment to evaluate the expression
 						if function.getIndex()==0: # M (since 06SEP2017)
 							# MDH@06SEP2017: iterate over the arguments, evaluate their value, and get the expression with that index
-							arguments=[self.environment.getMExpression(getElementValue(argument)) for argument in arguments] # get the creationenvironment expressions with requested indices 
+							arguments=[self.environment.getMExpression(getElementValue(argument)) for argument in arguments] # get the creationenvironment expressions with requested indices
 						elif function.getIndex()==21: # eval
 							arguments=getEvalResult(arguments)
 						elif function.getIndex()==100: # while
