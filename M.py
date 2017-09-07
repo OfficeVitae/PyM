@@ -2964,7 +2964,7 @@ def updateExpressions(_expressionbag): # NOTE works with user functions (hosting
 					_expressionbag.addExpression((None,expression)[error is None]) # when no error, append the read expression, otherwise append None!!!
 				expressionline=expressionfile.readline() # read the next line
 			expressionfile.close()
-		expressionfile=open(expressionfilename,'w+') # open trying to append text
+		expressionfile=open(expressionfilename,'a') # open trying to append text
 	else: # first time being written...
 		expressionfile=open(expressionfilename,'w')
 	# register the expression file with UserFunction so it can write any expression appended in the future
@@ -3096,7 +3096,7 @@ def main():
 								lnwrite("Until you stop continuing "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
 								# TODO technically we should execute the user function now so we can continue it!!!!
 								# let's do that in startUserFunction()????
-							updateExpressions(userfunction) # TODO should this also be done 
+							updateExpressions(userfunction) # TODO should this also be done
 							environment=userfunction.getExecutionEnvironment() # update the current environment with the operating environment using the defaults (i.e. there's NO argument list)
 							environment.startUserFunction(userfunction) # pushing the user function to pop off when done creating!!!
 							# when running standalone NO access to the (current) environment but only to the (global) Menvironment
