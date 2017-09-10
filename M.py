@@ -135,6 +135,11 @@ def write(_towrite,_color=None,_backcolor=None):
 		result=None
 	########linecoloredtexts.append(result)
 	return result # thus allowing manipulation of background and text color later on
+# MDH@10SEP2017: sometimes we want to know what we would be written and not actually write it
+def writeColoredText(_coloredText,_output):
+	if _output:
+		output(str(_coloredText))
+	return _coloredText
 def newline():
 	"""
 	global linecoloredtexts
@@ -189,8 +194,8 @@ def updateprompt():
 	global prompt,environment
 	prompt=environment.getPrompt()
 def continueprompt():
-	global prompt
-	prompt=(" "*(len(prompt)-2))+modechars[mode]+" "
+	global prompt,environment
+	prompt=(" "*(len(prompt)-2))+modechars[environment.mode]+" "
 def writeprompt():
 	write(prompt,PROMPT_COLOR)
 	showcursor() # show the cursor for sure
@@ -271,16 +276,17 @@ def group(_by,_list):
 	return None
 # helper classes Function, Identifier and Token
 DEBUG=1
-def getExpression(_expressiontext,_environment,_debug=None):
+def getExpression(_expressiontext,_environment,_debug=None,_output=False):
 	expression=None
 	error=None
 	debug=(DEBUG,_debug)[isinstance(_debug,int)]
-	expression=Expression(_environment,None,debug) # do not show any debug information while constructing the expression from the expression text!!!
+	expression=Expression(_environment,None,debug,_output) # do not show any debug information while constructing the expression from the expression text!!!
 	if debug&8:
-		lnwrite("\tEvaluating '"+_expressiontext+"'.")
+		lnwrite("\tEvaluating '"+_expressiontext+"': ")
 	error=None
 	for ch in _expressiontext:
-		new_expression=expression.add(ch,0) # don't output anything
+		#######output("<"+ch+">")
+		new_expression=expression.add(ch) # don't output anything
 		error=expression.getError()
 		if error is not None:
 			lnwrite("\t'"+error+"' evaluating '"+_expressiontext+"'.")
@@ -1230,22 +1236,23 @@ class TokenChar:
 	def append(self,_towrite,_color=None):
 		if not isinstance(_towrite,str):
 			return None
-		if isinstance(_color,int):
-			self.color=_color
+		self.color=(0,_color)[isinstance(_color,int)]
 		# if this is the first write of anything of this TokenChar (no matter where it came from), we should register
 		# this would be the safest place to do so (we could have did it in the constructor or even better start though)
 		if len(self.writtentext)==0:
 			userInputLine.append(self)
 			if self.debug&128:
 				self.writtentext.append(write('<'+str(len(userInputLine))+'>',DEBUG_COLOR))
-		self.writtentext.append(write(_towrite,_color)) # MDH@31AUG2017: now turned into a list of ColoredText instances
+		#########output(("@","!")[self.output])
+		self.writtentext.append(writeColoredText(getColoredText(_towrite,_color),self.output))
 		return self
 	# you can only define significant character text once
 	def start(self):
 		if self.debug&2:
 			self.append("(",DEBUG_COLOR)
-	def __init__(self,_debug):
+	def __init__(self,_debug,_output):
 		self.debug=_debug
+		self.output=_output
 		self.text=""
 		self.writtentext=[]
 		self.ended=-1 # keep track of how many characters were had before writing the end of tokenchar characters
@@ -1314,7 +1321,7 @@ class Token:
 				return self.text[-1]
 			# if we get here, we're going to create a new tokenchar, so we should end the last one
 			self.text[-1].end()
-		tokenchar=TokenChar(self.debug)
+		tokenchar=TokenChar(self.debug,self.output)
 		try:
 			self.text.append(tokenchar)
 		except Exception,ex:
@@ -1327,7 +1334,7 @@ class Token:
 				return self.suffix[-1] # I guess I should return that!!!
 			# if we get here, we're going to create a new tokenchar, so we should end the last one
 			self.suffix[-1].end()
-		tokenchar=TokenChar(self.debug)
+		tokenchar=TokenChar(self.debug,self.output)
 		try:
 			self.suffix.append(tokenchar)
 		except Exception,ex:
@@ -1359,12 +1366,14 @@ class Token:
 					self.writtenprefix.append(write(getTokentypeRepresentation(self.type)+":",DEBUG_COLOR))
 		else: # no need to keep track of the written text
 			pass
-	def __init__(self,_tokentype,_debug=None,_tokenchar=None):
-		self.debug=_debug # do NOT change DEBUG while constructing a token????
+	def __init__(self,_tokentype,_debug=0,_output=True,_tokenchar=None):
+		# MDH@10SEP2017: essential that debug is integer!!!!!
+		self.debug=(0,_debug)[isinstance(_debug,int)]
+		self.output=(False,True)[_output] # MDH@10SEP2017: a default output
+		self.color=0 # MDH@10SEP2017: TODO do I need this????????
 		self.error=None # MDH@21AUG2017: the backspace() method requires the use of self.error here as well
 		self.text=[] # replacing: "" # the meaningful text
 		self.suffix=[] # replacing: "" # what's appended to the token AFTER it ends (typically whitespace or a comment)
-		self.output=isinstance(_debug,int) # whether we should output anything at all
 		self.continuable=True # assume to be continuable to start with
 		self.ended=False # not ended until end() is actually called!!!
 		self.setType(_tokentype)
@@ -1631,8 +1640,9 @@ class Expression(Token):
 					self.writtenprefix.append(write(getTokentypeRepresentation(self.type)+":",DEBUG_COLOR))
 		else: # no need to keep track of the written text
 			pass
-	def __init__(self,_environment,_parent=None,_debug=None,_tokenchar=None):
-		Token.__init__(self,EXPRESSION_TOKENTYPE,_debug,_tokenchar)
+	# MDH@10SEP2017: _debug to default to 0 not None (as an integer required!!)
+	def __init__(self,_environment,_parent=None,_debug=0,_output=False,_tokenchar=None):
+		Token.__init__(self,EXPRESSION_TOKENTYPE,_debug,_output,_tokenchar)
 		self.value=None # MDH@07SEP2017: value unknown...
 		self.declared=False # initially assumably not declared...
 		self.parent=_parent # supposedly the parent expression to revert to when receiving the ld or le character
@@ -1658,12 +1668,16 @@ class Expression(Token):
 	# NOTE that this is not fail-safe because sometimes certain expressions will NOT get evaluated, so it's still possible that the variable will NOT exist before it is used
 	def identifierExists(self,_identifiername):
 		# always look in the global pool first (that's quickest)
-		return self.environment.identifierExists(_identifiername) or self.initializedIdentifier(_identifiername)
+		if self.environment is not None and self.environment.identifierExists(_identifiername):
+			return True
+		return self.initializedIdentifier(_identifiername)
 	def getIdentifier(self,_identifiername): # MDH@31AUG2017: this is basically about existing identifier of which we want to check the value
+		if self.environment is None:
+			return None
 		return self.environment.getExistingIdentifier(_identifiername)
 	def identifiersExistStartingWith(self,_identifierprefix):
 		# if in the global pool, we're done immediately
-		if self.environment.identifiersExistStartingWith(_identifierprefix):
+		if self.environment is not None and self.environment.identifiersExistStartingWith(_identifierprefix):
 			return True
 		# I might have them
 		for newidentifier in self.newidentifiers:
@@ -1677,7 +1691,7 @@ class Expression(Token):
 		return False
 	def functionsExistStartingWith(self,_functionprefix):
 		# if in the global pool, we're done immediately
-		if self.environment.functionsExistStartingWith(_functionprefix):
+		if self.environment is not None and self.environment.functionsExistStartingWith(_functionprefix):
 			return True
 		# my parent might have them
 		if self.parent is not None:
@@ -1686,7 +1700,7 @@ class Expression(Token):
 		# NOPE nobody
 		return False
 	def functionExists(self,_identifiername):
-		if self.environment.functionExists(_identifiername):
+		if self.environment is not None and self.environment.functionExists(_identifiername):
 			return True
 		if self.parent is None:
 			return False
@@ -1712,21 +1726,28 @@ class Expression(Token):
 				result=-result
 		return result
 	def endToken(self):
+		toend=None
 		if self.token is not None: # a previous token to end
-			self.token.end()
+			toend=self.token
 		elif len(self.text)>0: # some insignificant text at the beginning of the expression to end
-			self.text[-1].end()
+			toend=self.text[-1]
+		if toend is None:
+			return
+		toend.end()
 	# newToken changed a bit so it doesn't require a character to add per se
 	def newToken(self,_token):
 		self.tokens.append(_token)
 		self.token=self.tokens[-1] # ascertain that self.token equals the last token on the tokens list
 		return self.token
-	def addToken(self,_tokentype,_tokenchar,_output):
+	def addToken(self,_tokentype,_tokenchar,_output=None):
 		self.endToken() # end whatever token is pending FIRST i.e. BEFORE actually creating the new token (which might be writing debug info)
+		####output("**"+_tokenchar+"**")
+		output=(self.output,_output)[isinstance(_output,bool)]
 		if _tokentype<=0: # expression to add
-			token=Expression(self.environment,self,(None,self.debug)[_output],_tokenchar)
+			token=Expression(self.environment,self,self.debug,output,_tokenchar)
 		else:
-			token=Token(_tokentype,(None,self.debug)[_output],_tokenchar) # immediately push the new token on top of the stack
+			token=Token(_tokentype,self.debug,output,_tokenchar) # immediately push the new token on top of the stack
+		####output("%%"+str(token)+"%%")
 		return self.newToken(token)
 	# we can make add return the active expression, to replace the active expression
 	# NOTE only whitespace tokens can return a negative value??? this makes it harder to know when a token is still active????
@@ -1847,7 +1868,8 @@ class Expression(Token):
 			# update behindidentifier in ALL situations
 			behindidentifier=(tokentype==IDENTIFIER_TOKENTYPE)
 		return False
-	def add(self,_tokenchar,_output=True):
+	def add(self,_tokenchar,_output=None):
+		output=(self.output,_output)[isinstance(_output,bool)]
 		# default result is the current expression itself
 		self.value=None # MDH@07SEP2017: recomputation would be needed afterwards for sure
 		self.error=None # to store the error in
@@ -1906,9 +1928,9 @@ class Expression(Token):
 									# but if the current expression is an IdentifierElementExpression, so should the next one be
 									if isinstance(self,IdentifierElementExpression):
 										result.endToken() # end me
-										result=self.newToken(IdentifierElementExpression(self.getIdentifier(),self.environment,result,(None,self.debug)[_output],_tokenchar)) # pretty neat (if it works)
+										result=self.newToken(IdentifierElementExpression(self.getIdentifier(),self.environment,result,self.debug,output,_tokenchar)) # pretty neat (if it works)
 									else: # a normal expression to be added to the parent
-										result=result.addToken(0,_tokenchar,_output) # we're appending a new expression to the parent (effectively ending this expression token), and continuing with the new subexpression
+										result=result.addToken(0,_tokenchar,output) # we're appending a new expression to the parent (effectively ending this expression token), and continuing with the new subexpression
 								else:
 									self.ignore(_tokenchar) # append the closing parenthesis token in the suffix of this expression (so no longer ends up as a separate token)
 					elif _tokenchar in ls: # opening parenthesis: start of a new sub-expression
@@ -1929,10 +1951,10 @@ class Expression(Token):
 										if isinstance(identifiervalue,list): # can be indexed
 											# we're going to replace the identifier by an IdentifierElementExpression
 											self.tokens.pop() # popping off the identifier token (so we can replace it with the IdentifierElementExpression
-											result=self.newToken(IdentifierElementExpression(tokentext,self.environment,self,(None,self.debug)[_output],_tokenchar)) # have it use the same debug level!!!
+											result=self.newToken(IdentifierElementExpression(tokentext,self.environment,self,self.debug,output,_tokenchar)) # have it use the same debug level!!!
 											""" MDH@09SEP2017: don't know why it was added here BEFORE: replacing:
 											self.endToken() # have to do this explicitly here because I removed it from newToken() (and into addToken())
-											result=self.newToken(IdentifierElementExpression(tokentext,self.environment,(None,self.debug)[_output],self,_tokenchar)) # have it use the same debug level!!!
+											result=self.newToken(IdentifierElementExpression(tokentext,self.environment,(None,self.debug)[],self,_tokenchar)) # have it use the same debug level!!!
 											"""
 											_tokenchar=None # prevents creation of an expression below
 										else:
@@ -1942,7 +1964,7 @@ class Expression(Token):
 							else:
 								self.error=_tokenchar+" not allowed behind a literal."
 						if self.error is None and _tokenchar is not None:
-							result=self.addToken(0,_tokenchar,_output)
+							result=self.addToken(0,_tokenchar,output)
 					elif _tokenchar in ts:
 						# starting a string literal is not allowed in most situations because most operators do not operate on string literals
 						# basically a string literal can only occur behind the + and * binary operator and the comparison operators
@@ -1959,7 +1981,7 @@ class Expression(Token):
 							if tokentext[-1]!="=" and tokentext!="<" and tokentext!=">" and tokentext!="+" and tokentext!="*":
 								self.error="String literal not allowed behind operator "+tokentext+"."
 						if self.error is None:
-							self.addToken(SINGLEQUOTED_TOKENTYPE+ts.index(_tokenchar),_tokenchar,_output)
+							self.addToken(SINGLEQUOTED_TOKENTYPE+ts.index(_tokenchar),_tokenchar,output)
 					elif _tokenchar==periodchar: # MDH@12AUG2017: also a character that we can deal with pretty easily
 						# MDH@27AUG2017: until now we did NOT accept .. as binary operator but now we do (replacing : which became another operator altogether)
 						#								 which means that it might already be an operator in it's own right
@@ -1973,22 +1995,22 @@ class Expression(Token):
 							# it's going to be difficult to remove the period out of the assumed real number literal
 							if self.token.backspace() is not None: # i.e. remove the last token (which is the decimal separator)
 								# we can go one left on the screen
-								if _output: # too bad we have to do that here!!
+								if output: # too bad we have to do that here!!
 									userInputLine.removeLastCharacter(True)
-								self.addToken(OPERATOR_TOKENTYPE,periodchar,_output).add(periodchar).discontinued()
+								self.addToken(OPERATOR_TOKENTYPE,periodchar,output).add(periodchar).discontinued()
 							else: # backspace() on the token failed somehow...
 								self.error=self.token.getError()
 						elif abs(tokentype)<=SIGN_TOKENTYPE: # behind a unary or binary operator (or when tokentype equals 0 at start of expression)
 							# starts a number literal immediately BUT only with a zero in front of it
 							# NOTE I cannot use our special trick to indicate an automatic insert here (i.e. by putting it in the suffix)
-							self.addToken(INTEGER_TOKENTYPE,"0",_output).add(periodchar)
+							self.addToken(INTEGER_TOKENTYPE,"0",output).add(periodchar)
 						elif tokentype==INTEGER_TOKENTYPE: # in an integer, thus a number literal continuation
 							########self.token.setType(REAL_TOKENTYPE) # switch over to being a number MDH@27AUG2017: the token should now take care of switching to REAL_TOKENTYPE!!!
 							self.token.add(_tokenchar)
 						elif abs(tokentype)>=IDENTIFIER_TOKENTYPE or abs(tokentype)==EXPRESSION_TOKENTYPE: # in/behind an identifier or expression, as list concatenation operator
 							# MDH@25AUG2017: if we use the period as list concatenation operator as well, the current token needs to evaluate to a list
 							#								 the question is whether we actually want to evaluate what's in front of this thing here
-							self.addToken(OPERATOR_TOKENTYPE,_tokenchar,_output)	#### MDH@27AUG2017: do NOT discontinue because another period character defines the .. operator!!!!.discontinued()
+							self.addToken(OPERATOR_TOKENTYPE,_tokenchar,output)	#### MDH@27AUG2017: do NOT discontinue because another period character defines the .. operator!!!!.discontinued()
 							#### replacing allowing the period as part of the identifier: self.token.add(_tokenchar)
 						else:
 							self.error="Period not allowed here."
@@ -1998,8 +2020,8 @@ class Expression(Token):
 						elif self.functionExists(self.token.getText()):
 							self.error="The declaration operator cannot follow a function name, a variable name is required."
 						else:
-							self.addToken(OPERATOR_TOKENTYPE,_tokenchar,_output).discontinued() # nothing else goes
-							result=self.addToken(0,"",_output).flagAsDeclared() # mark as being declared, so we can end it with Enter
+							self.addToken(OPERATOR_TOKENTYPE,_tokenchar,output).discontinued() # nothing else goes
+							result=self.addToken(0,"",output).flagAsDeclared() # mark as being declared, so we can end it with Enter
 					else: # not the start (end) of string literal, the start or end of a subexpression, whitespace
 						# ALL CODE ABOVE SHOULD BE SELF_CONTAINED BECAUSE ALL CODE BELOW FIRST CHECKS CONTINUATION FOLLOWED BY CREATING NEW TOKENS
 						# it's probably best to deal with some of the possible input characters first and determine when they are not allowed
@@ -2045,7 +2067,7 @@ class Expression(Token):
 									if _tokenchar is not None: # no error, and _tokenchar not consumed yet
 										if _tokenchar in s or _tokenchar in soro: # a unary operator
 											# add the unary operators
-											self.addToken(SIGN_TOKENTYPE,_tokenchar,_output).discontinued()
+											self.addToken(SIGN_TOKENTYPE,_tokenchar,output).discontinued()
 											_tokenchar=None # don't append again!!
 										# any character that unambiguously starts a binary operator should be prohibited
 										# any other character either in a, A, d, (, ), ' " is allowed
@@ -2093,7 +2115,7 @@ class Expression(Token):
 									elif _tokenchar==assignmentchar: # the entered token character is the assignment character which is the only operator we allow on a non-existing identifier
 										if self.parent is not None:
 											self.parent.initializesIdentifier(tokentext)
-										self.addToken(OPERATOR_TOKENTYPE,assignmentchar,_output).discontinued() # thus allowing whitespace but NOT another = or : sign!!!
+										self.addToken(OPERATOR_TOKENTYPE,assignmentchar,output).discontinued() # thus allowing whitespace but NOT another = or : sign!!!
 										_tokenchar=None
 									else:
 										self.error="You cannot use variable "+tokentext+" in computations until after declaring it or assigning a value to it."
@@ -2119,6 +2141,7 @@ class Expression(Token):
 								# any two-character operator should have ended by now (so we'd have -8 as self.tokentype)
 								# start of a two character operators???
 								osindex=os.find(_tokenchar)
+								########output("\n###"+str(osindex)+"###")
 								# NOTE ! is no longer the first character in os, as it was moved over to soro
 								#			 this makes it a little easier to deal with the os stuff because it's NEVER a sign operator
 								#			 BUT it complicates the sign stuff a bit now
@@ -2134,7 +2157,7 @@ class Expression(Token):
 										if tokentype==0: # binary operator cannot start an expression
 											# MDH@27AUG2017: let's allow starting with the equal soro operator
 											if osindex==0: # TODO in what other situations is using = as unary operator allowed as well??????
-												self.addToken(SIGN_TOKENTYPE,_tokenchar,_output).discontinued()
+												self.addToken(SIGN_TOKENTYPE,_tokenchar,output).discontinued()
 											else:
 												self.error="Can't start with an operator."
 										elif _tokenchar==assignmentchar and self.tokens[-1].getType()<IDENTIFIER_TOKENTYPE: # not an assignment
@@ -2143,8 +2166,8 @@ class Expression(Token):
 												# force equal is comparison operator
 												# if we want to be able to undo the entire token with backspace
 												# we move the second token character directly in the 'whitespace' suffix so we can recognize that situation
-												self.addToken(OPERATOR_TOKENTYPE,_tokenchar+_tokenchar,_output).discontinued() # instead of 'ignoring' the second character, we put both in ONE token char and discontinue the lot
-												if _output:
+												self.addToken(OPERATOR_TOKENTYPE,_tokenchar+_tokenchar,output).discontinued() # instead of 'ignoring' the second character, we put both in ONE token char and discontinue the lot
+												if output:
 													beep()
 												### replacing: self.newToken(OPERATOR_TOKENTYPE,_tokenchar,_output).add(_tokenchar).discontinued()
 											else: # get this assignment operator appended
@@ -2156,12 +2179,12 @@ class Expression(Token):
 											# do NOT allow using the power operator on a string literal
 											if (tokentype+SINGLEQUOTED_TOKENTYPE==0 or tokentype+DOUBLEQUOTED_TOKENTYPE==0) and osindex==3: # applying *
 												# NOTE here we do not insert characters ourselves, therefore no need to remember
-												self.addToken(OPERATOR_TOKENTYPE,_tokenchar,_output).discontinued() # cannot be continued...
+												self.addToken(OPERATOR_TOKENTYPE,_tokenchar,output).discontinued() # cannot be continued...
 											else:
 												tokentype=self.setTokentype(osindex+1)
 									else: # behind binary or unary operator
 										if osindex==0: # assignment (equal) character
-											self.addToken(SIGN_TOKENTYPE,_tokenchar,_output).discontinued()
+											self.addToken(SIGN_TOKENTYPE,_tokenchar,output).discontinued()
 										else:
 											self.error="Operator not allowed behind operator or sign."
 								elif _tokenchar in o: # a single-character binary operator
@@ -2185,8 +2208,8 @@ class Expression(Token):
 										if soroindex==0: # this would be the two-character unequal to operator to which we may automatically add the equal character
 											# TODO we might decide not to auto-append the = character of the unequal to operator
 											# we now create a token with a single tokenchar containing both token, so they will be removed as a whole (whether or not that is a good idea????)
-											self.addToken(OPERATOR_TOKENTYPE,_tokenchar+assignmentchar,_output).discontinued() # todo more likely the equal-to-character
-											if _output: # interactive mode
+											self.addToken(OPERATOR_TOKENTYPE,_tokenchar+assignmentchar,output).discontinued() # todo more likely the equal-to-character
+											if output: # interactive mode
 												beep() # inform user of something special happening
 										else: # possibly - or + binary operator
 											if (tokentype+SINGLEQUOTED_TOKENTYPE==0 or tokentype+DOUBLEQUOTED_TOKENTYPE==0) and soroindex==1: # applying - not +
@@ -2208,7 +2231,7 @@ class Expression(Token):
 										tokentype=self.setTokentype(IDENTIFIER_TOKENTYPE)
 								# if no error occurred _tokenchar was accepted, so ready to create the current token, and get _tokenchar echoed
 								if self.error is None and tokentype>0:
-									self.addToken(tokentype,_tokenchar,_output)
+									self.addToken(tokentype,_tokenchar,output)
 									# we can see in the previous M implementation (commented out above) that if the token type was set to 8 or 9 the token also ends
 									if tokentype==OPERATOR_TOKENTYPE:
 										# if the token cannot be continued with the shortcutter, discontinue the token
@@ -2643,8 +2666,8 @@ class Expression(Token):
 class IdentifierElementExpression(Expression):
 	def getText(self):
 		return self.identifiername+Expression.getText(self)
-	def __init__(self,_identifiername,_environment,_parent=None,_debug=None,_tokenchar=None):
-		Expression.__init__(self,_environment,_parent,_debug) # no passing _tokenchar (yet)
+	def __init__(self,_identifiername,_environment,_parent=None,_debug=0,_output=True,_tokenchar=None):
+		Expression.__init__(self,_environment,_parent,_debug,_output) # no passing _tokenchar (yet)
 		# copy all token characters over from the identifier token
 		self.identifiername=_identifiername
 		self.indexvalue=None # no need to evaluate more than once!!!
@@ -3005,6 +3028,7 @@ def updateExpressions(_environment): # NOTE works with user functions (hosting t
 		if opsyspath.exists(expressionfilename): # already exists...
 			expressionfile=open(expressionfilename,'r')
 			if expressionfile:
+				######parentenvironment=_environment.getParent() # TODO is this correct?
 				expressionline=expressionfile.readline()
 				while len(expressionline)>0:
 					expressiontext=expressionline.rstrip('\r\n')
@@ -3013,8 +3037,17 @@ def updateExpressions(_environment): # NOTE works with user functions (hosting t
 						tabpos=expressiontext.find('\t') # separating the value and
 						if tabpos>=0: # expression available
 							expressiontext=expressiontext[tabpos+1:]
-						(expression,error)=getExpression(expressiontext,_environment.getParent())
-						_environment.addExpression((None,expression)[error is None]) # when no error, append the read expression, otherwise append None!!!
+						# MDH@10SEP2017: essential to pass 0 for the debug value!!!
+						(expression,error)=getExpression(expressiontext,_environment,0)
+						if error is None: # no error
+							####output("**ADDING**")
+							_environment.addExpression(expression)
+							####output("**ADDED**")
+							####if expression.assigns():
+							expression.evaluatesTo(_environment) # evaluate the expression (e.g. to do assignments)
+							####output("**EVALUATED**")
+						else: # some error, add None
+							_environment.addExpression(None)
 					expressionline=expressionfile.readline() # read the next line
 				expressionfile.close()
 			expressionfile=open(expressionfilename,'a') # open trying to append text
