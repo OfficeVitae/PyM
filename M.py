@@ -182,10 +182,6 @@ def lnwriteleft(_linetowrite,_width=0,_color=None,_backcolor=None):
 # but it is a bit of a nuisance that the line might not be empty so can we do that here as well????
 # as such it should either be preceded by newline() or emptyline()
 # MDH@27AUG2017: allowing two modes of operation
-mode=0 # declaration mode
-def setMode(_mode):
-	global mode
-	mode=_mode
 modechars=":=" # the two mode characters (: in declaration mode and = in evaluation mode)
 prompt=None
 environment=None
@@ -282,13 +278,13 @@ def getExpression(_expressiontext,_environment,_debug=None):
 	expression=Expression(_environment,None,debug) # do not show any debug information while constructing the expression from the expression text!!!
 	if debug&8:
 		lnwrite("\tEvaluating '"+_expressiontext+"'.")
+	error=None
 	for ch in _expressiontext:
-		new_expression=expression.add(ch,debug!=0) # don't output anything if not to do any debugging
+		new_expression=expression.add(ch,0) # don't output anything
 		error=expression.getError()
 		if error is not None:
+			lnwrite("\t'"+error+"' evaluating '"+_expressiontext+"'.")
 			break
-		if debug&8:
-			note("No error processing '"+ch+"'...")
 		expression=new_expression
 	return (expression,error)
 def getExpressionValue(_expressiontext,_environment,_debug=None):
@@ -587,11 +583,11 @@ class Environment():
 	def addExpression(self,_expression):
 		self.M.getValue().append(_expression)
 		if self.expressionfile:
-			self.expressionfile.write(':'+str(_expression)+opsys.linesep)
-			# if the value is known write that as well on a separate line
-			expressionvalue=_expression.getValue() # the last computed value
-			if expressionvalue is not None:
-				self.expressionfile.write('='+getText(expressionvalue)+opsys.linesep)
+			# write the value first, then the expression (if it is)
+			if isinstance(_expression,Expression):
+				self.expressionfile.write(str(_expression.getValue())+"\t"+str(_expression)+opsys.linesep)
+			else: # we cannot write more than the value
+				self.expressionfile.write(str(_expression)+opsys.linesep)
 			self.expressionfile.flush()
 			opsys.fsync(self.expressionfile) # hmmm, clumsy
 	def setExpressionFile(self,_expressionfile):
@@ -657,6 +653,8 @@ class Environment():
 		return result
 	def __repr__(self):
 		return str(self)
+	def setMode(self,_mode):
+		self.mode=_mode
 	def getPrompt(self):
 		# returned to M as we cannot use the function name as we need that for calling itself
 		result=self.name
@@ -749,10 +747,11 @@ class Environment():
 		else:
 			debugnote("Identifier '"+_identifiername+"' not found!")
 		return result
-	def getIdentifierValues(self):
+	def getIdentifierValues(self,_exclude):
 		result=dict()
-		for _identifiername in self.identifiers:
-			result[_identifiername]=self.identifiers[_identifiername].getValue()
+		for identifiername in self.identifiers:
+			if _exclude is None or not identifiername in _exclude:
+				result[identifiername]=self.identifiers[identifiername].getValue()
 		return result
 	def addIdentifier(self,_identifier,_name=None):
 		identifiername=(_name,_identifier.getName())[_name is None]
@@ -2404,7 +2403,7 @@ class Expression(Token):
 						########note("ERROR: the element is a list, which should NOT happen!")
 						return map(getElementValue,_element)
 					if isinstance(_element,Expression):
-						note("Evaluating expression "+str(_element)+".")
+						###########note("Evaluating expression "+str(_element)+".")
 						elementvalue=_element.evaluatesTo(evaluationenvironment)
 					else:
 						elementvalue=getValue(_element)
@@ -2843,6 +2842,9 @@ def setUsername(_username):
 	global currentusername
 	if currentusername is not None and currentusername==_username:
 		return
+	if _username=="M":
+		lnwrite("Name 'M' refused. There can be only one M, and that's me.")
+		return
 	# the current user changed, the question is whether or not the working environment should be Menvironment???????
 	# possibly Menvironment could be considered the global environment shared by all users but I'd say that not every user should be allowed to change it
 	currentusername=_username
@@ -2909,7 +2911,8 @@ def getUsername():
 			write(" "+username)
 		writeln(".")
 	# how can a user stop current input?????? I guess we can use Ctr-C to that purpose again
-	writeln("Cancel with Ctrl-C, accept suggested text (in grey) with the Tab key.")
+	writeln("Restrictions: spaces are not allowed in the name, you cannot choose M as name.")
+	writeln("Special keys: Ctrl-C: cancel, Tab: accept suggested text (in grey).")
 	write("What is your name ")
 	# NOTE allow the current user to logout by pressing the Enter key immediately
 	if len(currentusername)==0 and len(defaultusername)>0:
@@ -3005,8 +3008,12 @@ def updateExpressions(_environment): # NOTE works with user functions (hosting t
 				expressionline=expressionfile.readline()
 				while len(expressionline)>0:
 					expressiontext=expressionline.rstrip('\r\n')
-					if len(expressiontext)>1 and expressiontext[0]==':': # not an expression declaration (probably the value of the expression)
-						(expression,error)=getExpression(expressiontext[1:],_environment.getParent())
+					# there's either a value or a value and an expression on the line
+					if len(expressiontext)>0: # not an expression declaration (probably the value of the expression)
+						tabpos=expressiontext.find('\t') # separating the value and
+						if tabpos>=0: # expression available
+							expressiontext=expressiontext[tabpos+1:]
+						(expression,error)=getExpression(expressiontext,_environment.getParent())
 						_environment.addExpression((None,expression)[error is None]) # when no error, append the read expression, otherwise append None!!!
 					expressionline=expressionfile.readline() # read the next line
 				expressionfile.close()
@@ -3057,7 +3064,7 @@ def main():
 			if tokenchar=='`': # ` means the user wants to set an M option (and not enter an M expression)
 				# MDH@02SEP2017: it might be a good idea to to a Q&A
 				while 1:
-					lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|o|v|x] ") #### replacing: write(tokenchar)
+					lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|M|o|v|x] ") #### replacing: write(tokenchar)
 					controlch=getch()
 					if ord(controlch)==3 or ord(controlch)==4 or ord(controlch)==10 or ord(controlch)==13:
 						break
@@ -3087,16 +3094,16 @@ def main():
 						lnwrite("\tDeclaration\t:")
 						lnwrite("Unary operators:\t= ! ~ - +")
 					elif controlch=="v" or controlch=="V":
-						lnwrite("Variables:")
-						identifiervalues=environment.getIdentifierValues()
+						lnwrite("Variables (M not included):")
+						identifiervalues=environment.getIdentifierValues(["M"]) # passing the list of names not to show...
 						for identifiername in identifiervalues:
 							identifiervalue=identifiervalues[identifiername]
 							write(" "+identifiername+"="+(getText(identifiervalue),"?")[identifiervalue is None])
 						#####newline()
 					elif controlch==":": # MDH@27AUG2017: switch to declaration mode
-						setMode(0)
+						environment.setMode(0)
 					elif controlch=="=": # MDH@27AUG2017: switch to evaluation mode
-						setMode(1)
+						environment.setMode(1)
 					elif controlch=="f": # starts a function
 						lnwrite("Functions:")
 						for functionname in environment.getFunctionNames():
@@ -3229,6 +3236,21 @@ def main():
 								INFO_COLOR=int(controlmessage[3:])
 							elif controlmessage[1]=="r":
 								RESULT_COLOR=int(controlmessage[3:])
+					elif controlch=="m" or controlch=="M": # show the contents of the M array element by element
+						lnwrite("Contents of M (press Esc to stop, any other key to continue):")
+						Mexpressionlist=environment.getIdentifierValue("M")
+						if isIterable(Mexpressionlist):
+							expressionindex=0
+							for Mexpression in Mexpressionlist:
+								expressionindex+=1
+								if Mexpression is None:
+									continue
+								lnwrite("M("+str(expressionindex)+")="+str(Mexpression))
+								sch=getch()
+								if ord(sch)==27:
+									break
+						else:
+							lnwrite("Sorry. Contents of M not a list that I can show.")
 					elif controlch=="l" or controlch=="L":
 						setUsername(getUsername())
 					elif controlch=="d" or controlch=="D":
