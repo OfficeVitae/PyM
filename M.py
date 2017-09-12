@@ -4,8 +4,8 @@ Marc's expression tokenizer and evaluator
 """ History
 12SEP2017:
 - naming of files: <owner>[.<functionname>[.<functionname>]].txt where <owner> is either M or any other owner
--                  I guess we could have multiple owners underscore or $ delimited, so instead of user we can have topics as well per user
--                  therefore no periods allowed in user names as well
+-									 I guess we could have multiple owners underscore or $ delimited, so instead of user we can have topics as well per user
+-									 therefore no periods allowed in user names as well
 03SEP2017:
 - some personalization by requiring a 'login' by name (only), I suppose we make it
 	impersonal if no Musers file is found!!!
@@ -606,7 +606,7 @@ class Environment:
 		return self.M.getValue()
 	def getName(self):
 		# MDH@12SEP2017: the full name of the environment should be the name of the parent environment, followed by a period followed by its own name
-		#                we need to do this because we want a function environment's name to start with the prefix of the function file (e.g. M.cel2far.txt)
+		#								 we need to do this because we want a function environment's name to start with the prefix of the function file (e.g. M.cel2far.txt)
 		result=self.name
 		if self.parent is not None:
 			result=self.parent.getName()+"."+result
@@ -675,6 +675,9 @@ class Environment:
 		result=self.name
 		if len(result)>0:
 			result+="."
+		# cut off the (file) prefix M.
+		if result.startswith("M."):
+			result=result[2:]
 		return result+"M("+str(len(self.M.getValue())+1)+")"+modechars[self.mode]+" "
 	def functionExists(self,_functionname):
 		###note("Looking for '"+_functionname+"' in functions "+str(self.getFunctionNames())+" of "+self.name+".")
@@ -2021,7 +2024,7 @@ class Expression(Token):
 						elif abs(tokentype)>=IDENTIFIER_TOKENTYPE or abs(tokentype)==EXPRESSION_TOKENTYPE: # in/behind an identifier or expression, as list concatenation operator
 							# MDH@25AUG2017: if we use the period as list concatenation operator as well, the current token needs to evaluate to a list
 							#								 the question is whether we actually want to evaluate what's in front of this thing here
-							self.addToken(OPERATOR_TOKENTYPE,_tokenchar,echo)	#### MDH@27AUG2017: do NOT discontinue because another period character defines the .. operator!!!!.discontinued()
+							self.addToken(OPERATOR_TOKENTYPE,_tokenchar,echo) #### MDH@27AUG2017: do NOT discontinue because another period character defines the .. operator!!!!.discontinued()
 							#### replacing allowing the period as part of the identifier: self.token.add(_tokenchar)
 						else:
 							self.error="Period not allowed here."
@@ -2869,6 +2872,37 @@ def endFunctionCreation():
 	lnwrite("Functions:")
 	for functionname in environment.getFunctionNames():
 		write(" "+functionname)
+# MDH@12SEP2017: we'll be needing continuation of user names and identifiers
+def getContinuation(_id,_ids):
+	continuation=""
+	# 2. get all the longer names that start with the current input user name!!!
+	matchingids=list()
+	for id in _ids:
+		if id.startswith(_id) and len(id)>len(_id):
+			matchingids.append(id)
+	# determine the number of additional characters that the matching user names have in common
+	if len(matchingids)>0:
+		#######write(str(len(matchingusernames)))
+		i=len(_id) # the first position to compare that is present in at least one of the matching user names!!!
+		while 1:
+			charactertomatch=None
+			allcharactersmatch=True
+			for matchingid in matchingids:
+				# if not available in this matching user name we cannot add this character
+				if len(matchingid)<=i:
+					allcharactersmatch=False
+					break
+				if charactertomatch is None:
+					charactertomatch=matchingid[i]
+				elif matchingid[i]!=charactertomatch: # too bad this one doesn't match
+					allcharactersmatch=False
+					break
+			if not allcharactersmatch:
+				break
+			######output("Matching '"+charactertomatch+"'")
+			continuation+=charactertomatch # another matching character...
+			i+=1 # ready to test the next one
+	return continuation
 # MDH@06SEP2017: I've moved the 'login' to the control mode, so every session starts with an undefined user (i.e. anonymous)
 currentusername=None
 usernames=None
@@ -2932,7 +2966,7 @@ def setUsername(_username):
 					writeln("You will need to register yourself by editing the Musers file manually.")
 				else:
 					writeln("You will not be recognized as the last (default) user, unless you mark your name in the Musers file with an asterisk yourself.")
-		updateExpressions(environment)
+		initializeEnvironment(environment)
 	else: # use the global (M) environment, to which you can add functions shared by all projects!!!
 		environment=Menvironment
 	# MDH@07SEP2017: update the expressions defined in the current environment
@@ -2974,34 +3008,7 @@ def getUsername():
 	inputusername="" # what the user entered
 	while 1:
 		# 1. UPDATE AND SHOW ANY USER CONTINUATION FOR THE USER TO CHOOSE WITH TAB
-		usercontinuation=""
-		# 1. get all the longer names that start with the current input user name!!!
-		matchingusernames=list()
-		for username in usernames:
-			if username.startswith(inputusername) and len(username)>len(inputusername):
-				matchingusernames.append(username)
-		# determine the number of additional characters that the matching user names have in common
-		if len(matchingusernames)>0:
-			#######write(str(len(matchingusernames)))
-			i=len(inputusername) # the first position to compare that is present in at least one of the matching user names!!!
-			while 1:
-				charactertomatch=None
-				allcharactersmatch=True
-				for matchingusername in matchingusernames:
-					# if not available in this matching user name we cannot add this character
-					if len(matchingusername)<=i:
-						allcharactersmatch=False
-						break
-					if charactertomatch is None:
-						charactertomatch=matchingusername[i]
-					elif matchingusername[i]!=charactertomatch: # too bad this one doesn't match
-						allcharactersmatch=False
-						break
-				if not allcharactersmatch:
-					break
-				######output("Matching '"+charactertomatch+"'")
-				usercontinuation+=charactertomatch # another matching character...
-				i+=1 # ready to test the next one
+		usercontinuation=getContinuation(inputusername,usernames)
 		# write the new user continuation, replacing the current user continuation
 		usercontinuationlength=len(usercontinuation) # remember the number of characters in the user continuation
 		if usercontinuationlength>0:
@@ -3289,7 +3296,7 @@ def main():
 								userfunction=environment.getFunction(functionname) # I guess the given function is already loaded then????
 								lnwrite("Until you stop continuing "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
 							environment=userfunction.getDefinitionEnvironment() # update the current environment with the operating environment using the defaults (i.e. there's NO argument list)
-							if not newfunction: # MDH@11SEP2017: read the expressions defined previously 
+							if not newfunction: # MDH@11SEP2017: read the expressions defined previously
 								initializeExpressions(environment)
 							environment.startUserFunction(userfunction) # pushing the user function to pop off when done creating!!!
 							# when running standalone NO access to the (current) environment but only to the (global) Menvironment
