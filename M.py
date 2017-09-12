@@ -2,6 +2,10 @@
 Marc's expression tokenizer and evaluator
 """
 """ History
+12SEP2017:
+- naming of files: <owner>[.<functionname>[.<functionname>]].txt where <owner> is either M or any other owner
+-                  I guess we could have multiple owners underscore or $ delimited, so instead of user we can have topics as well per user
+-                  therefore no periods allowed in user names as well
 03SEP2017:
 - some personalization by requiring a 'login' by name (only), I suppose we make it
 	impersonal if no Musers file is found!!!
@@ -285,13 +289,17 @@ def getExpression(_expressiontext,_environment,_debug=None,_output=False):
 		lnwrite("\tEvaluating '"+_expressiontext+"': ")
 	error=None
 	for ch in _expressiontext:
-		#######output("<"+ch+">")
-		new_expression=expression.add(ch) # don't output anything
+		output("<"+ch+">")
+		new_expression=expression.add(ch,_output) # MDH@12SEP2017: passing _output is essential BUT TODO have to find out why!!!!
 		error=expression.getError()
 		if error is not None:
 			lnwrite("\t'"+error+"' evaluating '"+_expressiontext+"'.")
 			break
 		expression=new_expression
+	if error is not None:
+		if not expression.ends():
+			error="Expression incomplete."
+	output("****DONE***")
 	return (expression,error)
 def getExpressionValue(_expressiontext,_environment,_debug=None):
 	debug=(DEBUG,_debug)[isinstance(_debug,int)]
@@ -601,7 +609,12 @@ class Environment():
 	def getExpressions(self):
 		return self.M.getValue()
 	def getName(self):
-		return self.name
+		# MDH@12SEP2017: the full name of the environment should be the name of the parent environment, followed by a period followed by its own name
+		#                we need to do this because we want a function environment's name to start with the prefix of the function file (e.g. M.cel2far.txt)
+		result=self.name
+		if self.parent is not None:
+			result=self.parent.getName()+"."+result
+		return result
 	def getParent(self):
 		return self.parent
 	def __init__(self,_name,_parent=None):
@@ -958,7 +971,7 @@ class Environment():
 # create the main M environment
 import math
 # create the root environment
-Menvironment=Environment("") # MDH@03SEP2017: the root M environment containing the M identifiers and functions always accessible
+Menvironment=Environment("M") # MDH@03SEP2017: the root M environment containing the M identifiers and functions always accessible
 # populate the M environment with the predefined constants/variables
 Menvironment.addIdentifier(undefined,'?') # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(Identifier(_value=0),'false')
@@ -3016,46 +3029,122 @@ def getUsername():
 	if len(inputusername)==0 and len(defaultusername)>0: # user did NOT enter a name at all, but we have a default we can use
 		inputusername=defaultusername
 	return inputusername
+"""
 # MDH@07SEP2017: here we should have access to getExpression() therefore we can read any expressions stored in the user function expression file
-def updateExpressions(_environment): # NOTE works with user functions (hosting the expressions) and environments
-	expressionfile=None
-	try:
-		expressionfilename='M'
-		environmentname=_environment.getName()
-		if isinstance(environmentname,str) and len(environmentname)>0:
-			expressionfilename+="."+environmentname
-		expressionfilename+=".txt" # expressions stored as text
-		if opsyspath.exists(expressionfilename): # already exists...
-			expressionfile=open(expressionfilename,'r')
-			if expressionfile:
-				######parentenvironment=_environment.getParent() # TODO is this correct?
-				expressionline=expressionfile.readline()
-				while len(expressionline)>0:
+def getEnvironmentPath(_environment):
+	environmentname=_environment.getName()
+	if isinstance(environmentname,str) and len(environmentname)>0:
+		return environmentname+opsyspath.sep
+	return ""
+"""
+def readExpressions(_environment,_expressionfilename,_evaluate=False):
+	# _expressionfile designates the open file containing the expressions to populate _environment with
+	if opsyspath.exists(_expressionfilename):
+		print "Reading expressions from "+_expressionfilename+"."
+		_expressionfile=open(_expressionfilename,'r')
+		if _expressionfile:
+			expressionline=_expressionfile.readline()
+			while len(expressionline)>0:
+				try:
 					expressiontext=expressionline.rstrip('\r\n')
 					# there's either a value or a value and an expression on the line
 					if len(expressiontext)>0: # not an expression declaration (probably the value of the expression)
-						tabpos=expressiontext.find('\t') # separating the value and
+						tabpos=expressiontext.find('\t')
 						if tabpos>=0: # expression available
 							expressiontext=expressiontext[tabpos+1:]
+						note("\tParsing '"+expressiontext+"'...")
 						# MDH@10SEP2017: essential to pass 0 for the debug value!!!
 						(expression,error)=getExpression(expressiontext,_environment,0)
+						print("\tParsed...")
 						if error is None: # no error
-							####output("**ADDING**")
+							print("**ADDING**")
 							_environment.addExpression(expression)
-							####output("**ADDED**")
-							####if expression.assigns():
-							expression.evaluatesTo(_environment) # evaluate the expression (e.g. to do assignments)
-							####output("**EVALUATED**")
+							print("**ADDED**")
+							if _evaluate:
+								expression.evaluatesTo(_environment) # evaluate the expression (e.g. to do assignments)
+							print("**EVALUATED**")
 						else: # some error, add None
+							print("\tERROR: '"+error+"' in processing expression text '"+expressiontext+"' of '"+_environment.getName()+"'.")
 							_environment.addExpression(None)
-					expressionline=expressionfile.readline() # read the next line
-				expressionfile.close()
+				finally:
+					expressionline=_expressionfile.readline() # read the next line
+		else:
+			note("\tERROR: Failed to open expression file '"+_expressionfilename+"'.")
+	else:
+		note("\tERROR: Expression file '"+_expressionfilename+"' does not exist!")
+def initializeFunctions(_environment):
+	# let's store all functions in <environment name>.functions
+	functionsfileprefix=_environment.getName()+"."
+	functionsfilename=functionsfileprefix+"functions"
+	if opsyspath.exists(functionsfilename):
+		functionsfile=open(functionsfilename,'r')
+		if functionsfile:
+			functionlines=functionsfile.readlines()
+			functionsfile.close()
+			if len(functionlines)>0:
+				note("\tNumber of functions defined in functions file '"+functionsfilename+"': "+str(len(functionlines))+".")
+				for functionline in functionlines:
+					functiontext=functionline.rstrip('\r\n')
+					if len(functiontext)==0 or functiontext[0]==';':
+						continue
+					functionparameters=functiontext.split('\t')
+					if len(functionparameters)==0:
+						continue
+					functionname=functionparameters[0] # the first element is the name of the function
+					ffn=functionsfileprefix+functionname+".txt" # the name of the function file
+					if opsyspath.exists(ffn):
+						note("\tCreating function "+functionname+"...")
+						functionparameters=functionparameters[1:]
+						functionresultidentifiername=None
+						functionparameterdefaults=list()
+						for functionparameter in functionparameters:
+							functionparameterparts=functionparameter.split("=")
+							if functionparameter=='$': # defines the name to use for the result
+								if len(functionparameterparts)>1 and len(functionparameterparts[1])>0:
+									functionresultidentifiername=functionparameterparts[1]
+							else:
+								if len(functionparameterparts)>1:
+									functionparameterdefaults.append((functionparameterparts[0],functionparameterparts[1]))
+								else:
+									functionparameterdefaults.append((functionparameterparts[0],))
+						# ready to create the function
+						function=UserFunction(functionname,_environment,functionresultidentifiername,functionparameterdefaults,_environment)
+						# create an environment with the right name and initialize like any other environment
+						functionenvironment=function.getDefinitionEnvironment() # in which we will read the expressions
+						# I need to read the subfunctions first before I can read the expressions from the file
+						note("\tLooking for inner functions of "+functionname+"...")
+						initializeFunctions(functionenvironment)
+						#######note("\tReading expressions defining function "+functionname+"...")
+						readExpressions(functionenvironment,ffn) # all subsequent lines in the function file are expressions to be read into the function environment
+						note("\tRegistering expressions of function "+functionname+"...")
+						function.setExpressions(functionenvironment.getExpressions()) # move the expressions read from the environment to the function
+						######functionenvironment=None # no further use for this function environment
+						note("\tRegistering function "+functionname+"...")
+						_environment.addFunction(function) # register the function with the environment
+					else:
+						note("\tERROR: Assumed function file '"+ffn+"' does not exist!")
+			else:
+				note("\tWARNING: No functions defined in functions file '"+functionsfilename+"'.")
+		else:
+			note("\tERROR: Failed to open functions file '"+functionsfilename+"'.")
+	else:
+		note("\tNOTE: Functions filename '"+functionsfilename+"' does not exist!")
+	return 0
+def initializeExpressions(_environment,_evaluate=True): # MDH@12SEP2017: assumed to be called with the M environment or user environment (of which expressions need to be evaluated right away)
+	expressionfile=None
+	try:
+		expressionfilename=_environment.getName()+".txt" # MDH@12SEP2017: the expressions file name is the name of the environment followed by .txt
+		if opsyspath.exists(expressionfilename): # already exists...
+			readExpressions(_environment,expressionfilename,_evaluate)
 			expressionfile=open(expressionfilename,'a') # open trying to append text
 		else: # first time being written...
 			expressionfile=open(expressionfilename,'w')
 		# register the expression file with UserFunction so it can write any expression appended in the future
 	finally:
 		_environment.setExpressionFile(expressionfile)
+def initializeEnvironment(_environment):
+	initializeFunctions(_environment) # load the functions
+	initializeExpressions(_environment) # load the expressions
 """
 READY FOR THE MAIN USER INPUT LOOP
 """
@@ -3067,7 +3156,8 @@ def main():
 	# keep a list of statements, every line is one statement
 	# MDH@03SEP2017: I suppose we can let M remember the last user
 	lnwrite("Welcome to M.")
-	updateExpressions(Menvironment) # load whatever expressions were entered in the root environment
+	# initialize the list of possible M function filenames (as used by initializeFunctions)
+	initializeEnvironment(Menvironment) # load whatever expressions were entered in the root environment
 	setUsername("") # start with an undefined current user
 	# make it possible to retrieve previous expressions entered
 	#####print("Start control messages with a backtick (`)!")
@@ -3144,7 +3234,8 @@ def main():
 						lnwrite("Enter the name of the function: ")
 						functionname=raw_input().strip()
 						if len(functionname)>0:
-							if not functionname in environment.getFunctionNames(): # doesn't exist yet
+							newfunction=not functionname in environment.getFunctionNames()
+							if newfunction: # doesn't exist yet
 								# I need to know which external variables the user wants to use
 								write("What local variable will contain the result (default: $)? ")
 								functionresultidentifiername=raw_input().strip()
@@ -3177,15 +3268,14 @@ def main():
 										functionparameters.append((parametername,undefined))
 								userfunction=UserFunction(functionname,environment,functionresultidentifiername,functionparameters,(environment,Menvironment)[standalone]) # create the function with its own creation environment
 								# register this function in the environment's Mfunctions file
-								userfunction.writeDefinition('Mfunctions') # TODO we have to change the name of the functions file!!
+								userfunction.writeDefinition(getEnvironmentPath(environment)+'Mfunctions') # can't write the function expressions yet of course!!!
 								lnwrite("Until you end "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
 							else: # the function already exists, let's allow continuation
 								userfunction=environment.getFunction(functionname) # I guess the given function is already loaded then????
 								lnwrite("Until you stop continuing "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
-								# TODO technically we should execute the user function now so we can continue it!!!!
-								# let's do that in startUserFunction()????
-								updateExpressions(userfunction) # only when it already exists (otherwise there are no expressions in it yet
 							environment=userfunction.getDefinitionEnvironment() # update the current environment with the operating environment using the defaults (i.e. there's NO argument list)
+							if not newfunction: # MDH@11SEP2017: read the expressions defined previously 
+								initializeExpressions(environment)
 							environment.startUserFunction(userfunction) # pushing the user function to pop off when done creating!!!
 							# when running standalone NO access to the (current) environment but only to the (global) Menvironment
 							# TODO if we want the function to be callable in itself, we need to add it to the given environment immediately
