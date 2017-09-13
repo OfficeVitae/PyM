@@ -212,7 +212,6 @@ def reprompt():
 def newprompt():
 	#########lnwrite('Press Ctrl-D anytime to exit M, Ctrl-C to cancel any input.')
 	updateprompt() # MDH@27AUG2017: we need a new prompt
-	newline()
 	writeprompt()
 def note(_note):
 	lnwrite('\t'+_note)
@@ -471,7 +470,7 @@ class Function:
 import os as opsys # os is already used as variable name, so we have to change the name
 import os.path as opsyspath
 # MDH@13SEP2017: the definition environment hosts the inner functions and expressions
-#                therefore there's no need to
+#								 therefore there's no need to
 class UserFunction(Function):
 	def setupEnvironment(self,_environment):
 		# define the result identifier
@@ -492,17 +491,10 @@ class UserFunction(Function):
 			self.resultidentifiername="$"
 		self.parameterdefaults=_parameterdefaults # this should be a dictionary of parameter names and default values
 		self.hostexecutionenvironment=_hostexecutionenvironment
-		note("Function="+self.name+" host environment="+self.hostenvironment.getName()+" host execution environment="+self.hostexecutionenvironment.getName())
+		######note("Function="+self.name+" host environment="+self.hostenvironment.getName()+" host execution environment="+self.hostexecutionenvironment.getName())
 		self.expressionfile=None
-		# MDH@13SEP2017: more convenient to immediately create the definition environment
-		#                NOTE: the definition environment should be below the host environment TODO this might NOT be True though
-		#                the problem is the naming if the host environment is a user environment
-		#                IMPORTANT during execution we need to see the name of the function followed by the name of the host environment and NOT the execution 
-		#                environment, because the host execution environment is either the host execution environment or one of its parents we can cut off the
-		#                part of the host environment name provided by the host execution environment
-		hostenvironmentname=self.hostenvironment.getName()
-		hostexecutionenvironmentname=self.hostexecutionenvironment.getName()
-		self.definitionenvironment=Environment(join('.',(self.name,hostenvironmentname[len(hostexecutionenvironmentname):])),self.hostexecutionenvironment)
+		# MDH@13SEP2017: this is the only situation where the environment naming might differ from the environment structure...
+		self.definitionenvironment=Environment(self.name,self.hostexecutionenvironment,self.hostenvironment)
 		self.definitionenvironment.addFunction(self) # to allow recursive calls
 		self.setupEnvironment(self.definitionenvironment) # the definition environment needs the parameter and result variables
 	def getDefinitionEnvironment(self):
@@ -528,13 +520,13 @@ class UserFunction(Function):
 	def setExpressions(self,_expressions):
 		if isIterable(_expressions):
 			self.expressions=_expressions
-			note("\tNumber of expressions in function "+self.name+": "+str(len(self.expressions))+".")
+			note("Number of expressions in function "+self.name+": "+str(len(self.expressions))+".")
 		else:
 			self.expressions=None
 	# exposes a method to return a (sub)environment to use in entering function body expressions
 	def getExecutionEnvironment(self,_arglist=None):
 		# create a subenvironment below the definition environment, which contains the expressions and inner functions
-		result=Environment(self.name,self.getDefinitionEnvironment()) # when standalone NO access to the root environment
+		result=Environment(self.name,self.definitionenvironment) # when standalone NO access to the root environment
 		# add the result identifier name immediately as local variable!!
 		if len(self.resultidentifiername)>0:
 			result.addIdentifier(Identifier(self.resultidentifiername))
@@ -624,15 +616,17 @@ class Environment:
 		self.expressionfile=open(self.getExpressionsFilename(),'a') # TODO append or write or what
 	def getExpressions(self):
 		return self.M.getValue()
-	def getParentName(self):
-		if self.parent is not None:
-			return self.parent.getName()
+	# MDH@13SEP2017: naming uses the host (which may differ from the parent for standalone functions)
+	def getHostName(self):
+		host=self.getHost()
+		if host is not None:
+			return host.getName()
 		return ''
 	def getName(self):
 		# MDH@12SEP2017: the name comes first
-		return join('.',(self.name,self.getParentName()))
+		return join('.',(self.name,self.getHostName()))
 	def getFilename(self): # reverses the parent and own name
-		return join('.',(self.getParentName(),self.name))
+		return join('.',(self.getHostName(),self.name))
 	def getFunctionFilename(self,_functionname):
 		return join('.',("M",self.getFilename(),_functionname,'txt'))
 	def getExpressionsFilename(self):
@@ -643,10 +637,15 @@ class Environment:
 		return join(".",(self.getName(),"M"))+"("+str(len(self.M.getValue())+1)+")"+modechars[self.mode]+" "
 	def getParent(self):
 		return self.parent
-	def __init__(self,_name="",_parent=None):
+	def getHost(self):
+		if self.host is not None:
+			return self.host
+		return self.parent
+	def __init__(self,_name="",_parent=None,_host=None):
 		###########UserFunction.__init__(self,_name,_parent)
 		self.expressionfile=None
 		self.name=_name
+		self.host=_host
 		self.parent=_parent
 		if isinstance(self.parent,Environment):
 			self.mode=self.parent.getMode()
@@ -688,14 +687,7 @@ class Environment:
 					result.append(None)
 		return result
 	def __str__(self):
-		result=self.name
-		if self.parent is not None:
-			if len(result)>0:
-				result=str(self.parent)+"."+result
-			else:
-				result=str(self.parent)
-		####print result
-		return result
+		return self.getName()
 	def __repr__(self):
 		return str(self)
 	def setMode(self,_mode):
@@ -3224,6 +3216,7 @@ def main():
 	######### MDH@02SEP2017 the environment will keep the list of entered expressions: global mexpressions
 	mexpression=None
 	controlmode=False # start out in input mode
+	newline() # ready for the first input prompt!!
 	while 1:
 		# if we've entered control mode somehow process control input until done
 		if controlmode:
@@ -3264,7 +3257,6 @@ def main():
 					for identifiername in identifiervalues:
 						identifiervalue=identifiervalues[identifiername]
 						write(" "+identifiername+"="+(getText(identifiervalue),"?")[identifiervalue is None])
-					#####newline()
 				elif controlch==":": # MDH@27AUG2017: switch to declaration mode
 					environment.setMode(0)
 				elif controlch=="=": # MDH@27AUG2017: switch to evaluation mode
@@ -3284,6 +3276,7 @@ def main():
 							# get the parameters/local variables
 							write("Will this be a standalone function [y|n]? ")
 							controlch2=getch()
+							write(controlch2)
 							standalone=(controlch2=='y' or controlch=='Y')
 							lnwrite(controlch2)
 							functionparameters=list()
@@ -3438,6 +3431,8 @@ def main():
 					break
 			if controlch=="x" or controlch=="X":
 				break
+			if controlch!='f' and controlch!='F':
+				newline()
 			controlmode=0 # if we get here we finished control messages and we could've done continue BUT we'd end up at the newprompt() next anyway!!!!
 		# display the prompt (with the info line in front of it)
 		newprompt()
@@ -3628,6 +3623,7 @@ def main():
 		####### NOT HERE!!!! userInputLine.reset()
 		if ord(tokenchar)==3: # Ctrl-C
 			mexpression=None
+			newline()
 			continue
 		# ready to evaluate (and register)
 		if mexpression is not None:
@@ -3643,9 +3639,9 @@ def main():
 					expressionvalue=returnException.getValue()
 				# MDH@27AUG2017: write the result on the same line
 				if expressionvalue is not None:
-					write(getColoredText(" = ",INFO_COLOR)+getColoredText(getText(expressionvalue),RESULT_COLOR,RESULT_BACKCOLOR))
+					writeln(getColoredText(" = ",INFO_COLOR)+getColoredText(getText(expressionvalue),RESULT_COLOR,RESULT_BACKCOLOR))
 				else: # probably best to indicate that the expression could not be evaluated
-					write(getColoredText(" = ",INFO_COLOR)+getColoredText("Result undefined!",RESULT_COLOR,RESULT_BACKCOLOR))
+					writeln(getColoredText(" = ",INFO_COLOR)+getColoredText("Result undefined!",RESULT_COLOR,RESULT_BACKCOLOR))
 				computationerror=mexpression.getError()
 				if computationerror is not None:
 					writeerror(computationerror)
