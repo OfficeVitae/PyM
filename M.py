@@ -612,6 +612,18 @@ class Environment:
 				self.expressionfile.write(str(_expression)+opsys.linesep)
 			self.expressionfile.flush()
 			opsys.fsync(self.expressionfile) # hmmm, clumsy
+	def addUser(self,_user):
+		if not _user in self.users:
+			self.users.append(_user)
+			if self.usersfile:# for appending a new user
+				self.usersfile.write(_user+opsys.linesep)
+				self.usersfile.flush()
+				opsys.fsync(self.usersfile)
+		return _user in self.users
+	def getUsers(self):
+		return self.users
+	def setUsersFile(self,_usersfile):
+		self.usersfile=_usersfile
 	def setup(self): # to be called on a new function
 		self.expressionfile=open(self.getExpressionsFilename(),'a') # TODO append or write or what
 	def getExpressions(self):
@@ -646,6 +658,8 @@ class Environment:
 	def __init__(self,_name="",_parent=None,_host=None):
 		###########UserFunction.__init__(self,_name,_parent)
 		self.expressionfile=None
+		self.usersfile=None
+		self.users=list() # initialize no users defined in this environment
 		self.name=_name
 		self.host=_host
 		self.parent=_parent
@@ -2975,6 +2989,7 @@ def setUsername(_username):
 		return
 	if currentusername is not None and len(currentusername)>0:
 		lnwrite("Bye, "+currentusername+". Thanks for using M!")
+		newline()
 	# the current user changed, the question is whether or not the working environment should be Menvironment???????
 	# possibly Menvironment could be considered the global environment shared by all users but I'd say that not every user should be allowed to change it
 	currentusername=_username
@@ -2991,7 +3006,7 @@ def setUsername(_username):
 			usernames.append(currentusername)
 			writeUsageNotes()
 		else: # no, welcome back
-			lnwrite("Good to see you again, "+currentusername+".")
+			write("Good to see you again, "+currentusername+".")
 		# if the default changed, update Musers file
 		if currentusername!=defaultusername: # the current user name is not the registered default user name
 			fuser=open(environment.getUsersFilename(),'w') # rewrite the user names to Musers
@@ -3142,6 +3157,24 @@ def readExpressions(_environment,_evaluate=False):
 			note("ERROR: Failed to open expressions file '"+expressionsfilename+"'.")
 	else:
 		note("NOTE: Expressions file '"+expressionsfilename+"' does not exist!")
+def initializeUsers(_environment):
+	try:
+		usersfilename=_environment.getUsersFilename()
+		if opsyspath.exists(usersfilename):
+			usersfile=open(usersfilename,'r')
+			if usersfile:
+				userlines=usersfile.readlines()
+				usersfile.close()
+				for userline in userlines:
+					usertext=userline.rstrip('\r\n')
+					if len(usertext)>0:
+						_environment.addUser(usertext)
+			else:
+				note("ERROR: Failed to open users file '"+usersfilename+"'.")
+		else:
+			note("NOTE: Users file '"+usersfilename+"' does not exist!")
+	finally:
+		_environment.setUsersFile(open(usersfilename,'a'))
 def initializeFunctions(_environment):
 	functionsfilename=_environment.getFunctionsFilename()
 	if opsyspath.exists(functionsfilename):
@@ -3201,6 +3234,7 @@ def initializeFunctions(_environment):
 		note("NOTE: Functions file '"+functionsfilename+"' does not exist!")
 	return 0
 def initializeEnvironment(_environment):
+	initializeUsers(_environment) # load the users
 	initializeFunctions(_environment) # load the functions
 	readExpressions(_environment,True) # load the expressions
 """
