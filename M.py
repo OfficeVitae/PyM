@@ -312,7 +312,7 @@ def getExpressionValue(_expressiontext,_environment,_debug=None):
 class ReturnException(BaseException):
 	def __init__(self,args):
 		BaseException.__init__(self,None)
-		note("Return exception arguments: "+str(args)+".")
+		######note("Return exception arguments: "+str(args)+".")
 		self.value=args[0]
 	def getValue(self):
 		return self.value
@@ -455,7 +455,16 @@ class Function:
 # as we can have subfunctions
 import os as opsys # os is already used as variable name, so we have to change the name
 import os.path as opsyspath
+# MDH@13SEP2017: the definition environment hosts the inner functions and expressions
+#                therefore there's no need to
 class UserFunction(Function):
+	def setupEnvironment(self,_environment):
+		# define the result identifier
+		if len(self.resultidentifiername)>0:
+			_environment.addIdentifier(Identifier(self.resultidentifiername))
+		# setup the parameter identifiers
+		for (parametername,parameterdefault) in self.parameterdefaults:
+			_environment.addIdentifier(Identifier(parametername).setValue(parameterdefault))
 	# MDH@07SEP2017: as Environment subclasses UserFunction re-arranged the parameters so that it's easy to call the super constructor in Environment
 	def __init__(self,_name,_hostenvironment,_resultidentifiername=None,_parameterdefaults=None,_hostexecutionenvironment=None):
 		Function.__init__(self,-1) # back to using 0 as function index
@@ -469,14 +478,12 @@ class UserFunction(Function):
 		self.parameterdefaults=_parameterdefaults # this should be a dictionary of parameter names and default values
 		self.hostexecutionenvironment=_hostexecutionenvironment
 		self.expressionfile=None
-		self.definitionenvironment=None # in which the function is created (if any)
+		# MDH@13SEP2017: more convenient to immediately create the definition environment
+		self.definitionenvironment=Environment(self.name,self.hostexecutionenvironment)
+		self.definitionenvironment.addFunction(self) # to allow recursive calls
+		self.setupEnvironment(self.definitionenvironment) # the definition environment needs the parameter and result variables
 	def getDefinitionEnvironment(self):
-		if self.definitionenvironment is None:
-			self.definitionenvironment=self.getExecutionEnvironment()
 		return self.definitionenvironment
-		# NOTE can't read expressions here as class Expression is NOT known here yet (Python does not support feed-forward (prototype) class definitions
-		#### NO THIS WILL NOT BE THE EXECUTION ENVIRONMENT IN WHICH THE FUNCTION IS CREATED!!!! self.environment.append(self) # the environment keeps a stack of functions being created
-		# a function should be able to call itself??
 	def setExpressionFile(self,_expressionfile):
 		self.expressionfile=_expressionfile
 	def writeDefinition(self,_definitionfilename):
@@ -506,19 +513,11 @@ class UserFunction(Function):
 			self.expressions=None
 	# exposes a method to return a (sub)environment to use in entering function body expressions
 	def getExecutionEnvironment(self,_arglist=None):
-		# create a subenvironment below the UserFunction (host) environment
-		result=Environment(self.name,self.hostexecutionenvironment) # when standalone NO access to the root environment
-		# MDH@09SEP2017: no need to do the following
-		""" replacing:
-		# get a handle to the M identifier (as hosted in result)
-		if _arglist is None:
-			self.M=result.getIdentifier("M")
-		"""
+		# create a subenvironment below the definition environment, which contains the expressions and inner functions
+		result=Environment(self.name,self.getDefinitionEnvironment()) # when standalone NO access to the root environment
 		# add the result identifier name immediately as local variable!!
 		if len(self.resultidentifiername)>0:
 			result.addIdentifier(Identifier(self.resultidentifiername))
-		# to allow recursive calls, the function needs to be added to this environment as well
-		result.addFunction(self)
 		# use arguments when available and the defaults otherwise
 		for (parameterindex,(parametername,parameterdefault)) in enumerate(self.parameterdefaults):
 			if isIterable(_arglist) and parameterindex<len(_arglist):
@@ -532,21 +531,22 @@ class UserFunction(Function):
 		return self.name
 	# a user function executes its expressions (but note that an Environment's getValue() returns one of the expressions
 	def getValue(self,_arglist): # already knows it's environment (the one it was created in plus the argument list)
-		# execute the expressions in
+		# execute the expressions present in the definition environment
 		result=None
-		if self.expressions is not None:
-			l=len(self.expressions)
+		expressions=self.definitionenvironment.getExpressions()
+		if expressions is not None:
+			l=len(expressions)
 			if l>0:
 				######note("Number of expressions to evaluate "+str(l)+"...")
 				executionenvironment=self.getExecutionEnvironment(_arglist)
-				for expression in self.expressions:
+				for expression in expressions:
 					try:
 						#####expressionvalue=
 						expression.evaluatesTo(executionenvironment) # evaluate the expression in the execution environment
 						#####note("Value of "+str(expression)+": "+str(expressionvalue)+".")
 					except ReturnException,returnException:
 						result=returnException.getValue()
-						note("Return result of function: "+str(result)+".")
+						#######note("Return result of function: "+str(result)+".")
 						break
 				# what have we got in this execution environment???
 				if result is None: # no explicitly returned value using the return function
@@ -609,7 +609,7 @@ class Environment:
 		#								 we need to do this because we want a function environment's name to start with the prefix of the function file (e.g. M.cel2far.txt)
 		result=self.name
 		if self.parent is not None:
-			result=self.parent.getName()+"."+result
+			result+="."+self.parent.getName()
 		return result
 	def getParent(self):
 		return self.parent
@@ -638,7 +638,7 @@ class Environment:
 		if len(self.startedUserFunctions)==0:
 			return None
 		userfunction=self.startedUserFunctions.pop()
-		userfunction.setExpressions(self.M) # whatever expressions we collected, pass them into userfunction immediately
+		###### MDH@13SEP2017: no need for this anymore... userfunction.setExpressions(self.M) # whatever expressions we collected, pass them into userfunction immediately
 		return userfunction
 	def getNumberOfStartedUserFunctions(self):
 		return len(self.startedUserFunctions)
@@ -690,22 +690,32 @@ class Environment:
 		else:
 			pass ####note("Exists in "+self.name+"!")
 		return result
-	def getIdentifierNames(self):
+	def getIdentifierNames(self,_sort=True):
 		identifiernames=self.identifiers.keys()
 		if self.parent is not None:
 			parentidentifiernames=self.parent.getIdentifierNames()
 			for parentidentifiername in parentidentifiernames:
 				if not parentidentifiername in identifiernames:
 					identifiernames.append(parentidentifiername)
-		return sorted(identifiernames)
-	def getFunctionNames(self):
+		if _sort:
+			return sorted(identifiernames)
+		return identifiernames
+	def getFunctionNames(self,_sort=True):
 		functionnames=self.functions.keys()
 		if self.parent is not None:
 			parentfunctionnames=self.parent.getFunctionNames()
 			for parentfunctionname in parentfunctionnames:
 				if not parentfunctionname in functionnames:
 					functionnames.append(parentfunctionname)
-		return sorted(functionnames)
+		if _sort:
+			return sorted(functionnames)
+		return functionnames
+	# MDH@13SEP2017: for implementing the identifier continuation
+	def getAllIdentifierNames(self):
+		allidentifiernames=list()
+		allidentifiernames.extend(self.getFunctionNames(False)) # no need to sort these
+		allidentifiernames.extend(self.getIdentifierNames(False)) # no need to sort these
+		return allidentifiernames
 	def getFunction(self,_functionname):
 		if _functionname in self.functions:
 			return self.functions[_functionname]
@@ -1662,6 +1672,7 @@ class Expression(Token):
 		self.parent=_parent # supposedly the parent expression to revert to when receiving the ld or le character
 		self.environment=_environment # MDH@30AUG2017: knows it's environment, so it can check for the existance of certain variables, when being composed
 		self.newidentifiers=[] # MDH@30AUG2017: keep track of any identifiers declared in subexpressions
+		self.allidentifiernames=_environment.getAllIdentifierNames() # for the continuation
 		#####write(('X','Y')[self.parent is not None])
 		#######self.evaluatedexpression=None # MDH@15AUG2017: the result of evaluating the expression (which might well be a single token)
 		self.reset()
@@ -1882,11 +1893,14 @@ class Expression(Token):
 			# update behindidentifier in ALL situations
 			behindidentifier=(tokentype==IDENTIFIER_TOKENTYPE)
 		return False
+	def getContinuation(self):
+		return self.continuation
 	def add(self,_tokenchar,_echo=None):
 		echo=(self.echo,_echo)[isinstance(_echo,bool)]
 		# default result is the current expression itself
 		self.value=None # MDH@07SEP2017: recomputation would be needed afterwards for sure
 		self.error=None # to store the error in
+		self.continuation=None # MDH@12SEP2017: we are going to compute a continuation
 		result=self # the default result is self
 		try:
 			# STEP 0. IF NO LONGER CONTINUABLE THERE'S NOT MUCH TO DO (but 'ignore' _tokenchar)
@@ -2263,6 +2277,11 @@ class Expression(Token):
 				self.error="ERROR: '"+str(ex)+"'"
 			else:
 				self.error="ERROR: '"+str(ex)+"' adding "+_tokenchar+"."
+		# MDH@12SEP2017: updating the continuation if the token was accepted (i.e. when no error occurred)
+		self.continuation=""
+		if self.error is None and result is not None: # no error, and a valid result
+			if len(self.tokens)>0 and self.tokens[-1].getType()==IDENTIFIER_TOKENTYPE: # we're in an (active) identifier
+				self.continuation=getContinuation(self.tokens[-1].getText(),self.allidentifiernames)
 		return result
 	# useful to be able to obtain a list of all token characters to be appended to the user input line when choosing an existing expression to continue
 	# NOTE we won't be needing getWritten() anymore soon, as we can suffice with using the token characters for rewriting the expression
@@ -2690,6 +2709,11 @@ class Expression(Token):
 					self.suffix[-1].unend()
 			else:
 				self.error="Please report the following bug: no comment characters left to remove."
+		# update the continuation
+		self.continuation=""
+		if self.error is None and result is not None: # no error, and a valid result
+			if len(self.tokens)>0 and self.tokens[-1].getType()==IDENTIFIER_TOKENTYPE: # we're in an (active) identifier
+				self.continuation=getContinuation(self.tokens[-1].getText(),self.allidentifiernames)
 		if self.error is not None: # any error should make result None for sure
 			result=None
 		return result
@@ -2859,7 +2883,7 @@ def endFunctionCreation():
 		note("End of defining function "+function.getName()+".")
 		note("At the end of this trial execution the function-local variable values are:")
 		valuestext=""
-		identifiervalues=environment.getIdentifierValues()
+		identifiervalues=environment.getIdentifierValues(("M",))
 		for identifiername in identifiervalues:
 			identifiervalue=identifiervalues[identifiername]
 			valuestext+=" "+identifiername+"="+(getText(identifiervalue),"?")[identifiervalue is None]
@@ -2999,7 +3023,7 @@ def getUsername():
 	# how can a user stop current input?????? I guess we can use Ctr-C to that purpose again
 	writeln("Restrictions: spaces are not allowed in the name, you cannot choose M as name.")
 	writeln("Special keys: Ctrl-C: cancel, Tab: accept suggested text (in grey).")
-	write("What is your name ")
+	write("What is your name")
 	# NOTE allow the current user to logout by pressing the Enter key immediately
 	if len(currentusername)==0 and len(defaultusername)>0:
 		write(" (default: "+defaultusername+")")
@@ -3034,8 +3058,8 @@ def getUsername():
 		# 5. IF CANCEL OR ENTER DONE
 		if ord(ch) in (3,4,10,13):
 			break
-		# 6. IF ACCEPTED INPUT (IE IF NOT A BLANK OR BACKSPACE AT THE START OF THE LINE) PROCESS
-		if ord(ch)!=32 and (ord(ch)!=127 or len(inputusername)>0): # some valid input character (do not accept blanks!!!)
+		# 6. IF ACCEPTED INPUT (IE IF NOT A BLANK OR PERIOD OR BACKSPACE AT THE START OF THE LINE) PROCESS
+		if ch!='.' and ch!=' ' and (ord(ch)!=127 or len(inputusername)>0): # some valid input character (do not accept blanks!!!)
 			if ord(ch)==127: # backspace, to remove the last entered character
 				inputusername=inputusername[:-1]
 				output("\033[1D \033[1D") # this should do the trick, go back one position, write a blank and go back one position again
@@ -3049,7 +3073,7 @@ def getUsername():
 		lnwrite("Login canceled! No change to the current user!")
 		return None
 	# use the default????
-	if len(inputusername)==0 and len(defaultusername)>0: # user did NOT enter a name at all, but we have a default we can use
+	if len(currentusername)==0 and len(inputusername)==0 and len(defaultusername)>0: # user did NOT enter a name at all, but we have a default we can use
 		inputusername=defaultusername
 	return inputusername
 """
@@ -3132,14 +3156,16 @@ def initializeFunctions(_environment):
 						# ready to create the function
 						function=UserFunction(functionname,_environment,functionresultidentifiername,functionparameterdefaults,_environment)
 						# create an environment with the right name and initialize like any other environment
-						functionenvironment=function.getDefinitionEnvironment() # in which we will read the expressions
+						functiondefinitionenvironment=function.getDefinitionEnvironment() # in which we will read the expressions
 						# I need to read the subfunctions first before I can read the expressions from the file
 						note("\tLooking for inner functions of "+functionname+"...")
-						initializeFunctions(functionenvironment)
+						initializeFunctions(functiondefinitionenvironment) # the inner functions are stored in the definition environment
 						#######note("\tReading expressions defining function "+functionname+"...")
-						readExpressions(functionenvironment,ffn) # all subsequent lines in the function file are expressions to be read into the function environment
+						readExpressions(functiondefinitionenvironment,ffn) # all subsequent lines in the function file are expressions to be read into the function environment
+						""" MDH@13SEP2017: the expressions hosted in the function definition environment are available from there
 						note("\tRegistering expressions of function "+functionname+"...")
 						function.setExpressions(functionenvironment.getExpressions()) # move the expressions read from the environment to the function
+						"""
 						######functionenvironment=None # no further use for this function environment
 						note("\tRegistering function "+functionname+"...")
 						_environment.addFunction(function) # register the function with the environment
@@ -3201,10 +3227,14 @@ def main():
 		# special tokens are permitted when starting with a new expression which we have to process first
 		if mexpression is None:
 			if ord(tokenchar)==4: # Ctrl-D
-				# MDH@03SEP2017: at the top level exit M otherwise exit the function creation
 				if environment.getNumberOfStartedUserFunctions()==0: # not creating a function right now
-					break
-				endFunctionCreation()
+					if len(currentusername)==0:
+						break
+					else:
+						setUsername("")
+				else:
+					# MDH@03SEP2017: at the top level exit M otherwise exit the function creation
+					endFunctionCreation()
 				continue
 			if tokenchar=='`': # ` means the user wants to set an M option (and not enter an M expression)
 				# MDH@02SEP2017: it might be a good idea to to a Q&A
@@ -3290,7 +3320,7 @@ def main():
 										functionparameters.append((parametername,undefined))
 								userfunction=UserFunction(functionname,environment,functionresultidentifiername,functionparameters,(environment,Menvironment)[standalone]) # create the function with its own creation environment
 								# register this function in the environment's Mfunctions file
-								userfunction.writeDefinition(getEnvironmentPath(environment)+'Mfunctions') # can't write the function expressions yet of course!!!
+								userfunction.writeDefinition(environment.getName()+'.Mfunctions') # can't write the function expressions yet of course!!!
 								lnwrite("Until you end "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
 							else: # the function already exists, let's allow continuation
 								userfunction=environment.getFunction(functionname) # I guess the given function is already loaded then????
@@ -3493,6 +3523,14 @@ def main():
 					if expressionerror is not None:
 						writeerror(expressionerror)
 						updateUserInputLine(False) # no need to empty the line because it is already empty after writing the error
+				# next to write any expression continuation available
+				expressioncontinuation=mexpression.getContinuation()
+				if len(expressioncontinuation)>0:
+					write(expressioncontinuation,DEBUG_COLOR)
+					output("\033["+str(len(expressioncontinuation))+"D") # return to the cursor position
+					hidecursor() # hide the cursor otherwise we won't see the first continuation character on the position where to input a character
+				else:
+					showcursor() # show the cursor so the user can see where (s)he's typing
 			elif len(userInputLine)>0: # Enter pressed, with something on the current input line
 				# MDH@25AUG2017: we'll evaluate the expression until now and continue on the next line, which would be neat
 				#								 but let's decide to only do that when we're at the top level
@@ -3550,10 +3588,14 @@ def main():
 			#######output("("+str(ord(tokenchar))+")")
 		#####writeln("Done processing user input...")
 		if ord(tokenchar)==4: # Ctrl-D
-			lnwrite("Exit M? ")
-			sch=getch()
-			if sch=="y" or sch=="Y":
-				break
+			showcursor()
+			if len(currentusername)==0:
+				lnwrite("Exit M? ")
+				sch=getch()
+				if sch=="y" or sch=="Y":
+					break
+			else: # logout
+				setUsername("")
 			continue
 		# in all other situations will we be starting a new user input line
 		####### NOT HERE!!!! userInputLine.reset()
@@ -3590,7 +3632,7 @@ def main():
 	######emptyline() # clear the current input line
 	newline()
 	writeln("Thank you for using M"+("",", "+currentusername)[len(currentusername)>0]+".")
-
+	showcursor()
 ####DEBUG=1 # by default, shows the intermediate result!!
 if __name__=="__main__":
 	try:
