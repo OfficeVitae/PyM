@@ -487,17 +487,14 @@ class UserFunction(Function):
 	def setExpressionFile(self,_expressionfile):
 		self.expressionfile=_expressionfile
 	def writeDefinition(self,_definitionfilename):
-		if opsyspath.exists(_definitionfilename):
-			functionf=open(_definitionfilename,'w')
-		else:
-			functionf=open(_definitionfilename,'a')
+		functionf=open(_definitionfilename,'a')
 		if functionf:
 			functionf.write(self.name)
 			if self.resultidentifiername!='$':
-				functionf.write(":"+self.resultidentifiername)
+				functionf.write("\t$="+self.resultidentifiername)
 			if isinstance(self.parameterdefaults,list):
 				for (parametername,parameterdefault) in self.parameterdefaults:
-					functionf.write(" "+parametername)
+					functionf.write("\t"+parametername)
 					if isinstance(parameterdefault,str) and len(parameterdefault)>0:
 						functionf.write("="+parameterdefault)
 			functionf.write(opsys.linesep) # ready for the next function!!!
@@ -3180,8 +3177,8 @@ def initializeFunctions(_environment):
 						# I need to read the subfunctions first before I can read the expressions from the file
 						note("Looking for inner functions of "+functionname+"...")
 						initializeFunctions(functiondefinitionenvironment) # the inner functions are stored in the definition environment
-						#######note("\tReading expressions defining function "+functionname+"...")
-						readExpressions(functiondefinitionenvironment,ffn) # all subsequent lines in the function file are expressions to be read into the function environment
+						note("Reading expressions defining function "+functionname+"...")
+						readExpressions(functiondefinitionenvironment) # all subsequent lines in the function file are expressions to be read into the function environment
 						""" MDH@13SEP2017: the expressions hosted in the function definition environment are available from there
 						note("\tRegistering expressions of function "+functionname+"...")
 						function.setExpressions(functionenvironment.getExpressions()) # move the expressions read from the environment to the function
