@@ -2,6 +2,9 @@
 Marc's expression tokenizer and evaluator
 """
 """ History
+13SEP2017:
+- identifier (variable,function) continuation
+- finishing storing expressions and functions
 12SEP2017:
 - naming of files: <owner>[.<functionname>[.<functionname>]].txt where <owner> is either M or any other owner
 -									 I guess we could have multiple owners underscore or $ delimited, so instead of user we can have topics as well per user
@@ -241,12 +244,24 @@ USERFUNCTION_TOKENTYPE=192
 ###CLOSINGPARENTHESIS_TOKENTYPE=19
 ###COMMENT_TOKENTYPE=20 # MDH@07AUG2017: any expression can end with a comment
 
+## some utility functions
 def isIterable(_obj):
 	try:
 		return not isinstance(_obj,str) and hasattr(_obj,'__iter__')
 	except Exception,ex:
 		note("ERROR: '"+str(ex)+"' checking on the iterability of "+str(_obj)+".")
 	return False
+# MDH@13SEP2017: join list elements with a given separator
+def join(_sep,_list):
+	try:
+		result=""
+		for listelement in _list:
+			if isinstance(listelement,str) and len(listelement)>0:
+				result+=_sep+listelement
+		return result[1:]
+	except:
+		pass
+	return None
 def isIndexable(_obj):
 	try:
 		return hasattr(_obj,'__getitem__')
@@ -438,7 +453,7 @@ class Function:
 			if self.functionindex==1: # the return function
 				raise ReturnException(_arglist)
 			elif self.functionindex==2: # the list function
-				note("List function arguments: "+str(_arglist)+".")
+				###########note("List function arguments: "+str(_arglist)+".")
 				fvalue=list(_arglist) # will always return the input as a list (which it is even if a single argument is specified)
 			elif self.functionindex<23 and len(_arglist)==1: # a scalar function applied to a single-item argument list is to return a scalar
 				fvalue=self.apply(_arglist[0])
@@ -477,9 +492,17 @@ class UserFunction(Function):
 			self.resultidentifiername="$"
 		self.parameterdefaults=_parameterdefaults # this should be a dictionary of parameter names and default values
 		self.hostexecutionenvironment=_hostexecutionenvironment
+		note("Function="+self.name+" host environment="+self.hostenvironment.getName()+" host execution environment="+self.hostexecutionenvironment.getName())
 		self.expressionfile=None
 		# MDH@13SEP2017: more convenient to immediately create the definition environment
-		self.definitionenvironment=Environment(self.name,self.hostexecutionenvironment)
+		#                NOTE: the definition environment should be below the host environment TODO this might NOT be True though
+		#                the problem is the naming if the host environment is a user environment
+		#                IMPORTANT during execution we need to see the name of the function followed by the name of the host environment and NOT the execution 
+		#                environment, because the host execution environment is either the host execution environment or one of its parents we can cut off the
+		#                part of the host environment name provided by the host execution environment
+		hostenvironmentname=self.hostenvironment.getName()
+		hostexecutionenvironmentname=self.hostexecutionenvironment.getName()
+		self.definitionenvironment=Environment(join('.',(self.name,hostenvironmentname[len(hostexecutionenvironmentname):])),self.hostexecutionenvironment)
 		self.definitionenvironment.addFunction(self) # to allow recursive calls
 		self.setupEnvironment(self.definitionenvironment) # the definition environment needs the parameter and result variables
 	def getDefinitionEnvironment(self):
@@ -601,39 +624,23 @@ class Environment:
 		self.expressionfile=open(self.getExpressionsFilename(),'a') # TODO append or write or what
 	def getExpressions(self):
 		return self.M.getValue()
+	def getParentName(self):
+		if self.parent is not None:
+			return self.parent.getName()
+		return ''
 	def getName(self):
 		# MDH@12SEP2017: the name comes first
-		result=self.name
-		# NOTE only the root environment has NO name and parent, and the rest has both, so
-		#      appending a period always is Ok
-		if self.parent is not None:
-			result+="."+self.parent.getName()
-		return result
+		return join('.',(self.name,self.getParentName()))
 	def getFilename(self): # reverses the parent and own name
-		if self.parent is not None:
-			result=self.parent.getFilename()
-		else:
-			result=""
-		if len(result)>0:
-			result+='.'
-		return result+self.name
+		return join('.',(self.getParentName(),self.name))
 	def getFunctionFilename(self,_functionname):
-		result="M."+self.getFilename()
-		if result[-1]!=".":
-			result+="."
-		return result+_functionname+".txt"
+		return join('.',("M",self.getFilename(),_functionname,'txt'))
 	def getExpressionsFilename(self):
-		result="M."+self.getFilename()
-		if result[-1]!=".":
-			result+='.'
-		return result+"txt"
+		return join('.',("M",self.getFilename(),'txt'))
 	def getFunctionsFilename(self):
-		result="M."+self.getFilename()
-		if result[-1]!=".":
-			result+='.'
-		return result+"functions"
+		return join('.',("M",self.getFilename(),'functions'))
 	def getPrompt(self):
-		return self.getName()+"M("+str(len(self.M.getValue())+1)+")"+modechars[self.mode]+" "
+		return join(".",(self.getName(),"M"))+"("+str(len(self.M.getValue())+1)+")"+modechars[self.mode]+" "
 	def getParent(self):
 		return self.parent
 	def __init__(self,_name="",_parent=None):
@@ -2972,6 +2979,8 @@ def setUsername(_username):
 	if _username=="M":
 		lnwrite("Name 'M' refused. There can be only one M, and that's me.")
 		return
+	if currentusername is not None and len(currentusername)>0:
+		lnwrite("Bye, "+currentusername+". Thanks for using M!")
 	# the current user changed, the question is whether or not the working environment should be Menvironment???????
 	# possibly Menvironment could be considered the global environment shared by all users but I'd say that not every user should be allowed to change it
 	currentusername=_username
@@ -3010,8 +3019,6 @@ def setUsername(_username):
 		initializeEnvironment(environment)
 	else: # use the global (M) environment, to which you can add functions shared by all projects!!!
 		environment=Menvironment
-	# MDH@07SEP2017: update the expressions defined in the current environment
-	writeUsageNotes()
 def getUsername():
 	# NOTE we're using the global currentusername but as long as we do not try to change it we do not need to declare it as global I think
 	# allowing a user to logout by pressing Enter
@@ -3162,14 +3169,14 @@ def initializeFunctions(_environment):
 						functionparameterdefaults=list()
 						for functionparameter in functionparameters:
 							functionparameterparts=functionparameter.split("=")
-							if functionparameter=='$': # defines the name to use for the result
+							if functionparameterparts[0]=='$': # defines the name to use for the result
 								if len(functionparameterparts)>1 and len(functionparameterparts[1])>0:
 									functionresultidentifiername=functionparameterparts[1]
 							else:
 								if len(functionparameterparts)>1:
 									functionparameterdefaults.append((functionparameterparts[0],functionparameterparts[1]))
 								else:
-									functionparameterdefaults.append((functionparameterparts[0],))
+									functionparameterdefaults.append((functionparameterparts[0],None))
 						# ready to create the function
 						function=UserFunction(functionname,_environment,functionresultidentifiername,functionparameterdefaults,_environment)
 						# create an environment with the right name and initialize like any other environment
@@ -3216,7 +3223,222 @@ def main():
 	#####print("Start control messages with a backtick (`)!")
 	######### MDH@02SEP2017 the environment will keep the list of entered expressions: global mexpressions
 	mexpression=None
+	controlmode=False # start out in input mode
 	while 1:
+		# if we've entered control mode somehow process control input until done
+		if controlmode:
+			# MDH@02SEP2017: it might be a good idea to to a Q&A
+			while 1:
+				lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|M|o|v|x] ") #### replacing: write(tokenchar)
+				controlch=getch()
+				if ord(controlch)==3 or ord(controlch)==4 or ord(controlch)==10 or ord(controlch)==13:
+					break
+				if controlch=='h' or controlch=="H":
+					lnwriteleft("Possible control characters (following the backtick):",120,DEBUG_BACKCOLOR)
+					lnwrite("l\tto login.")
+					lnwriteleft("d\tto set the debug level.",120,DEBUG_BACKCOLOR)
+					lnwrite("c\tto set the color code for color type (d=debug, i=identifier, l=literal, o=operator, p=prompt).")
+					lnwriteleft("v\tshows the list of (global) constants and variables.",120,DEBUG_BACKCOLOR)
+					lnwrite("f\tcreate a new function.")
+					lnwriteleft("F\tto end the function currently being created.",120,DEBUG_BACKCOLOR) # MDH@02SEP2017: do we want something else????
+					lnwrite("o\tshows the list of operators.")
+					lnwriteleft("h\tto view this help.",120,DEBUG_BACKCOLOR)
+					lnwrite("x\tto exit M immediately.")
+					lnwriteleft(":\tto switch to declaration mode (default).",120,DEBUG_BACKCOLOR)
+					lnwrite("=\tto switch to evaluation mode.")
+				elif controlch=="F": # end the current function
+					# register the function that ends to the current environment
+					endFunctionCreation()
+						#######newline()
+				elif controlch=="o" or controlch=="O":
+					lnwrite("Binary operators:")
+					lnwrite("\tArithmetic\t- + % \ | & ^ . .. * ** / // << >>")
+					lnwrite("\tComparison\t< <= > >= == ")
+					lnwrite("\tLogical\t\t&& ||")
+					lnwrite("\tAssignment\t=")
+					lnwrite("\tDeclaration\t:")
+					lnwrite("Unary operators:\t= ! ~ - +")
+				elif controlch=="v" or controlch=="V":
+					lnwrite("Variables (M not included):")
+					identifiervalues=environment.getIdentifierValues(["M"]) # passing the list of names not to show...
+					for identifiername in identifiervalues:
+						identifiervalue=identifiervalues[identifiername]
+						write(" "+identifiername+"="+(getText(identifiervalue),"?")[identifiervalue is None])
+					#####newline()
+				elif controlch==":": # MDH@27AUG2017: switch to declaration mode
+					environment.setMode(0)
+				elif controlch=="=": # MDH@27AUG2017: switch to evaluation mode
+					environment.setMode(1)
+				elif controlch=="f": # starts a function
+					lnwrite("Functions:")
+					for functionname in environment.getFunctionNames():
+						write(" "+functionname)
+					lnwrite("What is the name of the function? ")
+					functionname=raw_input().strip()
+					if len(functionname)>0:
+						newfunction=not functionname in environment.getFunctionNames()
+						if newfunction: # doesn't exist yet
+							# I need to know which external variables the user wants to use
+							write("What local variable will contain the result (default: $)? ")
+							functionresultidentifiername=raw_input().strip()
+							# get the parameters/local variables
+							write("Will this be a standalone function [y|n]? ")
+							controlch2=getch()
+							standalone=(controlch2=='y' or controlch=='Y')
+							lnwrite(controlch2)
+							functionparameters=list()
+							while 1:
+								parameterindex=len(functionparameters)+1
+								write("What is the name of parameter #"+str(parameterindex)+"? ")
+								parametername=raw_input().strip()
+								if len(parametername)==0:
+									break
+								write("What is the default value of "+parametername+": ")
+								parameterdefault=raw_input().strip()
+								if len(parameterdefault)>0:
+									functionparameters.append((parametername,getExpressionValue(parameterdefault,environment),))
+								else: # no default
+									functionparameters.append((parametername,undefined))
+							# allow adding more local variables if not a standalone version
+							if not standalone:
+								writeln("Please define any local variable the function will use (masking any external variable with the same name)")
+								while 1:
+									write("What is the name of the local variable? ")
+									parametername=raw_input().strip()
+									if len(parametername)==0:
+										break
+									functionparameters.append((parametername,undefined))
+							userfunction=UserFunction(functionname,environment,functionresultidentifiername,functionparameters,(environment,Menvironment)[standalone]) # create the function with its own creation environment
+							# register this function in the environment's Mfunctions file
+							#########userfunction.writeDefinition(environment.getName()+'.Mfunctions') # can't write the function expressions yet of course!!!
+							lnwrite("Until you end "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
+						else: # the function already exists, let's allow continuation
+							userfunction=environment.getFunction(functionname) # I guess the given function is already loaded then????
+							lnwrite("Until you stop continuing "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
+						environment=userfunction.getDefinitionEnvironment() # update the current environment with the operating environment using the defaults (i.e. there's NO argument list)
+						if newfunction: # MDH@11SEP2017: read the expressions defined previously
+							environment.setup()
+						else:
+							readExpressions(environment,False)
+						environment.startUserFunction(userfunction) # pushing the user function to pop off when done creating!!!
+						# when running standalone NO access to the (current) environment but only to the (global) Menvironment
+						# TODO if we want the function to be callable in itself, we need to add it to the given environment immediately
+						# get the new child environment, to be used during creating the function
+						# remember the function being created TODO we still need to make it possible for a function to call itself
+						lnwrite("Available variables:")
+						for variablename in environment.getIdentifierNames():
+							write(" "+variablename)
+				elif controlch=="b": # the back color
+					# allow changing multiple backcolor in a row
+					lnwrite("Text backcolor codes: debug="+str(DEBUG_BACKCOLOR)+", error="+str(ERROR_BACKCOLOR)+", identifier="+str(IDENTIFIER_BACKCOLOR)+", literal="+str(LITERAL_BACKCOLOR)+", operator="+str(OPERATOR_BACKCOLOR)+", prompt="+str(INFO_BACKCOLOR)+", result="+str(RESULT_BACKCOLOR)+".")
+					while 1:
+						lnwrite("What backcolor do you want to set? [d|e|i|l|o|p|r] ")
+						controlch2=getch()
+						if controlch=="l":
+							currentcolorcode=LITERAL_BACKCOLOR
+						elif controlch=="e":
+							currentcolorcode=ERROR_BACKCOLOR
+						elif controlch=="o":
+							currentcolorcode=OPERATOR_BACKCOLOR
+						elif controlch=="d":
+							currentcolorcode=DEBUG_BACKCOLOR
+						elif controlch=="i":
+							currentcolorcode=IDENTIFIER_BACKCOLOR
+						elif controlch=="p":
+							currentcolorcode=INFO_BACKCOLOR
+						elif controlch=="r":
+							currentcolorcode=RESULT_BACKCOLOR
+						else:
+							break
+						lnwrite("Change the color code ("+str(currentcolorcode)+") to: ")
+						controlmessage=raw_input()
+						if controlch=="l":
+							LITERAL_BACKCOLOR=int(controlmessage)
+						elif controlch=="e":
+							ERROR_BACKCOLOR=int(controlmessage)
+						elif controlch=="o":
+							OPERATOR_BACKCOLOR=int(controlmessage)
+						elif controlch=="d":
+							DEBUG_BACKCOLOR=int(controlmessage)
+						elif controlch=="i":
+							IDENTIFIER_BACKCOLOR=int(controlmessage)
+						elif controlch=="p":
+							INFO_BACKCOLOR=int(controlmessage)
+						elif controlch=="r":
+							RESULT_BACKCOLOR=int(controlmessage)
+				elif controlch=="c":
+					lnwrite("Text color codes: debug="+str(DEBUG_COLOR)+", error="+str(ERROR_COLOR)+", identifier="+str(IDENTIFIER_COLOR)+", literal="+str(LITERAL_COLOR)+", operator="+str(OPERATOR_COLOR)+", prompt="+str(INFO_COLOR)+", result="+str(RESULT_COLOR)+".")
+					while 1:
+						lnwrite("What text color do you want to set? [d|e|i|l|o|p|r] ")
+						controlch2=getch()
+						if controlch=="l":
+							currentcolorcode=LITERAL_COLOR
+						elif controlch=="e":
+							currentcolorcode=ERROR_COLOR
+						elif controlch=="o":
+							currentcolorcode=OPERATOR_COLOR
+						elif controlch=="d":
+							currentcolorcode=DEBUG_COLOR
+						elif controlch=="i":
+							currentcolorcode=IDENTIFIER_COLOR
+						elif controlch=="p":
+							currentcolorcode=INFO_COLOR
+						elif controlch=="r":
+							currentcolorcode=RESULT_COLOR
+						else:
+							break
+						lnwrite("Change the color code ("+str(currentcolorcode)+") to: ")
+						controlmessage=raw_input()
+						if controlmessage[1]=="l":
+							LITERAL_COLOR=int(controlmessage[3:])
+						elif controlmessage[1]=="e":
+							ERROR_COLOR=int(controlmessage[3:])
+						elif controlmessage[1]=="o":
+							OPERATOR_COLOR=int(controlmessage[3:])
+						elif controlmessage[1]=="d":
+							DEBUG_COLOR=int(controlmessage[3:])
+						elif controlmessage[1]=="i":
+							IDENTIFIER_COLOR=int(controlmessage[3:])
+						elif controlmessage[1]=="p":
+							INFO_COLOR=int(controlmessage[3:])
+						elif controlmessage[1]=="r":
+							RESULT_COLOR=int(controlmessage[3:])
+				elif controlch=="m" or controlch=="M": # show the contents of the M array element by element
+					lnwrite("Contents of M (press Esc to stop, any other key to continue):")
+					Mexpressionlist=environment.getIdentifierValue("M")
+					if isIterable(Mexpressionlist):
+						expressionindex=0
+						for Mexpression in Mexpressionlist:
+							expressionindex+=1
+							if Mexpression is None:
+								continue
+							lnwrite("M("+str(expressionindex)+")="+str(Mexpression))
+							sch=getch()
+							if ord(sch)==27:
+								break
+					else:
+						lnwrite("Sorry. Unable to show the contents of M as it is not a list.")
+				elif controlch=="l" or controlch=="L":
+					setUsername(getUsername())
+				elif controlch=="d" or controlch=="D":
+					lnwrite("Please enter the new debug level (replacing: "+str(DEBUG)+"): ")
+					debugtext=raw_input().strip()
+					try:
+						DEBUG=int(debugtext)
+						write("Debug level set to "+str(DEBUG)+".")
+					except:
+						write("Invalid debug level input '"+debugtext+"': only non-negative integer values are allowed!")
+						pass
+				elif controlch=="x" or controlch=="X":
+					break
+				else:
+					lnwrite("Unrecognized control message.")
+				# only the b, c and d control characters allow further setting
+				if controlch!='b' and controlch!='c':
+					break
+			if controlch=="x" or controlch=="X":
+				break
+			controlmode=0 # if we get here we finished control messages and we could've done continue BUT we'd end up at the newprompt() next anyway!!!!
 		# display the prompt (with the info line in front of it)
 		newprompt()
 		resulttext="" # no result text so far
@@ -3242,212 +3464,7 @@ def main():
 					endFunctionCreation()
 				continue
 			if tokenchar=='`': # ` means the user wants to set an M option (and not enter an M expression)
-				# MDH@02SEP2017: it might be a good idea to to a Q&A
-				while 1:
-					lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|M|o|v|x] ") #### replacing: write(tokenchar)
-					controlch=getch()
-					if ord(controlch)==3 or ord(controlch)==4 or ord(controlch)==10 or ord(controlch)==13:
-						break
-					if controlch=='h' or controlch=="H":
-						lnwriteleft("Possible control characters (following the backtick):",120,DEBUG_BACKCOLOR)
-						lnwrite("l\tto login.")
-						lnwriteleft("d\tto set the debug level.",120,DEBUG_BACKCOLOR)
-						lnwrite("c\tto set the color code for color type (d=debug, i=identifier, l=literal, o=operator, p=prompt).")
-						lnwriteleft("v\tshows the list of (global) constants and variables.",120,DEBUG_BACKCOLOR)
-						lnwrite("f\tcreate a new function.")
-						lnwriteleft("F\tto end the function currently being created.",120,DEBUG_BACKCOLOR) # MDH@02SEP2017: do we want something else????
-						lnwrite("o\tshows the list of operators.")
-						lnwriteleft("h\tto view this help.",120,DEBUG_BACKCOLOR)
-						lnwrite("x\tto exit M immediately.")
-						lnwriteleft(":\tto switch to declaration mode (default).",120,DEBUG_BACKCOLOR)
-						lnwrite("=\tto switch to evaluation mode.")
-					elif controlch=="F": # end the current function
-						# register the function that ends to the current environment
-						endFunctionCreation()
-							#######newline()
-					elif controlch=="o" or controlch=="O":
-						lnwrite("Binary operators:")
-						lnwrite("\tArithmetic\t- + % \ | & ^ . .. * ** / // << >>")
-						lnwrite("\tComparison\t< <= > >= == ")
-						lnwrite("\tLogical\t\t&& ||")
-						lnwrite("\tAssignment\t=")
-						lnwrite("\tDeclaration\t:")
-						lnwrite("Unary operators:\t= ! ~ - +")
-					elif controlch=="v" or controlch=="V":
-						lnwrite("Variables (M not included):")
-						identifiervalues=environment.getIdentifierValues(["M"]) # passing the list of names not to show...
-						for identifiername in identifiervalues:
-							identifiervalue=identifiervalues[identifiername]
-							write(" "+identifiername+"="+(getText(identifiervalue),"?")[identifiervalue is None])
-						#####newline()
-					elif controlch==":": # MDH@27AUG2017: switch to declaration mode
-						environment.setMode(0)
-					elif controlch=="=": # MDH@27AUG2017: switch to evaluation mode
-						environment.setMode(1)
-					elif controlch=="f": # starts a function
-						lnwrite("Functions:")
-						for functionname in environment.getFunctionNames():
-							write(" "+functionname)
-						lnwrite("Enter the name of the function: ")
-						functionname=raw_input().strip()
-						if len(functionname)>0:
-							newfunction=not functionname in environment.getFunctionNames()
-							if newfunction: # doesn't exist yet
-								# I need to know which external variables the user wants to use
-								write("What local variable will contain the result (default: $)? ")
-								functionresultidentifiername=raw_input().strip()
-								# get the parameters/local variables
-								write("Will this be a standalone function [y|n]? ")
-								controlch2=getch()
-								standalone=(controlch2=='y' or controlch=='Y')
-								lnwrite(controlch2)
-								functionparameters=list()
-								while 1:
-									parameterindex=len(functionparameters)+1
-									write("What is the name of parameter #"+str(parameterindex)+"? ")
-									parametername=raw_input().strip()
-									if len(parametername)==0:
-										break
-									write("What is the default value of "+parametername+": ")
-									parameterdefault=raw_input().strip()
-									if len(parameterdefault)>0:
-										functionparameters.append((parametername,getExpressionValue(parameterdefault,environment),))
-									else: # no default
-										functionparameters.append((parametername,undefined))
-								# allow adding more local variables if not a standalone version
-								if not standalone:
-									writeln("Please define any local variable the function will use (masking any external variable with the same name)")
-									while 1:
-										write("What is the name of the local variable? ")
-										parametername=raw_input().strip()
-										if len(parametername)==0:
-											break
-										functionparameters.append((parametername,undefined))
-								userfunction=UserFunction(functionname,environment,functionresultidentifiername,functionparameters,(environment,Menvironment)[standalone]) # create the function with its own creation environment
-								# register this function in the environment's Mfunctions file
-								#########userfunction.writeDefinition(environment.getName()+'.Mfunctions') # can't write the function expressions yet of course!!!
-								lnwrite("Until you end "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
-							else: # the function already exists, let's allow continuation
-								userfunction=environment.getFunction(functionname) # I guess the given function is already loaded then????
-								lnwrite("Until you stop continuing "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
-							environment=userfunction.getDefinitionEnvironment() # update the current environment with the operating environment using the defaults (i.e. there's NO argument list)
-							if newfunction: # MDH@11SEP2017: read the expressions defined previously
-								environment.setup()
-							else:
-								readExpressions(environment,False)
-							environment.startUserFunction(userfunction) # pushing the user function to pop off when done creating!!!
-							# when running standalone NO access to the (current) environment but only to the (global) Menvironment
-							# TODO if we want the function to be callable in itself, we need to add it to the given environment immediately
-							# get the new child environment, to be used during creating the function
-							# remember the function being created TODO we still need to make it possible for a function to call itself
-							lnwrite("Available variables:")
-							for variablename in environment.getIdentifierNames():
-								write(" "+variablename)
-					elif controlch=="b": # the back color
-						# allow changing multiple backcolor in a row
-						lnwrite("Text backcolor codes: debug="+str(DEBUG_BACKCOLOR)+", error="+str(ERROR_BACKCOLOR)+", identifier="+str(IDENTIFIER_BACKCOLOR)+", literal="+str(LITERAL_BACKCOLOR)+", operator="+str(OPERATOR_BACKCOLOR)+", prompt="+str(INFO_BACKCOLOR)+", result="+str(RESULT_BACKCOLOR)+".")
-						while 1:
-							lnwrite("What backcolor do you want to set? [d|e|i|l|o|p|r] ")
-							controlch2=getch()
-							if controlch=="l":
-								currentcolorcode=LITERAL_BACKCOLOR
-							elif controlch=="e":
-								currentcolorcode=ERROR_BACKCOLOR
-							elif controlch=="o":
-								currentcolorcode=OPERATOR_BACKCOLOR
-							elif controlch=="d":
-								currentcolorcode=DEBUG_BACKCOLOR
-							elif controlch=="i":
-								currentcolorcode=IDENTIFIER_BACKCOLOR
-							elif controlch=="p":
-								currentcolorcode=INFO_BACKCOLOR
-							elif controlch=="r":
-								currentcolorcode=RESULT_BACKCOLOR
-							else:
-								break
-							lnwrite("Change the color code ("+str(currentcolorcode)+") to: ")
-							controlmessage=raw_input()
-							if controlch=="l":
-								LITERAL_BACKCOLOR=int(controlmessage)
-							elif controlch=="e":
-								ERROR_BACKCOLOR=int(controlmessage)
-							elif controlch=="o":
-								OPERATOR_BACKCOLOR=int(controlmessage)
-							elif controlch=="d":
-								DEBUG_BACKCOLOR=int(controlmessage)
-							elif controlch=="i":
-								IDENTIFIER_BACKCOLOR=int(controlmessage)
-							elif controlch=="p":
-								INFO_BACKCOLOR=int(controlmessage)
-							elif controlch=="r":
-								RESULT_BACKCOLOR=int(controlmessage)
-					elif controlch=="c":
-						lnwrite("Text color codes: debug="+str(DEBUG_COLOR)+", error="+str(ERROR_COLOR)+", identifier="+str(IDENTIFIER_COLOR)+", literal="+str(LITERAL_COLOR)+", operator="+str(OPERATOR_COLOR)+", prompt="+str(INFO_COLOR)+", result="+str(RESULT_COLOR)+".")
-						while 1:
-							lnwrite("What text color do you want to set? [d|e|i|l|o|p|r] ")
-							controlch2=getch()
-							if controlch=="l":
-								currentcolorcode=LITERAL_COLOR
-							elif controlch=="e":
-								currentcolorcode=ERROR_COLOR
-							elif controlch=="o":
-								currentcolorcode=OPERATOR_COLOR
-							elif controlch=="d":
-								currentcolorcode=DEBUG_COLOR
-							elif controlch=="i":
-								currentcolorcode=IDENTIFIER_COLOR
-							elif controlch=="p":
-								currentcolorcode=INFO_COLOR
-							elif controlch=="r":
-								currentcolorcode=RESULT_COLOR
-							else:
-								break
-							lnwrite("Change the color code ("+str(currentcolorcode)+") to: ")
-							controlmessage=raw_input()
-							if controlmessage[1]=="l":
-								LITERAL_COLOR=int(controlmessage[3:])
-							elif controlmessage[1]=="e":
-								ERROR_COLOR=int(controlmessage[3:])
-							elif controlmessage[1]=="o":
-								OPERATOR_COLOR=int(controlmessage[3:])
-							elif controlmessage[1]=="d":
-								DEBUG_COLOR=int(controlmessage[3:])
-							elif controlmessage[1]=="i":
-								IDENTIFIER_COLOR=int(controlmessage[3:])
-							elif controlmessage[1]=="p":
-								INFO_COLOR=int(controlmessage[3:])
-							elif controlmessage[1]=="r":
-								RESULT_COLOR=int(controlmessage[3:])
-					elif controlch=="m" or controlch=="M": # show the contents of the M array element by element
-						lnwrite("Contents of M (press Esc to stop, any other key to continue):")
-						Mexpressionlist=environment.getIdentifierValue("M")
-						if isIterable(Mexpressionlist):
-							expressionindex=0
-							for Mexpression in Mexpressionlist:
-								expressionindex+=1
-								if Mexpression is None:
-									continue
-								lnwrite("M("+str(expressionindex)+")="+str(Mexpression))
-								sch=getch()
-								if ord(sch)==27:
-									break
-						else:
-							lnwrite("Sorry. Contents of M not a list that I can show.")
-					elif controlch=="l" or controlch=="L":
-						setUsername(getUsername())
-					elif controlch=="d" or controlch=="D":
-						lnwrite("Please enter the new debug level (replacing: "+str(DEBUG)+"): ")
-						DEBUG=int(raw_input())
-						lnwrite("Debug level set to "+str(DEBUG)+".")
-					elif controlch=="x" or controlch=="X":
-						break
-					else:
-						lnwrite("Unrecognized control message.")
-					# only the b, c and d control characters allow further setting
-					if controlch!='b' and controlch!='c':
-						break
-				if controlch=="x" or controlch=="X":
-					break
+				controlmode=1 # switch to control mode, we skip the rest (which deals with input mode)
 				continue
 			# if we get here it wasn't Ctrl-D or `, it might still be the arrow up or arrow down to select a previous expression
 			mexpressionretrieved=None
@@ -3500,7 +3517,7 @@ def main():
 		# NOTE a newline (Enter) shouldn't end the expression input per se
 		##### see the use of Expression.echo() to rewrite the entire expression again!!! Mexpression=mexpression # MDH@25APR2017: we need a reference to the main level expression, so we can rewrite it (e.g. after a backspace!!)
 		# MDH@01SEP2017: it's probably best to deal with all situations separately (i.e. following either backspace(), add() or processing the newline character???
-		while ord(tokenchar)!=3 and ord(tokenchar)!=4: # not Ctrl-C or Ctrl-D
+		while ord(tokenchar)!=3 and ord(tokenchar)!=4 and tokenchar!='`': # not Ctrl-C or Ctrl-D or backtick
 			expressionerror=None
 			if ord(tokenchar)!=10 and ord(tokenchar)!=13: # the expression WILL change (because it's not a newline character!)
 				"""
@@ -3594,6 +3611,9 @@ def main():
 			tokenchar=getexprch()
 			#######output("("+str(ord(tokenchar))+")")
 		#####writeln("Done processing user input...")
+		if tokenchar=='`': # backtick, do NOT read another token
+			controlmode=1 # and switching to control mode as well
+			continue
 		if ord(tokenchar)==4: # Ctrl-D
 			showcursor()
 			if len(currentusername)==0:
