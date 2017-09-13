@@ -1,0 +1,2 @@
+cel2far	$=fahrenheit	celsius=0
+far2cel	$=celsius	fahrenheit=32

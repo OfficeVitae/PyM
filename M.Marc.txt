@@ -1,0 +1,4 @@
+3991680	fac(12)\fac(5)
+10	noverk(5,2)
+35	noverk(7,3)
+1	noverk(8,0)

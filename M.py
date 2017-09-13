@@ -633,6 +633,8 @@ class Environment:
 		return join('.',("M",self.getFilename(),'txt'))
 	def getFunctionsFilename(self):
 		return join('.',("M",self.getFilename(),'functions'))
+	def getUsersFilename(self):
+		return join('.',("M",self.getFilename(),'users'))
 	def getPrompt(self):
 		return join(".",(self.getName(),"M"))+"("+str(len(self.M.getValue())+1)+")"+modechars[self.mode]+" "
 	def getParent(self):
@@ -2992,7 +2994,7 @@ def setUsername(_username):
 			lnwrite("Good to see you again, "+currentusername+".")
 		# if the default changed, update Musers file
 		if currentusername!=defaultusername: # the current user name is not the registered default user name
-			fuser=open("Musers",'w') # rewrite the user names to Musers
+			fuser=open(environment.getUsersFilename(),'w') # rewrite the user names to Musers
 			if fuser:
 				for username in usernames:
 					if username==currentusername:
@@ -3016,11 +3018,12 @@ def getUsername():
 	# allowing a user to logout by pressing Enter
 	newuser=False # assume not a new user
 	# use the last user that logged in as default for the user name
+	usersfilename=environment.getUsersFilename()
 	defaultusername="" # assume no default user name!!
-	if opsyspath.exists("Musers"):
-		fuser=open("Musers",'r')
+	usernames=list()
+	if opsyspath.exists(usersfilename):
+		fuser=open(usersfilename,'r')
 		if fuser:
-			usernames=list()
 			while 1:
 				userline=fuser.readline().rstrip('\n\r')
 				if len(userline)==0:
@@ -3030,13 +3033,16 @@ def getUsername():
 				if userline[0]=='*':
 					defaultusername=username
 			fuser.close()
+	else:
+		lnwrite("Users filename '"+usersfilename+"' does not exist!")
 	# I suppose we can show a list of user names!!!
 	if len(usernames)>1:
 		lnwrite("Registered users: ")
 		for username in usernames:
 			write(" "+username)
-		writeln(".")
+		write(".")
 	# how can a user stop current input?????? I guess we can use Ctr-C to that purpose again
+	newline()
 	writeln("Restrictions: spaces are not allowed in the name, you cannot choose M as name.")
 	writeln("Special keys: Ctrl-C: cancel, Tab: accept suggested text (in grey).")
 	write("What is your name")
@@ -3222,8 +3228,9 @@ def main():
 		if controlmode:
 			# MDH@02SEP2017: it might be a good idea to to a Q&A
 			while 1:
-				lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|M|o|v|x] ") #### replacing: write(tokenchar)
+				lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|M|o|u|v|x] ") #### replacing: write(tokenchar)
 				controlch=getch()
+				write(controlch)
 				if ord(controlch)==3 or ord(controlch)==4 or ord(controlch)==10 or ord(controlch)==13:
 					break
 				if controlch=='h' or controlch=="H":
@@ -3239,6 +3246,7 @@ def main():
 					lnwrite("x\tto exit M immediately.")
 					lnwriteleft(":\tto switch to declaration mode (default).",120,DEBUG_BACKCOLOR)
 					lnwrite("=\tto switch to evaluation mode.")
+					lnwriteleft("u\tshows the list of registered users.",120,DEBUG_BACKCOLOR)
 				elif controlch=="F": # end the current function
 					# register the function that ends to the current environment
 					endFunctionCreation()
@@ -3251,6 +3259,13 @@ def main():
 					lnwrite("\tAssignment\t=")
 					lnwrite("\tDeclaration\t:")
 					lnwrite("Unary operators:\t= ! ~ - +")
+				elif controlch=="u" or controlch=="U":
+					if usernames is not None:
+						lnwrite("Users:")
+						for username in usernames:
+							write(" "+username)
+					else:
+						lnwrite("No users available.")
 				elif controlch=="v" or controlch=="V":
 					lnwrite("Variables (M not included):")
 					identifiervalues=environment.getIdentifierValues(["M"]) # passing the list of names not to show...
