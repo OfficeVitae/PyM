@@ -387,7 +387,10 @@ class Function:
 					if self.functionindex==-5: # size
 						return len(arguments)
 					if self.functionindex==-6: # sorti
-						return [i[0]+1 for i in sorted(enumerate(value), key=lambda x:x[1])] # do NOT forget to add 1 to the index (zero-based in Python, one-based in M)
+						# it's possible to have a single argument that is a list
+						if len(arguments)==1 and isIterable(arguments[0]): # quick fix
+							arguments=arguments[0]
+						return [i[0]+1 for i in sorted(enumerate(arguments), key=lambda x:x[1])] # do NOT forget to add 1 to the index (zero-based in Python, one-based in M)
 			else: # a fixed-argument function
 				# application of a scalar function to a list, means applying the function to each element of the list (and return the list of it)
 				if self.functionindex<100: # a scalar function
@@ -548,7 +551,7 @@ class Function:
 		while len(_arglist)>0 and len(functionarglist)<argcount: # as long as there's arguments to pop, and we do not have enough arguments yet
 			functionarglist.append(_arglist.pop(0))
 		functionvalue=self.apply(functionarglist)
-		note("Result of applying function "+str(self)+" to "+str(functionarglist)+": '"+str(functionvalue)+"'.")
+		########note("Result of applying function "+str(self)+" to "+str(functionarglist)+": '"+str(functionvalue)+"'.")
 		functionvaluelist.append(functionvalue) # the result of the first application of the function
 		while len(_arglist)>0: # additional function calls to make
 			functionarglist=list()
@@ -3351,6 +3354,7 @@ def main():
 	######### MDH@02SEP2017 the environment will keep the list of entered expressions: global mexpressions
 	mexpression=None
 	controlmode=False # start out in input mode
+	expressioncontinuation='' # no expression continuation to start with
 	newline() # ready for the first input prompt!!
 	while 1:
 		# if we've entered control mode somehow process control input until done
@@ -3465,6 +3469,7 @@ def main():
 						lnwrite("Available variables:")
 						for variablename in environment.getIdentifierNames():
 							write(" "+variablename)
+						newline()
 				elif controlch=="b": # the back color
 					# allow changing multiple backcolor in a row
 					lnwrite("Text backcolor codes: debug="+str(DEBUG_BACKCOLOR)+", error="+str(ERROR_BACKCOLOR)+", identifier="+str(IDENTIFIER_BACKCOLOR)+", literal="+str(LITERAL_BACKCOLOR)+", operator="+str(OPERATOR_BACKCOLOR)+", prompt="+str(INFO_BACKCOLOR)+", result="+str(RESULT_BACKCOLOR)+".")
@@ -3586,6 +3591,7 @@ def main():
 			controlmode=0 # if we get here we finished control messages and we could've done continue BUT we'd end up at the newprompt() next anyway!!!!
 		# display the prompt (with the info line in front of it)
 		newprompt()
+		#######expressioncontinuation=""
 		resulttext="" # no result text so far
 		# MDH@01SEP2017: if we have an expression defined at the moment, we simply retrieve all token characters in it, and display them
 		if mexpression is not None:
@@ -3672,8 +3678,20 @@ def main():
 					output(" "*resultlength) # write as many blanks as the result takes
 					output("\033["+str(resultlength)+"D") # return to the original cursor position
 				"""
-				# if we've received a backspace character (ASCII 127 on iMac), we tell the expression to execute the backspace
-				if ord(tokenchar)==127: # a backspace
+				if ord(tokenchar)==9: # a tab
+					# we need a continuation to add to the name of the identifier
+					if len(expressioncontinuation)>0:
+						for tokenchar in expressioncontinuation:
+							mexpression_new=mexpression.add(tokenchar)
+							expressionerror=mexpression.getError()
+							if expressionerror is not None:
+								writeerror(expressionerror)
+								updateUserInputLine(false)
+								break
+							if mexpression_new is None:
+								break
+							mexpression=mexpression_new
+				elif ord(tokenchar)==127: # a backspace
 					if len(userInputLine)>0:
 						mexpression_new=mexpression.backspace() # returns None if some error occurred
 						expressionerror=mexpression.getError()
@@ -3686,20 +3704,28 @@ def main():
 							beep() # shouldn't happen though!!!!
 					else: # nothing left on the input line
 						beep()
-				else: # not a backspace
+				else: # not a backspace, or a tab
 					mexpression_new=mexpression.add(tokenchar)
 					expressionerror=mexpression.getError()
 					if expressionerror is not None:
 						writeerror(expressionerror)
 						updateUserInputLine(False) # no need to empty the line because it is already empty after writing the error
 				# next to write any expression continuation available
-				expressioncontinuation=mexpression.getContinuation()
-				if len(expressioncontinuation)>0:
-					write(expressioncontinuation,DEBUG_COLOR)
-					output("\033["+str(len(expressioncontinuation))+"D") # return to the cursor position
-					hidecursor() # hide the cursor otherwise we won't see the first continuation character on the position where to input a character
-				else:
-					showcursor() # show the cursor so the user can see where (s)he's typing
+				# forget about the continuation if an error occurred
+				if expressionerror is None:
+					expressioncontinuation=mexpression.getContinuation()
+					if len(expressioncontinuation)>0:
+						# remove any current intermediate result, so it won't be visible when showing the continuation
+						resultlength=len(resulttext)
+						if resultlength>0:
+							resulttext=""
+							output(" "*(resultlength+1)) # MDH@04SEP2017: TODO or some more if there's debug information in the character removed!
+							output("\033["+str(resultlength+1)+"D") # return to the previous cursor position
+						write(expressioncontinuation,DEBUG_COLOR)
+						output("\033["+str(len(expressioncontinuation))+"D") # return to the cursor position
+						hidecursor() # hide the cursor otherwise we won't see the first continuation character on the position where to input a character
+					else:
+						showcursor() # show the cursor so the user can see where (s)he's typing
 			elif len(userInputLine)>0: # Enter pressed, with something on the current input line
 				# MDH@25AUG2017: we'll evaluate the expression until now and continue on the next line, which would be neat
 				#								 but let's decide to only do that when we're at the top level
@@ -3749,6 +3775,10 @@ def main():
 						resulttext=newresulttext
 						resultlength=newresultlength
 					if resultlength>0: # still some result to display
+						# we have to skip any continuation showing
+						if len(expressioncontinuation)>0:
+							output("\033["+str(len(expressioncontinuation))+"C") # jump over the showing expression continuation
+							resultlength+=len(expressioncontinuation) # when we jump back we have to jump over the continuation as well
 						# something left to remove of the old result????
 						output(str(ColoredText(resulttext,DEBUG_COLOR,None)))
 						output("\033["+str(resultlength)+"D") # return to the original cursor position
