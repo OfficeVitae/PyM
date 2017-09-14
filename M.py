@@ -347,123 +347,217 @@ class Function:
 	def setDebug(self,_debug):
 		self.debug=_debug
 		return self
-	def apply(self,_value): # the function to be applied to a single argument
-		value=getValue(_value) # MDH@02SEP2017: arguments must be evaluated beforehand
-		debugnote("Function #"+str(self.functionindex)+" to be applied to "+str(value)+".")
-		"""
-		if self.functionindex==1: # return()
-			if value is not None:
-				raise ReturnException((value,))
-			return value # just return identity but that makes it hard I guess
-		if self.functionindex==2: # list(): only needs to evaluate the arguments!!!
-			return value
-		"""
-		if value!=undefined:
-			if self.functionindex>=50: # a list function
-				if isIterable(value): # as it should be
-					if self.functionindex==96: # product
-						i=len(value)-1
+	def apply(self,_args): # the function to be applied to the arguments presented as a list
+		#######note("Function #"+str(self.functionindex)+" to be applied to "+str(_args)+".")
+		if isIterable(_args): # should be a list
+			arguments=map(getValue,_args) # get all arguments evaluated
+			if self.functionindex<0: # a list function
+				if isIterable(arguments): # as it should be
+					if self.functionindex==-1: # list
+						return list(arguments)
+					if self.functionindex==-2: # sum
+						i=len(arguments)-1
 						if i>=0:
 							try:
-								product=value[i]
+								sum=arguments[i]
 								while i>0:
 									i=i-1
-									product*=value[i]
-								return product
-							except Exception,ex:
-								pass
-						return undefined
-					if self.functionindex==95: # sum
-						i=len(value)-1
-						if i>=0:
-							try:
-								sum=value[i]
-								while i>0:
-									i=i-1
-									sum+=value[i]
+									sum+=arguments[i]
 								return sum
 							except Exception,ex:
 								pass
 						return undefined
-					if self.functionindex==97: # length
-						i=len(value)
-						while i>0 and value[i-1]==undefined:
+					if self.functionindex==-3: # product
+						i=len(arguments)-1
+						if i>=0:
+							try:
+								product=arguments[i]
+								while i>0:
+									i=i-1
+									product*=arguments[i]
+								return product
+							except Exception,ex:
+								pass
+						return undefined
+					if self.functionindex==-4: # length
+						i=len(arguments)
+						while i>0 and arguments[i-1]==undefined:
 							i-=1
 						return i
-					if self.functionindex==98: # size
-						return len(value)
-					if self.functionindex==99: # sorti
+					if self.functionindex==-5: # size
+						return len(arguments)
+					if self.functionindex==-6: # sorti
 						return [i[0]+1 for i in sorted(enumerate(value), key=lambda x:x[1])] # do NOT forget to add 1 to the index (zero-based in Python, one-based in M)
-			else:
+			else: # a fixed-argument function
 				# application of a scalar function to a list, means applying the function to each element of the list (and return the list of it)
-				if isIterable(value):
-					return map(self.apply,value)
-				if self.functionindex==7:
-					return ~value
-				if self.functionindex==8: # NOT unary operator (which is !)
-					return (0,1)[value==0]
-				if self.functionindex==9: # = which means evaluate the expression behind it, which we already did!!!
-					return value
-				if self.functionindex==10: # minus unary operator
-					return -value
-				if self.functionindex==11:
-					return value
-				if self.functionindex==12:
-					######debugnote("Returning the square root!")
-					return math.sqrt(value)
-				if self.functionindex==13:
-					return abs(value)
-				if self.functionindex==14:
-					return math.cos(value)
-				if self.functionindex==15:
-					return math.sin(value)
-				if self.functionindex==16:
-					return math.tan(value)
-				if self.functionindex==17:
-					return 1/math.tan(value)
-				if self.functionindex==18:
-					return random.uniform(0,value)
-				if self.functionindex==19:
-					return math.log(value)
-				if self.functionindex==20:
-					return math.log10(value)
-				if self.functionindex==21: # eval
-					# __value is supposed to be a string which is a bit of an issue if it isn't
-					# nevertheless we should treat __value as an expression that we need to evaluate
-					expressiontext=dequote(value)[0]
-					####note("To evaluate: '"+expressiontext+"'.")
-					return getExpressionValue(expressiontext,_environment) # don't show debug information
-				if self.functionindex==22: # error
-					raise Exception(value) # generate an error
-				if self.functionindex==23: # list
-					if isinstance(value,int):
-						if value>0:
-							return [undefined]*value
-						return []
-				if self.functionindex==49: # out
-					return write(" "+str(value))
+				if self.functionindex<100: # a scalar function
+					if len(arguments)==1:
+						# if the single argument is still list-like, we again have to use map on it!!!!
+						if isIterable(arguments[0]):
+							return [self.apply([x]) for x in arguments[0]] # map(self.apply,map(listify,arguments[0])) didn't work
+						value=arguments[0] # the single scalar argument to apply the function to
+						if self.functionindex==7:
+							return ~value
+						if self.functionindex==8: # NOT unary operator (which is !)
+							return (0,1)[value==0]
+						if self.functionindex==9: # = which means evaluate the expression behind it, which we already did!!!
+							return value
+						if self.functionindex==10: # minus unary operator
+							return -value
+						if self.functionindex==11:
+							return value
+						if self.functionindex==12:
+							######debugnote("Returning the square root!")
+							return math.sqrt(value)
+						if self.functionindex==13:
+							return abs(value)
+						if self.functionindex==14:
+							return math.cos(value)
+						if self.functionindex==15:
+							return math.sin(value)
+						if self.functionindex==16:
+							return math.tan(value)
+						if self.functionindex==17:
+							return 1/math.tan(value)
+						if self.functionindex==18:
+							return random.uniform(0,value)
+						if self.functionindex==19:
+							return math.log(value)
+						if self.functionindex==20:
+							return math.log10(value)
+						if self.functionindex==21: # eval
+							# __value is supposed to be a string which is a bit of an issue if it isn't
+							# nevertheless we should treat __value as an expression that we need to evaluate
+							expressiontext=dequote(value)[0]
+							####note("To evaluate: '"+expressiontext+"'.")
+							return getExpressionValue(expressiontext,_environment) # don't show debug information
+						if self.functionindex==22: # error
+							raise Exception(value) # generate an error
+						if self.functionindex==26: # readlines
+							textfile=open(dequote(value)[0],'r')
+							if textfile:
+								textlines=list()
+								textline=textfile.readline()
+								while len(textline)>0:
+									try:
+										textlines.append(enquote(textline.rstrip('\r\n')))
+									finally:
+										textline=textfile.readline()
+								textfile.close()
+								return textlines
+						if self.functionindex==49: # out
+							return write(" "+str(value))
+					elif len(arguments)>1: # shouldn't happen though
+						return [self.apply([x]) for x in arguments] # we have to listify the arguments because self.apply expects an argument list (even a single one)
+				elif self.functionindex<200: # the two-argument functions
+					if self.functionindex==101 or self.functionindex==102: # ls/dir
+						if len(arguments)>0:
+							directory=dequote(arguments[0])[0] # the name of the directory requested
+						else:
+							directory=''
+						if not isinstance(directory,str) or len(directory)==0:
+							directory='.'
+						# directory specified
+						filter=''
+						if len(arguments)>1:
+							filter=dequote(arguments[1])[0]
+						else:
+							filter=''
+						if len(filter)==0:
+							filter=("*","*.*")[self.functionindex==102] # Unix or Windows style
+						import glob
+						return map(enquote,glob.glob(opsyspath.join(directory,filter)))
+					if self.functionindex==199: # join
+						if len(arguments)==2:
+							if isIterable(arguments[0]) and isinstance(arguments[1],(int,long)) and arguments[1]>0:
+								listl=arguments[1]
+								########note("Will join "+str(listl)+" successive elements of the input list.")
+								if listl<len(arguments[0]):
+									inputlist=arguments[0]
+									outputlist=list()
+									outputelement=list()
+									while len(inputlist)>0:
+										outputelement.append(inputlist.pop(0))
+										if len(outputelement)>=listl:
+											outputlist.append(outputelement)
+											outputelement=list()
+									if len(outputelement)>0:
+										while len(outputelement)<listl:
+											outputelement.append(undefined.getValue())
+										outputlist.append(outputelement)
+									return outputlist
+								note("ERROR: Invalid second input argument ("+str(arguments[1])+") to the join() function!")
+								return arguments[0] # no change to the list
+							note("ERROR: The arguments supplied to the join() function are not a list and a positive integer!")
+				elif self.functionindex<300: # the three-argument functions
+					if self.functionindex==211: # function
+						if len(arguments)==3:
+							if isinstance(arguments[0],str) and isIterable(arguments[1]) and isIterable(arguments[2]):
+								# first argument name, second argument parameters, third argument contents of function
+								userfunctionname=dequote(arguments[0])[0]
+								# second and third arguments should be lists with text elements
+								functionparameterdefaults=list()
+								if isIterable(arguments[1]):
+									functionresultidentifiername=None
+									for functionparameter in arguments[1]:
+										functionparametertext=dequote(functionparameter)[0]
+										functionparameterparts=functionparametertext.strip().split('=') # get rid of any whitespace before or after
+										if len(functionparameterparts[0].rstrip())==0: # no parameter name specified
+											continue
+										if functionparameterparts[0]=='$':
+											if len(functionparameterparts)>1 and len(functionparameterparts[1])>0:
+												functionresultidentifiername=functionparameterparts[1]
+										else:
+											if len(functionparameterparts)>1:
+												functionparameterdefaults.append(tuple(functionparameterparts))
+											else:
+												functionparameterdefaults.append((functionparameterparts[0],None))
+								# create user function within the current (global) environment (i.e. not a standalone function)
+								userfunction=UserFunction(userfunctionname,environment,functionresultidentifiername,functionparameterdefaults,environment)
+								functiondefinitionenvironment=userfunction.getDefinitionEnvironment() # read the expressions in the definition environment (exposing parameters)
+								# now we need to populate the user function with the (tokenized) expressions but we need to register the function with the environment immediately
+								if isIterable(arguments[2]):
+									for expressionliteral in arguments[2]:
+										expressiontext=dequote(expressionliteral)[0]
+										if len(expressiontext.strip())==0:
+											continue
+										(expression,error)=getExpression(expressiontext.strip(),functiondefinitionenvironment,0)
+										if expression is None or error is not None:
+											continue
+										functiondefinitionenvironment.addExpression(expression) # these will be the expressions used by the user function when being called
+								return environment.addFunction(userfunction) # ESSENTIAL obviously...
+							else:
+								note("The arguments supplied to the function() function are not a text, a list with parameters, and a body list with expressions.")
+						else:
+							note("Exactly 3 arguments required by the function() function: "+str(len(arguments))+" provided.")
 		# if we get here the function result is undefined
 		return undefined
 	def getValue(self,_arglist):
-		fvalue=undefined
-		try:
-			#######note("Argument list: "+str(_arglist)+".")
-			# this is the function application at the top level i.e. it will receive an argument list
-			if self.functionindex==1: # the return function
-				raise ReturnException(_arglist)
-			elif self.functionindex==2: # the list function
-				###########note("List function arguments: "+str(_arglist)+".")
-				fvalue=list(_arglist) # will always return the input as a list (which it is even if a single argument is specified)
-			elif self.functionindex<23 and len(_arglist)==1: # a scalar function applied to a single-item argument list is to return a scalar
-				fvalue=self.apply(_arglist[0])
-				debugnote("Single argument result value: "+str(fvalue)+".")
-			else: # apply the function to each separate element!!!
-				fvalue=map(self.apply,_arglist)
-				if self.functionindex>=23 and len(fvalue)==1:
-					fvalue=fvalue[0]
-		finally:
-			pass ####debugnote("Result of applying function #"+str(self.functionindex)+": "+str(fvalue)+".")
-		return fvalue
+		# every function has a fixed number of arguments it requires (except for the list functions which consume the argument list as a whole)
+		# for single-argument functions we can use Python's map() to take care of generating the results
+		# for all others we apply the function to as many arguments it needs until all arguments are consumed
+		if self.functionindex==0: # the return function
+			raise ReturnException(_arglist)
+		if self.functionindex<0: # assumed list function
+			return self.apply(_arglist)
+		argcount=1+(self.functionindex/100) # the number of arguments the function requires
+		# the function needs to be applied at least once
+		functionvaluelist=list() # the list containing the successive results of the function application
+		# construct the first argument list
+		functionarglist=list()
+		while len(_arglist)>0 and len(functionarglist)<argcount: # as long as there's arguments to pop, and we do not have enough arguments yet
+			functionarglist.append(_arglist.pop(0))
+		functionvalue=self.apply(functionarglist)
+		note("Result of applying function "+str(self)+" to "+str(functionarglist)+": '"+str(functionvalue)+"'.")
+		functionvaluelist.append(functionvalue) # the result of the first application of the function
+		while len(_arglist)>0: # additional function calls to make
+			functionarglist=list()
+			while len(_arglist)>0 and len(functionarglist)<argcount: # as long as there's arguments to pop, and we do not have enough arguments yet
+				functionarglist.append(_arglist.pop(0))
+			functionvalue=self.apply(functionarglist)
+			##note("Result of applying function "+str(self)+" to "+str(functionarglist)+": '"+str(functionvalue)+"'.")
+			functionvaluelist.append(functionvalue)
+		return functionvaluelist # the list of results
 # MDH@02SEP2017: have to think about how to implement the user functions though
 # the user functions defined should be kept in the current Environment which makes sense
 # as we can have subfunctions
@@ -819,9 +913,9 @@ class Environment:
 	def addFunction(self,_function,_name=None):
 		functionname=(_name,_function.getName())[_name is None]
 		if functionname in self.functions:
-			return False
+			return 0
 		self.functions[functionname]=_function
-		return True
+		return len(self.functions) # to indicate success!!!
 	# MDH@02SEP2017: addFunctionGroup() changed to provide a shortcut for adding M functions
 	def addFunctions(self,_functionindexdict):
 		for functionname in _functionindexdict:
@@ -1019,10 +1113,10 @@ Menvironment.addIdentifier(Identifier(_value=1),'true')
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
-Menvironment.addFunctions({'return':1,'list':2}) # I guess any number of arguments allowed (should a function always have at least one argument???)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'out':49,'sum':95,'product':96,'len':97,'size':98,'sorti':99})
-Menvironment.addFunctions({'while':100,'join':199}) # 'function':150
-Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210})
+Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6}) # special functions (0=return,negative ids=list functions)
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'out':49})
+Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'function':150,'join':199})
+Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 
 environment=None # MDH@03SEP2017: wait for the user name to be known!!!
 
@@ -1158,10 +1252,11 @@ def stringify(t):
 		return t
 	return str(t)
 def dequote(t):
-	if t[:1] in ts and t[-1:] in te:
-		return (t[1:-1],t[:1])
-	return (t,ts[0])
-def enquote(t,quotechar):
+	if isinstance(t,str) and len(t)>1:
+		if t[:1] in ts and t[-1:] in te:
+			return (t[1:-1],t[:1])
+	return ('',None) # invalid input...
+def enquote(t,quotechar="'"):
 	return quotechar+t+quotechar
 def concatenate(operand1,operand2):
 	(o1,quotechar)=dequote(stringify(operand1))
@@ -3376,75 +3471,81 @@ def main():
 					while 1:
 						lnwrite("What backcolor do you want to set? [d|e|i|l|o|p|r] ")
 						controlch2=getch()
-						if controlch=="l":
+						if controlch2=="l":
 							currentcolorcode=LITERAL_BACKCOLOR
-						elif controlch=="e":
+						elif controlch2=="e":
 							currentcolorcode=ERROR_BACKCOLOR
-						elif controlch=="o":
+						elif controlch2=="o":
 							currentcolorcode=OPERATOR_BACKCOLOR
-						elif controlch=="d":
+						elif controlch2=="d":
 							currentcolorcode=DEBUG_BACKCOLOR
-						elif controlch=="i":
+						elif controlch2=="i":
 							currentcolorcode=IDENTIFIER_BACKCOLOR
-						elif controlch=="p":
+						elif controlch2=="p":
 							currentcolorcode=INFO_BACKCOLOR
-						elif controlch=="r":
+						elif controlch2=="r":
 							currentcolorcode=RESULT_BACKCOLOR
 						else:
 							break
-						lnwrite("Change the color code ("+str(currentcolorcode)+") to: ")
-						controlmessage=raw_input()
-						if controlch=="l":
-							LITERAL_BACKCOLOR=int(controlmessage)
-						elif controlch=="e":
-							ERROR_BACKCOLOR=int(controlmessage)
-						elif controlch=="o":
-							OPERATOR_BACKCOLOR=int(controlmessage)
-						elif controlch=="d":
-							DEBUG_BACKCOLOR=int(controlmessage)
-						elif controlch=="i":
-							IDENTIFIER_BACKCOLOR=int(controlmessage)
-						elif controlch=="p":
-							INFO_BACKCOLOR=int(controlmessage)
-						elif controlch=="r":
-							RESULT_BACKCOLOR=int(controlmessage)
+						lnwrite("Change the text backcolor code ("+str(currentcolorcode)+") to: ")
+						try:
+							colorcode=int(raw_input())
+							if controlch2=="l":
+								LITERAL_BACKCOLOR=colorcode
+							elif controlch2=="e":
+								ERROR_BACKCOLOR=colorcode
+							elif controlch2=="o":
+								OPERATOR_BACKCOLOR=colorcode
+							elif controlch2=="d":
+								DEBUG_BACKCOLOR=colorcode
+							elif controlch2=="i":
+								IDENTIFIER_BACKCOLOR=colorcode
+							elif controlch2=="p":
+								INFO_BACKCOLOR=colorcode
+							elif controlch2=="r":
+								RESULT_BACKCOLOR=colorcode
+						except Exception,ex:
+							lnwrite("ERROR: '"+str(ex)+"' changing the "+controlch2+" backcolor code.")
 				elif controlch=="c":
 					lnwrite("Text color codes: debug="+str(DEBUG_COLOR)+", error="+str(ERROR_COLOR)+", identifier="+str(IDENTIFIER_COLOR)+", literal="+str(LITERAL_COLOR)+", operator="+str(OPERATOR_COLOR)+", prompt="+str(INFO_COLOR)+", result="+str(RESULT_COLOR)+".")
 					while 1:
 						lnwrite("What text color do you want to set? [d|e|i|l|o|p|r] ")
 						controlch2=getch()
-						if controlch=="l":
+						if controlch2=="l":
 							currentcolorcode=LITERAL_COLOR
-						elif controlch=="e":
+						elif controlch2=="e":
 							currentcolorcode=ERROR_COLOR
-						elif controlch=="o":
+						elif controlch2=="o":
 							currentcolorcode=OPERATOR_COLOR
-						elif controlch=="d":
+						elif controlch2=="d":
 							currentcolorcode=DEBUG_COLOR
-						elif controlch=="i":
+						elif controlch2=="i":
 							currentcolorcode=IDENTIFIER_COLOR
-						elif controlch=="p":
+						elif controlch2=="p":
 							currentcolorcode=INFO_COLOR
-						elif controlch=="r":
+						elif controlch2=="r":
 							currentcolorcode=RESULT_COLOR
 						else:
 							break
 						lnwrite("Change the color code ("+str(currentcolorcode)+") to: ")
-						controlmessage=raw_input()
-						if controlmessage[1]=="l":
-							LITERAL_COLOR=int(controlmessage[3:])
-						elif controlmessage[1]=="e":
-							ERROR_COLOR=int(controlmessage[3:])
-						elif controlmessage[1]=="o":
-							OPERATOR_COLOR=int(controlmessage[3:])
-						elif controlmessage[1]=="d":
-							DEBUG_COLOR=int(controlmessage[3:])
-						elif controlmessage[1]=="i":
-							IDENTIFIER_COLOR=int(controlmessage[3:])
-						elif controlmessage[1]=="p":
-							INFO_COLOR=int(controlmessage[3:])
-						elif controlmessage[1]=="r":
-							RESULT_COLOR=int(controlmessage[3:])
+						try:
+							colorcode=int(raw_input())
+							if controlch2=="l":
+								LITERAL_COLOR=colorcode
+							elif controlch2=="e":
+								ERROR_COLOR=colorcode
+							elif controlch2=="o":
+								OPERATOR_COLOR=colorcode
+							elif controlch2=="d":
+								DEBUG_COLOR=colorcode
+							elif controlch2=="i":
+								IDENTIFIER_COLOR=colorcode
+							elif controlch2=="p":
+								INFO_COLOR=colorcode
+							elif controlch2=="r":
+								RESULT_COLOR=colorcode
+						except Exception,ex:
+							lnwrite("ERROR: '"+str(ex)+"' changing the "+controlch2+" text color code.")
 				elif controlch=="m" or controlch=="M": # show the contents of the M array element by element
 					lnwrite("Contents of M (press Esc to stop, any other key to continue):")
 					Mexpressionlist=environment.getIdentifierValue("M")
