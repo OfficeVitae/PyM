@@ -2,6 +2,8 @@
 Marc's expression tokenizer and evaluator
 """
 """ History
+15SEP2017:
+- functions and variables (dynamic value) environment identifiers, exposing the list of functions and variables respectively
 13SEP2017:
 - identifier (variable,function) continuation
 - finishing storing expressions and functions
@@ -577,7 +579,7 @@ class UserFunction(Function):
 		for (parametername,parameterdefault) in self.parameterdefaults:
 			_environment.addIdentifier(Identifier(parametername).setValue(parameterdefault))
 	# MDH@07SEP2017: as Environment subclasses UserFunction re-arranged the parameters so that it's easy to call the super constructor in Environment
-	def __init__(self,_name,_hostenvironment,_resultidentifiername=None,_parameterdefaults=None,_hostexecutionenvironment=None):
+	def __init__(self,_name,_hostenvironment,_standalone,_parameterdefaults=None,_resultidentifiername=None):
 		Function.__init__(self,-1) # back to using 0 as function index
 		self.name=_name
 		self.hostenvironment=_hostenvironment
@@ -587,7 +589,8 @@ class UserFunction(Function):
 		else: # let's use $ as default
 			self.resultidentifiername="$"
 		self.parameterdefaults=_parameterdefaults # this should be a dictionary of parameter names and default values
-		self.hostexecutionenvironment=_hostexecutionenvironment
+		self.standalone=_standalone
+		self.hostexecutionenvironment=(self.hostenvironment,Menvironment)[self.standalone]
 		######note("Function="+self.name+" host environment="+self.hostenvironment.getName()+" host execution environment="+self.hostexecutionenvironment.getName())
 		self.expressionfile=None
 		# MDH@13SEP2017: this is the only situation where the environment naming might differ from the environment structure...
@@ -599,18 +602,28 @@ class UserFunction(Function):
 	def setExpressionFile(self,_expressionfile):
 		self.expressionfile=_expressionfile
 	def writeDefinition(self,_definitionfilename):
-		functionf=open(_definitionfilename,'a')
-		if functionf:
-			functionf.write(self.name)
-			if self.resultidentifiername!='$':
-				functionf.write("\t$="+self.resultidentifiername)
-			if isinstance(self.parameterdefaults,list):
-				for (parametername,parameterdefault) in self.parameterdefaults:
-					functionf.write("\t"+parametername)
-					if isinstance(parameterdefault,str) and len(parameterdefault)>0:
-						functionf.write("="+parameterdefault)
-			functionf.write(opsys.linesep) # ready for the next function!!!
+		functionline=self.name
+		if self.standalone:
+			functionline+='*' # marks this user functions as being standalone!!!
+		if self.resultidentifiername!='$':
+			functionline+="\t$="+self.resultidentifiername
+		if isinstance(self.parameterdefaults,list):
+			for (parametername,parameterdefault) in self.parameterdefaults:
+				functionline+="\t"+parametername
+				if parameterdefault is not None:
+					parameterdefaulttext=str(parameterdefault)
+					if len(parameterdefaulttext)>0:
+						functionline+="="+parameterdefaulttext
+		functionline+=opsys.linesep
+		result=False
+		try:
+			functionf=open(_definitionfilename,'a')
+			functionf.write(functionline) # ready for the next function!!!
 			functionf.close()
+			result=True
+		except:
+			pass
+		return result
 	def getHostEnvironment(self): # the environment to return to when done begin defined
 		return self.hostenvironment
 	# MDH@07SEP2017: the user function is the base storage bag of associated expressions
@@ -690,7 +703,18 @@ undefined=Identifier() # the identifier with None value is used to indicate an u
 # MDH@06SEP2017: problem is that an Environment is not something on which getValue() can be called
 #								 unless you want to be able to execute the Environment as a function????
 #								 as such an environment could be considered a parameter-less function
+class EnvironmentIdentifier(Identifier):
+	def __init__(self,_environment):
+		Identifier.__init__(self) # not giving the identifier a name (so it is treated as a constant)
+		self.environment=_environment
+class FunctionsIdentifier(EnvironmentIdentifier):
+	def getValue(self):
+		return map(enquote,self.environment.getFunctionNames())
+class VariablesIdentifier(EnvironmentIdentifier):
+	def getValue(self):
+		return map(enquote,self.environment.getIdentifierNames())
 class Environment:
+	# MDH@15SEP2017: dynamic identifiers, to expose the list of available functions and variables
 	def getNumberOfExpressions(self):
 		return len(self.M.getValue())
 	def getExpression(self,_index):
@@ -770,6 +794,9 @@ class Environment:
 		self.functions=dict()
 		self.M=Identifier(_value=list()) # host the expressions in an nameless identifier (to make it unassignable)
 		self.addIdentifier(self.M,"M") # M identifier has no name of it's own (to prevent editing), self.M is passed by 'reference'
+		# MDH@15SEP2017: adding the functions and variables (dynamic) value identifiers
+		self.addIdentifier(FunctionsIdentifier(self),"functions")
+		self.addIdentifier(VariablesIdentifier(self),"variables")
 		""" MDH@08SEP2017: returned to defining M as identifier and NOT as function
 		# we ascertain to have a function with the same name BUT then we can't call the function recursively buggers
 		self.addFunction("M",self) # MDH@07SEP2017: with Environment now also a UserFunction we can register itself as a function for access to the expressions
@@ -3002,6 +3029,16 @@ def getexprch():
 		beep()
 		exprch=getch() # read the next keyboard character
 	return exprch
+def writeFunctions(_environment):
+	lnwrite("Functions:")
+	for functionname in _environment.getFunctionNames():
+		write(" "+functionname)
+	newline()
+def writeVariables(_environment):
+	lnwrite("Variables:")
+	for variablename in _environment.getIdentifierNames():
+		write(" "+variablename)
+	newline()
 def endFunctionCreation():
 	global environment
 	function=environment.endUserFunction()
@@ -3012,7 +3049,7 @@ def endFunctionCreation():
 		note("End of defining function "+function.getName()+".")
 		note("At the end of this trial execution the function-local variable values are:")
 		valuestext=""
-		identifiervalues=environment.getIdentifierValues(("M",))
+		identifiervalues=environment.getIdentifierValues(("M","functions","variables")) # not showing the implicit identifiers M, functions and variables
 		for identifiername in identifiervalues:
 			identifiervalue=identifiervalues[identifiername]
 			valuestext+=" "+identifiername+"="+(getText(identifiervalue),"?")[identifiervalue is None]
@@ -3020,12 +3057,9 @@ def endFunctionCreation():
 		environment=function.getHostEnvironment() # return to the parent environment (which is NOT the parent of the current environment when it's a standalone function)
 		if environment.addFunction(function): # make it accessible!!!
 			function.writeDefinition(environment.getFunctionsFilename())
-		# how about writing it to a file??????
+		writeFunctions(environment)
 	else:
 		writeerror("No function being created right now to end.")
-	lnwrite("Functions:")
-	for functionname in environment.getFunctionNames():
-		write(" "+functionname)
 # MDH@12SEP2017: we'll be needing continuation of user names and identifiers
 def getContinuation(_id,_ids):
 	continuation=""
@@ -3289,7 +3323,11 @@ def initializeFunctions(_environment):
 					functionparameters=functiontext.split('\t')
 					if len(functionparameters)==0:
 						continue
+					standalone=False
 					functionname=functionparameters[0] # the first element is the name of the function
+					if functionname.endswith('*'): # ends with the standalone indicator
+						functionname=functionname[:-1]
+						standalone=True
 					ffn=_environment.getFunctionFilename(functionname) # the name of the function file
 					if opsyspath.exists(ffn):
 						note("Creating function "+functionname+"...")
@@ -3307,7 +3345,7 @@ def initializeFunctions(_environment):
 								else:
 									functionparameterdefaults.append((functionparameterparts[0],None))
 						# ready to create the function
-						function=UserFunction(functionname,_environment,functionresultidentifiername,functionparameterdefaults,_environment)
+						function=UserFunction(functionname,_environment,standalone,functionparameterdefaults,functionresultidentifiername)
 						# create an environment with the right name and initialize like any other environment
 						functiondefinitionenvironment=function.getDefinitionEnvironment() # in which we will read the expressions
 						# I need to read the subfunctions first before I can read the expressions from the file
@@ -3410,10 +3448,8 @@ def main():
 				elif controlch=="=": # MDH@27AUG2017: switch to evaluation mode
 					environment.setMode(1)
 				elif controlch=="f": # starts a function
-					lnwrite("Functions:")
-					for functionname in environment.getFunctionNames():
-						write(" "+functionname)
-					lnwrite("What is the name of the function? ")
+					writeFunctions(environment)
+					write("What is the name of the function? ")
 					functionname=raw_input().strip()
 					if len(functionname)>0:
 						newfunction=not functionname in environment.getFunctionNames()
@@ -3434,12 +3470,15 @@ def main():
 								parametername=raw_input().strip()
 								if len(parametername)==0:
 									break
-								write("What is the default value of "+parametername+": ")
-								parameterdefault=raw_input().strip()
-								if len(parameterdefault)>0:
-									functionparameters.append((parametername,getExpressionValue(parameterdefault,environment),))
-								else: # no default
-									functionparameters.append((parametername,undefined))
+								write("What is the default value of "+parametername+"? ")
+								parameterdefaulttext=raw_input().strip()
+								if len(parameterdefaulttext)>0:
+									parameterdefault=getExpressionValue(parameterdefaulttext,environment)
+									if parameterdefault is None:
+										writeln("WARNING: The value of the default expression '"+parameterdefaulttext+"' is undefined!")
+								else:
+									parameterdefault=None
+								functionparameters.append((parametername,parameterdefault))
 							# allow adding more local variables if not a standalone version
 							if not standalone:
 								writeln("Please define any local variable the function will use (masking any external variable with the same name)")
@@ -3448,8 +3487,8 @@ def main():
 									parametername=raw_input().strip()
 									if len(parametername)==0:
 										break
-									functionparameters.append((parametername,undefined))
-							userfunction=UserFunction(functionname,environment,functionresultidentifiername,functionparameters,(environment,Menvironment)[standalone]) # create the function with its own creation environment
+									functionparameters.append((parametername,None))
+							userfunction=UserFunction(functionname,environment,standalone,functionparameters,functionresultidentifiername) # create the function with its own creation environment
 							# register this function in the environment's Mfunctions file
 							#########userfunction.writeDefinition(environment.getName()+'.Mfunctions') # can't write the function expressions yet of course!!!
 							lnwrite("Until you end "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
@@ -3466,10 +3505,7 @@ def main():
 						# TODO if we want the function to be callable in itself, we need to add it to the given environment immediately
 						# get the new child environment, to be used during creating the function
 						# remember the function being created TODO we still need to make it possible for a function to call itself
-						lnwrite("Available variables:")
-						for variablename in environment.getIdentifierNames():
-							write(" "+variablename)
-						newline()
+						writeVariables(environment)
 				elif controlch=="b": # the back color
 					# allow changing multiple backcolor in a row
 					lnwrite("Text backcolor codes: debug="+str(DEBUG_BACKCOLOR)+", error="+str(ERROR_BACKCOLOR)+", identifier="+str(IDENTIFIER_BACKCOLOR)+", literal="+str(LITERAL_BACKCOLOR)+", operator="+str(OPERATOR_BACKCOLOR)+", prompt="+str(INFO_BACKCOLOR)+", result="+str(RESULT_BACKCOLOR)+".")
@@ -3681,6 +3717,12 @@ def main():
 				if ord(tokenchar)==9: # a tab
 					# we need a continuation to add to the name of the identifier
 					if len(expressioncontinuation)>0:
+						# remove the intermediate result
+						resultlength=len(resulttext)
+						if resultlength>0:
+							resulttext=""
+							output(" "*(resultlength+2)) # MDH@04SEP2017: TODO or some more if there's debug information in the character removed!
+							output("\033["+str(resultlength+2)+"D") # return to the previous cursor position
 						for tokenchar in expressioncontinuation:
 							mexpression_new=mexpression.add(tokenchar)
 							expressionerror=mexpression.getError()
@@ -3719,8 +3761,8 @@ def main():
 						resultlength=len(resulttext)
 						if resultlength>0:
 							resulttext=""
-							output(" "*(resultlength+1)) # MDH@04SEP2017: TODO or some more if there's debug information in the character removed!
-							output("\033["+str(resultlength+1)+"D") # return to the previous cursor position
+							output(" "*(resultlength+2)) # MDH@04SEP2017: TODO or some more if there's debug information in the character removed!
+							output("\033["+str(resultlength+2)+"D") # return to the previous cursor position
 						write(expressioncontinuation,DEBUG_COLOR)
 						output("\033["+str(len(expressioncontinuation))+"D") # return to the cursor position
 						hidecursor() # hide the cursor otherwise we won't see the first continuation character on the position where to input a character
@@ -3794,8 +3836,10 @@ def main():
 			if len(currentusername)==0:
 				lnwrite("Exit M? ")
 				sch=getch()
+				write(sch)
 				if sch=="y" or sch=="Y":
 					break
+				newline()
 			else: # logout
 				setUsername("")
 			continue

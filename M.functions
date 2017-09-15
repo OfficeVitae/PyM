@@ -1,5 +1,6 @@
-fac	n=2
-noverk	n=7	k=3
-
-test	a	b
-test2	a	b
+fac*	n=2
+noverk*	n=7	k=3
+test*	a='a'	b='b'
+test2*	a=1	b=2	c=3
+test3*	a=2	b=3	c=4
+test4*	x='x'	y='y'	z='z'
