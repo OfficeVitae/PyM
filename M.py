@@ -114,6 +114,8 @@ class ColoredText:
 		self.color=_color
 	def setBackcolor(self,_backcolor):
 		self.backcolor=_backcolor
+	def getValue(self):
+		return self.text
 # convenient to be able to color certain text
 def getColoredText(_text,_color,_backcolor=None):
 	return str(ColoredText(_text,_color,_backcolor))
@@ -234,21 +236,26 @@ def writeerror(_error):
 
 # MDH@16SEP2017: let's do some OS stuff
 import subprocess
+# explicit execution through the shell (which does NOT protect from shell injection and
+# should only be used processing input from an actual user
 def executeshellcommand(_command):
+	return subprocess.call(_command,stderr=subprocess.STDOUT,shell=True)
+# call executecommand to return the output as a list of text elements
+def executecommand(_command):
+	result=list()
 	commandparts=_command.split(' ')
 	process=subprocess.Popen(commandparts,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 	(output,errors)=process.communicate()
+	result.append(process.returncode) # first element is the return code
 	if isinstance(output,str) and len(output)>0:
-		writeln("\tOutput of '"+_command+"':")
-		outputlines=output.strip().split(opsys.linesep)
-		for outputline in outputlines:
-			writeln("\t\t"+outputline)
+		result.append(map(enquote,output.strip().split(opsys.linesep)))
+	else:
+		result.append(None)
 	if isinstance(errors,str) and len(errors)>0:
-		writeln("\tError returned by '"+_command+"':")
-		errorlines=errors.strip().split(opsys.linesep)
-		for errorline in errorlines:
-			writeln("\t\t"+errorline)
-	return process.returncode
+		result.append(map(enquote,errors.strip().split(opsys.linesep)))
+	else:
+		result.append(None)
+	return result
 	"""
 	cmd=(commandparts[0],commandparts[1:]) # redirecting output to stderr to stdout
 	p=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
@@ -489,7 +496,7 @@ class Function:
 								textfile.close()
 								return textlines
 						if self.functionindex==27: # sh
-							return executeshellcommand(dequote(value)[0])
+							return executecommand(dequote(value)[0])
 						if self.functionindex==49: # out
 							return write(" "+str(value))
 					elif len(arguments)>1: # shouldn't happen though
@@ -1184,7 +1191,7 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'sh':27,'out':49})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'exec':27,'out':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 
@@ -3666,14 +3673,13 @@ def main():
 					debugtext=raw_input().strip()
 					try:
 						DEBUG=int(debugtext)
-						write("Debug level set to "+str(DEBUG)+".")
+						writeln("Debug level set to "+str(DEBUG)+".")
 					except:
-						write("Invalid debug level input '"+debugtext+"': only non-negative integer values are allowed!")
-						pass
+						writeln("Invalid debug level input '"+debugtext+"': only non-negative integer values are allowed!")
 				elif controlch=="x" or controlch=="X":
 					break
 				else:
-					lnwrite("Unrecognized control message.")
+					writeln("Unrecognized control message.")
 				# only the b, c and d control characters allow further setting
 				if controlch!='b' and controlch!='c':
 					break
