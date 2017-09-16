@@ -2,6 +2,8 @@
 Marc's expression tokenizer and evaluator
 """
 """ History
+16SEP2017:
+- executeshellcommand() to execute a shell command using the sh function
 15SEP2017:
 - functions and variables (dynamic value) environment identifiers, exposing the list of functions and variables respectively
 13SEP2017:
@@ -186,11 +188,16 @@ def lnwrite(_linetowrite,_backcolor=None,_color=None):
 	# NOTE whatever's left of the current line we want to use the standard background color
 	newline()
 	write(_linetowrite,_color,_backcolor) # NOT using write assuming the newline will undo any coloring defined!!!
-def lnwriteleft(_linetowrite,_width=0,_color=None,_backcolor=None):
+def lnwriteleft(_linetowrite,_width=120,_color=DEBUG_BACKCOLOR,_backcolor=None):
 	dwidth=_width-len(_linetowrite)
 	if dwidth>0:
 		_linetowrite+=" "*dwidth
 	lnwrite(_linetowrite,_color,_backcolor)
+def writelnleft(_linetowrite,_width=120,_color=DEBUG_BACKCOLOR,_backcolor=None):
+	dwidth=_width-len(_linetowrite)
+	if dwidth>0:
+		_linetowrite+=" "*dwidth
+	writeln(_linetowrite,_color,_backcolor)
 
 # \r at the start forces the cursor to be at the beginning of the line
 # but it is a bit of a nuisance that the line might not be empty so can we do that here as well????
@@ -225,6 +232,37 @@ def writeerror(_error):
 	else:
 		writeln(str(_error),None,ERROR_COLOR)
 
+# MDH@16SEP2017: let's do some OS stuff
+import subprocess
+def executeshellcommand(_command):
+	commandparts=_command.split(' ')
+	process=subprocess.Popen(commandparts,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+	(output,errors)=process.communicate()
+	if isinstance(output,str) and len(output)>0:
+		writeln("\tOutput of '"+_command+"':")
+		outputlines=output.strip().split(opsys.linesep)
+		for outputline in outputlines:
+			writeln("\t\t"+outputline)
+	if isinstance(errors,str) and len(errors)>0:
+		writeln("\tError returned by '"+_command+"':")
+		errorlines=errors.strip().split(opsys.linesep)
+		for errorline in errorlines:
+			writeln("\t\t"+errorline)
+	return process.returncode
+	"""
+	cmd=(commandparts[0],commandparts[1:]) # redirecting output to stderr to stdout
+	p=subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+	def is_end(p,type):
+		msg=type.readline()
+		if len(msg)==0 and p.poll() is not None:
+				return True
+		if len(msg)>0:
+				lnwrite("the msg is >>" + msg)
+		return False
+	## start displaying output immediately ##
+	while not is_end(p,p.stdout):
+		pass
+	"""
 def debugnote(_debugnote):
 	#####note(_debugnote) # comment out when done
 	pass
@@ -450,6 +488,8 @@ class Function:
 										textline=textfile.readline()
 								textfile.close()
 								return textlines
+						if self.functionindex==27: # sh
+							return executeshellcommand(dequote(value)[0])
 						if self.functionindex==49: # out
 							return write(" "+str(value))
 					elif len(arguments)>1: # shouldn't happen though
@@ -1144,7 +1184,7 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'out':49})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'sh':27,'out':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 
@@ -3030,12 +3070,12 @@ def getexprch():
 		exprch=getch() # read the next keyboard character
 	return exprch
 def writeFunctions(_environment):
-	lnwrite("Functions:")
+	write("Functions:")
 	for functionname in _environment.getFunctionNames():
 		write(" "+functionname)
 	newline()
 def writeVariables(_environment):
-	lnwrite("Variables:")
+	write("Variables:")
 	for variablename in _environment.getIdentifierNames():
 		write(" "+variablename)
 	newline()
@@ -3399,50 +3439,67 @@ def main():
 		if controlmode:
 			# MDH@02SEP2017: it might be a good idea to to a Q&A
 			while 1:
-				lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|M|o|u|v|x] ") #### replacing: write(tokenchar)
+				lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|M|o|s|u|v|x] ") #### replacing: write(tokenchar)
 				controlch=getch()
-				write(controlch)
+				writeln(controlch)
 				if ord(controlch)==3 or ord(controlch)==4 or ord(controlch)==10 or ord(controlch)==13:
 					break
-				if controlch=='h' or controlch=="H":
-					lnwriteleft("Possible control characters (following the backtick):",120,DEBUG_BACKCOLOR)
-					lnwrite("l\tto login.")
-					lnwriteleft("d\tto set the debug level.",120,DEBUG_BACKCOLOR)
-					lnwrite("c\tto set the color code for color type (d=debug, i=identifier, l=literal, o=operator, p=prompt).")
-					lnwriteleft("v\tshows the list of (global) constants and variables.",120,DEBUG_BACKCOLOR)
-					lnwrite("f\tcreate a new function.")
-					lnwriteleft("F\tto end the function currently being created.",120,DEBUG_BACKCOLOR) # MDH@02SEP2017: do we want something else????
-					lnwrite("o\tshows the list of operators.")
-					lnwriteleft("h\tto view this help.",120,DEBUG_BACKCOLOR)
-					lnwrite("x\tto exit M immediately.")
-					lnwriteleft(":\tto switch to declaration mode (default).",120,DEBUG_BACKCOLOR)
-					lnwrite("=\tto switch to evaluation mode.")
-					lnwriteleft("u\tshows the list of registered users.",120,DEBUG_BACKCOLOR)
+				if controlch=='s' or controlch=='S': # execute a shell command
+					while 1:
+						write("Enter the (shell) command to execute: ")
+						shellcommand=raw_input().strip()
+						if len(shellcommand)==0:
+							break
+						try:
+							returncode=executeshellcommand(shellcommand)
+							if returncode:
+								writeln("\tWARNING: Non-zero return code of executing '"+shellcommand+"': "+str(returncode)+".")
+						except Exception,ex:
+							writeln("\tERROR: '"+str(ex)+"' executing '"+shellcommand+"'.")
+				elif controlch=='h' or controlch=="H":
+					writeln("Possible control characters (following the backtick):")
+					writelnleft(":\tto switch to declaration mode (default).")
+					writeln("=\tto switch to evaluation mode.")
+					writelnleft("b\tto set back colors (d=debug, i=identifier, l=literal, o=operator, p=prompt).")
+					writeln("c\tto set text colors (d=debug, i=identifier, l=literal, o=operator, p=prompt).")
+					writelnleft("d\tto set the debug level.")
+					writeln("f\tto create a new function.")
+					writelnleft("F\tto end the function currently being created.") # MDH@02SEP2017: do we want something else????
+					writeln("h\tto view this help.")
+					writelnleft("l\tto login.")
+					writeln("M\tto show the entered expressions (one at a time).")
+					writelnleft("o\tshows the list of operators.")
+					writeln("s\tto execute shell commands.")
+					writelnleft("v\tshows the list of variables.")
+					writeln("u\tshows the list of registered users.")
+					writelnleft("x\tto exit M immediately.")
 				elif controlch=="F": # end the current function
 					# register the function that ends to the current environment
 					endFunctionCreation()
 						#######newline()
 				elif controlch=="o" or controlch=="O":
-					lnwrite("Binary operators:")
-					lnwrite("\tArithmetic\t- + % \ | & ^ . .. * ** / // << >>")
-					lnwrite("\tComparison\t< <= > >= == ")
-					lnwrite("\tLogical\t\t&& ||")
-					lnwrite("\tAssignment\t=")
-					lnwrite("\tDeclaration\t:")
-					lnwrite("Unary operators:\t= ! ~ - +")
+					writelnleft("Binary operators:")
+					writeln("\tArithmetic\t- + % \ | & ^ . .. * ** / // << >>")
+					writelnleft("\tComparison\t< <= > >= == ")
+					writeln("\tLogical\t\t&& ||")
+					writelnleft("\tAssignment\t=")
+					writeln("\tDeclaration\t:")
+					writelnleft("Unary operators:\t= ! ~ - +")
 				elif controlch=="u" or controlch=="U":
 					if usernames is not None:
-						lnwrite("Users:")
+						write("Users:")
 						for username in usernames:
 							write(" "+username)
 					else:
 						lnwrite("No users available.")
+					newline()
 				elif controlch=="v" or controlch=="V":
-					lnwrite("Variables (M not included):")
+					write("Variables (M not included):")
 					identifiervalues=environment.getIdentifierValues(["M"]) # passing the list of names not to show...
 					for identifiername in identifiervalues:
 						identifiervalue=identifiervalues[identifiername]
 						write(" "+identifiername+"="+(getText(identifiervalue),"?")[identifiervalue is None])
+					newline()
 				elif controlch==":": # MDH@27AUG2017: switch to declaration mode
 					environment.setMode(0)
 				elif controlch=="=": # MDH@27AUG2017: switch to evaluation mode
@@ -3508,7 +3565,7 @@ def main():
 						writeVariables(environment)
 				elif controlch=="b": # the back color
 					# allow changing multiple backcolor in a row
-					lnwrite("Text backcolor codes: debug="+str(DEBUG_BACKCOLOR)+", error="+str(ERROR_BACKCOLOR)+", identifier="+str(IDENTIFIER_BACKCOLOR)+", literal="+str(LITERAL_BACKCOLOR)+", operator="+str(OPERATOR_BACKCOLOR)+", prompt="+str(INFO_BACKCOLOR)+", result="+str(RESULT_BACKCOLOR)+".")
+					write("Text backcolor codes: debug="+str(DEBUG_BACKCOLOR)+", error="+str(ERROR_BACKCOLOR)+", identifier="+str(IDENTIFIER_BACKCOLOR)+", literal="+str(LITERAL_BACKCOLOR)+", operator="+str(OPERATOR_BACKCOLOR)+", prompt="+str(INFO_BACKCOLOR)+", result="+str(RESULT_BACKCOLOR)+".")
 					while 1:
 						lnwrite("What backcolor do you want to set? [d|e|i|l|o|p|r] ")
 						controlch2=getch()
@@ -3588,7 +3645,7 @@ def main():
 						except Exception,ex:
 							lnwrite("ERROR: '"+str(ex)+"' changing the "+controlch2+" text color code.")
 				elif controlch=="m" or controlch=="M": # show the contents of the M array element by element
-					lnwrite("Contents of M (press Esc to stop, any other key to continue):")
+					write("Contents of M (press Esc to stop, any other key to continue):")
 					Mexpressionlist=environment.getIdentifierValue("M")
 					if isIterable(Mexpressionlist):
 						expressionindex=0
@@ -3605,7 +3662,7 @@ def main():
 				elif controlch=="l" or controlch=="L":
 					setUsername(getUsername())
 				elif controlch=="d" or controlch=="D":
-					lnwrite("Please enter the new debug level (replacing: "+str(DEBUG)+"): ")
+					write("Please enter the new debug level (replacing: "+str(DEBUG)+"): ")
 					debugtext=raw_input().strip()
 					try:
 						DEBUG=int(debugtext)
@@ -3622,8 +3679,6 @@ def main():
 					break
 			if controlch=="x" or controlch=="X":
 				break
-			if controlch!='f' and controlch!='F':
-				newline()
 			controlmode=0 # if we get here we finished control messages and we could've done continue BUT we'd end up at the newprompt() next anyway!!!!
 		# display the prompt (with the info line in front of it)
 		newprompt()
