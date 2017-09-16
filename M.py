@@ -3,7 +3,9 @@ Marc's expression tokenizer and evaluator
 """
 """ History
 16SEP2017:
-- executeshellcommand() to execute a shell command using the sh function
+- executecommand() to execute a shell command using the sh function
+- execute shell command control mode option
+- readvalues function to read values from text file
 15SEP2017:
 - functions and variables (dynamic value) environment identifiers, exposing the list of functions and variables respectively
 13SEP2017:
@@ -370,6 +372,22 @@ def getExpressionValue(_expressiontext,_environment,_debug=None):
 	if debug&8:
 		note("Expression to evaluate: "+expression.getText()+".")
 	return expression.evaluatesTo(_environment)
+def valueof(_valuetext):
+	if len(_valuetext)>0:
+		if _valuetext[0] in ts:
+			return _valuetext # as is (i.e. text)
+		# either a integer or a float
+		try:
+			return int(_valuetext)
+		except:
+			try:
+				return long(_valuetext)
+			except:
+				try:
+					return float(_valuetext)
+				except:
+					pass
+	return None
 class ReturnException(BaseException):
 	def __init__(self,args):
 		BaseException.__init__(self,None)
@@ -497,6 +515,52 @@ class Function:
 								return textlines
 						if self.functionindex==27: # sh
 							return executecommand(dequote(value)[0])
+						if self.functionindex==28: # readvalues
+							textfile=open(dequote(value)[0],'r')
+							if textfile:
+								valuelines=list()
+								textline=textfile.readline()
+								while len(textline)>0:
+									try:
+										linetext=textline.rstrip(opsys.linesep) # TODO can we do this if opsys.linesep is more than one character?
+										# because the values can be enclosed in quotes, we need to parse the values
+										# treating tabs and commas as value separators (not blanks)
+										linevalues=list()
+										valuetext='' # the composed value text!!!
+										intextvalue=False
+										behindvalue=False # ignore everything until the first non-whitespace character
+										quotechar=''
+										linevalues=list()
+										for ltch in linetext:
+											if intextvalue: # in a (quoted) text value
+												if ltch==quotechar: # the same character ends the text literal
+													intextvalue=False
+												valuetext+=ltch
+											elif ltch in w: # all whitespace not inside text is to be ignored
+												if len(valuetext)>0: # in some value, that the whitespace ends
+													behindvalue=True # ends any value entered
+											elif ltch=='\t' or ltch==',': # a tab or comma not inside the value
+												linevalues.append(valueof(valuetext))
+												# prepare for new value
+												valuetext=''
+												quotechar='' # no text literal
+												behindvalue=False
+												intextvalue=False
+											elif not behindvalue: # any non-whitespace character not behind the value is part of the value
+												if len(valuetext)==0 and ltch in ts: # starts a text literal
+													quotechar=ltch
+													intextvalue=True
+												# any character is part of the value text
+												valuetext+=ltch
+										# if unclosed text literal end it anyway
+										if intextvalue and not behindvalue:
+											valuetext+=quotechar
+										linevalues.append(valueof(valuetext))
+										valuelines.append(linevalues) # append to the result
+									finally:
+										textline=textfile.readline()
+								textfile.close()
+								return valuelines
 						if self.functionindex==49: # out
 							return write(" "+str(value))
 					elif len(arguments)>1: # shouldn't happen though
@@ -1191,7 +1255,7 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'exec':27,'out':49})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'exec':27,'readvalues':28,'out':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 
