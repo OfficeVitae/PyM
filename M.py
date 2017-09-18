@@ -230,7 +230,7 @@ def newprompt():
 def note(_note):
 	lnwrite('\t'+_note)
 def writeerror(_error):
-	lnwrite(" "*len(prompt)) # go to a new line and start with as many blanks as the length of the prompt
+	write(" "*len(prompt)) # go to a new line and start with as many blanks as the length of the prompt
 	# write the error followed by a newline so we can show the user input line immediately
 	if isinstance(_error,str) and len(_error)>0:
 		writeln(_error,None,ERROR_COLOR) # we have to go to a new line afterwards because prompt(False) will clear the current line
@@ -565,6 +565,14 @@ class Function:
 										textline=textfile.readline()
 								textfile.close()
 								return valuelines
+						if self.functionindex==46: # MDH@18SEP2017: int function
+							try:
+								return int(dequote(value)[0])
+							except:
+								try:
+									return long(dequote(value)[0])
+								except:
+									pass
 						if self.functionindex==47: # MDH@18SEP2017: jump only allowed in a function
 							raise JumpException(value)
 						if self.functionindex==48: # MDH@18SEP2017: get input from the user
@@ -1114,8 +1122,8 @@ class Environment:
 				if isinstance(argument1,Identifier):
 					return argument1.setValue(argument2).getValue()
 				if isinstance(argument1,IdentifierElementExpression):
-					note("Evaluating identifier element expression "+str(argument1)+".")
-					return argument1.setValue(argument2).getValue(self)
+					########note("Evaluating identifier element expression "+str(argument1)+".")
+					return argument1.setValue(argument2,self).getValue()
 				raise Exception("Expression destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
 			# MDH@27AUG2017: all other operations require evaluation of the RHS expression!!!
 			operand2=getElementValue(argument2) # could be a list containing expressions (which hide themselves!!!)
@@ -1133,8 +1141,8 @@ class Environment:
 				if isinstance(operand1,Identifier):
 					return operand1.setValue(operand2).getValue()
 				if isinstance(argument1,IdentifierElementExpression):
-					note("Evaluating identifier element expression "+str(operand1)+".")
-					return operand1.setValue(operand2).getValue(self)
+					#######note("Evaluating identifier element expression "+str(operand1)+".")
+					return operand1.setValue(operand2,self).getValue()
 				raise Exception("Assignment destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
 			# if assigning do not evaluate the left-hand side
 			operand1=getElementValue(argument1)
@@ -1287,7 +1295,7 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'exec':27,'readvalues':28,'jump':47,'in':48,'out':49})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'exec':27,'readvalues':28,'int':46,'jump':47,'in':48,'out':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 
@@ -2194,7 +2202,12 @@ class Expression(Token):
 					if token.assigns(): # if this is an assigning operator token almost there!!!
 						behindassigningoperator=True
 			# update behindidentifier in ALL situations
-			behindidentifier=(tokentype==IDENTIFIER_TOKENTYPE)
+			if tokentype==IDENTIFIER_TOKENTYPE: # absolutely
+				behindidentifier=True
+			elif tokentype!=EXPRESSION_TOKENTYPE: # certainly not
+				behindidentifier=False
+			else: # for expressions, only when denoting an identifier element expression
+				behindidentifier=isinstance(token,IdentifierElementExpression)
 		return False
 	def getContinuation(self):
 		return self.continuation
@@ -2256,14 +2269,21 @@ class Expression(Token):
 								#####self.end() # we want to end the subexpression here and now as a token and not wait until later, this is an issue though
 								result=self.parent
 								if _tokenchar in ld: # a comma should also start a new expression operand in the parent (similar to what the response to ls does), meaning we can now have multiple subexpressions in a row (as to create a list of values)
+									result=result.addToken(0,_tokenchar,echo) # we're appending a new expression to the parent (effectively ending this expression token), and continuing with the new subexpression
+									""" replacing:
 									# but if the current expression is an IdentifierElementExpression, so should the next one be
-									if isinstance(self,IdentifierElementExpression):
+									if isinstance(result,IdentifierElementExpression):
 										result.endToken() # end me
 										result=self.newToken(IdentifierElementExpression(self.getIdentifier(),self.environment,result,self.debug,echo,_tokenchar)) # pretty neat (if it works)
 									else: # a normal expression to be added to the parent
 										result=result.addToken(0,_tokenchar,echo) # we're appending a new expression to the parent (effectively ending this expression token), and continuing with the new subexpression
+									"""
 								else:
 									self.ignore(_tokenchar) # append the closing parenthesis token in the suffix of this expression (so no longer ends up as a separate token)
+									# if we're ending the last index token of an identifier element expression, we should end the identifier element expression as well
+									if isinstance(result,IdentifierElementExpression):
+										result.discontinued()
+										result=result.parent
 					elif _tokenchar in ls: # opening parenthesis: start of a new sub-expression
 						# deal with invalid stuff first
 						# tokentype 0 and all operators and signs are good and identifiers that are functions
@@ -2282,12 +2302,12 @@ class Expression(Token):
 										if isinstance(identifiervalue,list): # can be indexed
 											# we're going to replace the identifier by an IdentifierElementExpression
 											self.tokens.pop() # popping off the identifier token (so we can replace it with the IdentifierElementExpression
-											result=self.newToken(IdentifierElementExpression(tokentext,self.environment,self,self.debug,echo,_tokenchar)) # have it use the same debug level!!!
+											result=self.newToken(IdentifierElementExpression(tokentext,self.environment,self,self.debug,echo)) #,_tokenchar)) # have it use the same debug level!!!
 											""" MDH@09SEP2017: don't know why it was added here BEFORE: replacing:
 											self.endToken() # have to do this explicitly here because I removed it from newToken() (and into addToken())
 											result=self.newToken(IdentifierElementExpression(tokentext,self.environment,(None,self.debug)[],self,_tokenchar)) # have it use the same debug level!!!
 											"""
-											_tokenchar=None # prevents creation of an expression below
+											# MDH@18SEP2017: we DO want to start a subexpression!!!! _tokenchar=None # prevents creation of an expression below
 										else:
 											self.error="Cannot index a variable which value (of type "+str(type(identifiervalue))+") is not a list."
 									else:
@@ -2295,7 +2315,7 @@ class Expression(Token):
 							else:
 								self.error=_tokenchar+" not allowed behind a literal."
 						if self.error is None and _tokenchar is not None:
-							result=self.addToken(0,_tokenchar,echo)
+							result=result.addToken(0,_tokenchar,echo) # MDH@18SEP2017: replacing self. by result. to the right of =
 					elif _tokenchar in ts:
 						# starting a string literal is not allowed in most situations because most operators do not operate on string literals
 						# basically a string literal can only occur behind the + and * binary operator and the comparison operators
@@ -3036,6 +3056,8 @@ class IdentifierElementExpression(Expression):
 		return self.identifiername
 	# an additional method to get at the value of this expression returns the index value
 	def getIndexValue(self):
+		# MDH@18SEP2017: given that we can now have an index into a 'multidimensional' list
+		#                self.indexvalue could now evaluate to a list of indices
 		if self.indexvalue is None:
 			self.indexvalue=Expression.evaluatesTo(self,self.environment)
 		return self.indexvalue
@@ -3044,83 +3066,88 @@ class IdentifierElementExpression(Expression):
 		identifier=_environment.getExistingIdentifier(self.identifiername)
 		if identifier is None:
 			raise Exception("Identifier "+self.identifiername+" vanished.")
+		# help function to return the value at a given index (even when a list of indices)
+		def getValueAtIndex(_value,_index):
+			if not isinstance(_value,list):
+				return undefined
+			if isinstance(_index,list):
+				newvalue=list()
+				for index in _index:
+					newvalue.append(getValueAtIndex(_value,index))
+				return newvalue
+			if _index==0:
+				return undefined
+			if _index<0:
+				index+=(len(_value)+1)
+			if _index<=0 or _index>len(_value):
+				return undefined
+			return _value[_index-1]
 		value=identifier.getValue() # which should be a list
 		if not isinstance(value,list):
 			raise Exception("Value of indexed variable "+self.identifiername+" not a list.")
-		maxindex=len(value) # get the
-		indexvalue=self.getIndexValue()
-		# technically the index can also be a list (of indices)
-		if isinstance(indexvalue,list):
-			valuelist=[]
-			for index in indexvalue:
-				#####note("Index value #"+str(i)+": "+str(index)+".")
-				if index==0: # inaccessible
-					continue
-				if index<0: # count backwards, last element being -1
-					index+=(maxindex+1)
-				if index<=0 or index>maxindex:
-					continue
-				valuelist.append(value[index-1])
-			return valuelist
-		if indexvalue==undefined:
-			return undefined
-		if not isinstance(indexvalue,(int,long)):
-			raise Exception("Element index not an integer.")
-		if indexvalue==0:
-			raise Exception("Element with index 0 does not exist, as lists in M are one-based not zero-based.")
-		#####note("Index value: "+str(indexvalue)+".")
-		if indexvalue<0:
-			indexvalue+=(maxindex+1)
-		if indexvalue<=0 or indexvalue>maxindex:
-			return Exception("Index ("+str(indexvalue)+") into variable "+self.identifiername+" out of range.")
-		return value[indexvalue-1]
-	def setValue(self,_value,_environment):
+		indexvalues=self.getIndexValue()
+		if isinstance(indexvalues,list):
+			for indexvalue in indexvalues:
+				# replace value with the value at the given index
+				value=getValueAtIndex(value,indexvalue)
+		else: # a single index
+			value=getValueAtIndex(value,indexvalues)
+		return value
+	def setValue(self,_value,_environment): # TODO do we need to know the environment here????
 		identifier=_environment.getExistingIdentifier(self.identifiername)
 		if identifier is None:
 			raise Exception("Identifier "+self.identifiername+" vanished.")
-		value=identifier.getValue() # which should be a list
+		value=identifier.getValue() # the list of which elements are to be set
+		def setValueAtIndex(_index):
+			if isinstance(value,list): # we should be assigning to a list element
+				if isinstance(_index,list):
+					result=list()
+					for index in _index:
+						result.append(setValueAtIndex(index))
+					return result
+				if isinstance(_index,(int,long)): # index supposed to be an integer
+					if _index==0: # prepend the given value
+						value.insert(0,undefined)
+						return 1 # the actual index of the element we changed
+					if _index<0:
+						_index+=(len(value)+1)
+					if _index>0:
+						while _index>len(value):
+							value.append(undefined)
+						result=_index
+						value[result-1]=_value
+						return result
+			return undefined
+		def getValueAtIndex(_index):
+			if isinstance(value,list):
+				if isinstance(_index,list):
+					newvalue=list()
+					for index in _index:
+						newvalue.append(getValueAtIndex(index))
+					return newvalue
+				if isinstance(_index,(int,long)):
+					if _index<0:
+						_index+=(len(value)+1)
+					if _index>0 and _index<=len(value):
+						return value[_index-1]
+			return undefined
+		#######note("Identifier: "+str(identifier)+".")
 		if not isIndexable(value):
 			raise Exception("Variable "+self.identifiername+" cannot be indexed: its value is not a list.")
 		####note("Setting the element at index "+str(indexvalue)+" of "+self.identifiername+" with value "+str(value)+".")
 		maxindex=len(value) # get the length of the list
-		indexvalue=self.getIndexValue() #####getValue(self.index) # technically the index thingie
-		# technically the index can also be a list (of indices)
-		if isinstance(indexvalue,list):
-			for (i,index) in enumerate(indexvalue):
-				if not isinstance(index,(int,long)):
-					continue
-				###note("Index value: "+str(index)+".")
-				if index==0: # prepend the given value
-					value.insert(0,undefined)
-					self.indexvalue[i]=1 # the actual index of the element we changed
-					continue
-				if index<0:
-					index+=(maxindex+1)
-					if index<=0: # still not available
-						continue
-				else: # a positive index, which might be too large
-					while index>maxindex:
-						value.append(undefined)
-						maxindex+=1
-				# if we get here a positive index specified, and no need to check
-				self.indexvalue[i]=index # the actual index of the element we changed
-				value[index-1]=_value
-		else: # index not a list
-			if not isinstance(indexvalue,(int,long)):
-				raise Exception("Element index ("+getText(indexvalue)+") into variable "+self.identifiername+" not an integer.")
-			if indexvalue==0:
-				self.indexvalue=1 # the actual index of the element we changed (and thus to return)
-				value.insert(0,undefined) # prepend the undefined value
-			elif indexvalue<0: # determine the index in the proper range (counting from the back)
-				self.indexvalue=indexvalue+maxindex+1 # update self.indexvalue
-			else: # a positive index provided
-				# ascertain that that index exists!!
-				while indexvalue>maxindex:
-					value.append(undefined)
-					maxindex+=1
-			if self.indexvalue<=0 or self.indexvalue>maxindex:
-				raise Exception("Element index ("+str(self.indexvalue)+") into "+self.identifiername+" out of range.")
-			value[self.indexvalue-1]=_value
+		indexvalues=self.getIndexValue() # MDH@18SEP2017: could now be multidimensional
+		# typically the last index will do the actually assigning
+		# and therefore it makes sense to start with popping that one off
+		#########note("Index values: "+getText(indexvalues)+".")
+		if isinstance(indexvalues,list):
+			lastindex=indexvalues.pop()
+			for indexvalue in indexvalues:
+				value=getValueAtIndex(indexvalue)
+			setValueAtIndex(lastindex)
+		else:
+			setValueAtIndex(indexvalues)
+		Expression.setValue(self,_value) # we have to do as it needs to be returned by getValue()
 		return self
 # MDH@30AUG2017: if an expression is executed it executes within a certain 'environment' i.e. a set of variables constitute a state that is local
 #								 this means that the getValue() that we used to have in Expression is to be moved over to the ExpressionEvaluator
@@ -3426,7 +3453,7 @@ def readExpressions(_environment,_evaluate=False):
 								try:
 									expression.evaluatesTo(_environment) # return statements throw the return exception, which we want to catch
 								except ReturnException,returnException:
-									expression.setValue(returnException.getValue())
+									expression.setValue(returnException.getValue()) # TODO an IdentifierElementExpression also has a setValue but that one requires an environment as well
 						else: # some error, add None
 							note("ERROR: '"+error+"' in processing expression text '"+expressiontext+"' of '"+_environment.getName()+"'.")
 							_environment.addExpression(None)
@@ -4014,6 +4041,11 @@ def main():
 		# ready to evaluate (and register)
 		if mexpression is not None:
 			mexpression.end() # end the expression as token instance
+			# get rid of whatever intermediate result text was shown behind where the cursor is
+			if resultlength>0:
+				output(" "*resultlength)
+				output("\033["+str(resultlength)+"D") # return to the original cursor position
+			newline()
 			#####writeln("Evaluating the expression...")
 			expressiontext=mexpression.getText().strip()
 			if len(expressiontext)>0: # something to evaluate at all
@@ -4023,11 +4055,12 @@ def main():
 					expressionvalue=mexpression.evaluatesTo(environment) # pass in the global environment to evaluate the expression
 				except ReturnException,returnException:
 					expressionvalue=returnException.getValue()
+				output(' '*(len(prompt)-2)) # skip length of prompt!!
 				# MDH@27AUG2017: write the result on the same line
 				if expressionvalue is not None:
-					writeln(getColoredText(" = ",INFO_COLOR)+getColoredText(getText(expressionvalue),RESULT_COLOR,RESULT_BACKCOLOR))
+					writeln(getColoredText("= ",INFO_COLOR)+getColoredText(getText(expressionvalue),RESULT_COLOR,RESULT_BACKCOLOR))
 				else: # probably best to indicate that the expression could not be evaluated
-					writeln(getColoredText(" = ",INFO_COLOR)+getColoredText("Result undefined!",RESULT_COLOR,RESULT_BACKCOLOR))
+					writeln(getColoredText("= ",INFO_COLOR)+getColoredText("Result undefined!",RESULT_COLOR,RESULT_BACKCOLOR))
 				computationerror=mexpression.getError()
 				if computationerror is not None:
 					writeerror(computationerror)
