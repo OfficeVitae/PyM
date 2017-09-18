@@ -2,6 +2,9 @@
 Marc's expression tokenizer and evaluator
 """
 """ History
+18SEP2017:
+- function 'in' added, to get input from the end user
+- bug fix: undiscontinued() called in backspace() method of Token when the suffix ends for non string literals, and otherwise when the last text token character is removed
 16SEP2017:
 - executecommand() to execute a shell command using the sh function
 - execute shell command control mode option
@@ -55,8 +58,6 @@ def getch():
 		ch=sys.stdin.read(1)
 	finally:
 		termios.tcsetattr(fd,termios.TCSADRAIN,old_settings)
-	####print str(type(ch))
-	#######sys.stdout.write(str(ord(ch)))
 	return ch
 
 DEBUG_COLOR=8 # light gray
@@ -76,7 +77,7 @@ ERROR_BACKCOLOR=231
 IDENTIFIER_BACKCOLOR=231
 LITERAL_BACKCOLOR=231
 OPERATOR_BACKCOLOR=231
-RESULT_BACKCOLOR=69 # or what????
+RESULT_BACKCOLOR=69
 
 PROMPT_COLOR=INFO_COLOR # same as the info color
 
@@ -397,6 +398,9 @@ class ReturnException(BaseException):
 		return self.value
 	def __str__(self):
 		return str(self.value)
+class JumpException(ReturnException):
+	def __init__(self,args):
+		ReturnException.__init__(self,args)
 # MDH@05SEP2017: excluding the execution of for, while, if and eval function because
 #								 they need to know there execution environment
 class Function:
@@ -561,11 +565,27 @@ class Function:
 										textline=textfile.readline()
 								textfile.close()
 								return valuelines
+						if self.functionindex==47: # MDH@18SEP2017: jump only allowed in a function
+							raise JumpException(value)
+						if self.functionindex==48: # MDH@18SEP2017: get input from the user
+							return enquote(raw_input(dequote(value)[0]))
 						if self.functionindex==49: # out
-							return write(" "+str(value))
+							return write(dequote(value)[0])
 					elif len(arguments)>1: # shouldn't happen though
 						return [self.apply([x]) for x in arguments] # we have to listify the arguments because self.apply expects an argument list (even a single one)
 				elif self.functionindex<200: # the two-argument functions
+					if self.functionindex==103: # MDH@18SEP2017: replicate
+						# the second argument should be a positive integer telling us how many times to replace the first argument
+						if len(arguments)>1 and isinstance(arguments[1],(int,long)):
+							replicatecount=arguments[1]
+							replicates=list()
+							while replicatecount>0:
+								if isinstance(arguments[0],list):
+									replicates.append(list(arguments[0])) # wrap the list so we use a copy
+								else:
+									replicates.append(arguments[0])
+								replicatecount-=1
+							return replicates
 					if self.functionindex==101 or self.functionindex==102: # ls/dir
 						if len(arguments)>0:
 							directory=dequote(arguments[0])[0] # the name of the directory requested
@@ -772,15 +792,25 @@ class UserFunction(Function):
 			if l>0:
 				######note("Number of expressions to evaluate "+str(l)+"...")
 				executionenvironment=self.getExecutionEnvironment(_arglist)
-				for expression in expressions:
+				expressionindex=0
+				while expressionindex<len(expressions):
+					expression=expressions[expressionindex]
 					try:
 						#####expressionvalue=
 						expression.evaluatesTo(executionenvironment) # evaluate the expression in the execution environment
 						#####note("Value of "+str(expression)+": "+str(expressionvalue)+".")
+					except JumpException,jumpException:
+						deltaexpressionindex=jumpException.getValue()
+						if isinstance(deltaexpressionindex,(int,long)):
+							expressionindex+=deltaexpressionindex
+							if expressionindex<0:
+								break
+							continue
 					except ReturnException,returnException:
 						result=returnException.getValue()
 						#######note("Return result of function: "+str(result)+".")
 						break
+					expressionindex+=1 # normal continuation i.e. next expression to execute next
 				# what have we got in this execution environment???
 				if result is None: # no explicitly returned value using the return function
 					if len(self.resultidentifiername)>0: # there's a regular result variable
@@ -1251,12 +1281,14 @@ Menvironment=Environment() # MDH@03SEP2017: the root M environment containing th
 Menvironment.addIdentifier(undefined,'?') # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(Identifier(_value=0),'false')
 Menvironment.addIdentifier(Identifier(_value=1),'true')
+Menvironment.addIdentifier(Identifier(_value="'\n'"),'lf') # MDH@18SEP2017
+Menvironment.addIdentifier(Identifier(_value="'\r'"),'cr') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'exec':27,'readvalues':28,'out':49})
-Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'function':150,'join':199})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'exec':27,'readvalues':28,'jump':47,'in':48,'out':49})
+Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 
 environment=None # MDH@03SEP2017: wait for the user name to be known!!!
@@ -1847,19 +1879,24 @@ class Token:
 		#								 which means that when that happens we would remove the continuable
 		# MDH@31AUG2017: any newline character will always be in the suffix of a token i.e. it is a whitespace character
 		if len(self.suffix)>0:
-			if self.suffix[-1].getText()==newlinechar:
-				self.error="Already at the start of the current text line."
-				return None
 			self.suffix.pop() # very convenient
 			# NOTE never force continuability until actually removing a significant token
 			#			 BUT that's a problem because sometimes the thing is not continuable AND there's no suffix
 			if len(self.suffix)>0:
 				self.suffix[-1].unend()
+			else:
+				# suffix is removed, which means that most types need to become continuable again
+				if not self.isContinuable():
+					if self.type!=SINGLEQUOTED_TOKENTYPE and self.type!=DOUBLEQUOTED_TOKENTYPE:
+						self.undiscontinued()
 			return self
 		l=len(self.text)-1 # index of the last tokenchar
 		if l>=0:
 			removedtokenchar=self.text.pop() # very convenient
 			# we might need to change the token type depending on what is removed...
+			# MDH@18SEP2017: we need to undo the discontinuation for sure
+			if not self.isContinuable():
+				self.undiscontinued()
 			if self.type==REAL_TOKENTYPE:
 				# removing the tokenchar that contains the period?
 				if removedtokenchar.getText()[-1]==periodchar:
@@ -1868,7 +1905,6 @@ class Token:
 				# removing the second character of a two-character operator???
 				if l>0: # still tokens left, so reset the type
 					self.type=1+os.find(self.text[-1].getText())
-			#### TODO should we do this here??????? self.undiscontinued() # return to being continuable again for certain
 			if l>0:
 				self.text[-1].unend()
 			return self
@@ -3168,6 +3204,7 @@ def endFunctionCreation():
 		environment=function.getHostEnvironment() # return to the parent environment (which is NOT the parent of the current environment when it's a standalone function)
 		if environment.addFunction(function): # make it accessible!!!
 			function.writeDefinition(environment.getFunctionsFilename())
+		newline()
 		writeFunctions(environment)
 	else:
 		writeerror("No function being created right now to end.")
@@ -3619,10 +3656,10 @@ def main():
 							userfunction=UserFunction(functionname,environment,standalone,functionparameters,functionresultidentifiername) # create the function with its own creation environment
 							# register this function in the environment's Mfunctions file
 							#########userfunction.writeDefinition(environment.getName()+'.Mfunctions') # can't write the function expressions yet of course!!!
-							lnwrite("Until you end "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
+							writeln("Until you end "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
 						else: # the function already exists, let's allow continuation
 							userfunction=environment.getFunction(functionname) # I guess the given function is already loaded then????
-							lnwrite("Until you stop continuing "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
+							writeln("Until you stop continuing "+functionname+" with `F or Ctrl-D the following expressions will use the parameter defaults (as a test).")
 						environment=userfunction.getDefinitionEnvironment() # update the current environment with the operating environment using the defaults (i.e. there's NO argument list)
 						if newfunction: # MDH@11SEP2017: read the expressions defined previously
 							environment.setup()
