@@ -1912,6 +1912,9 @@ class Token:
 			elif self.type==OPERATOR_TOKENTYPE:
 				# removing the second character of a two-character operator???
 				if l>0: # still tokens left, so reset the type
+					# MDH@18SEP2017: beware when removing the period from .. should remove the
+					#								 entire token and append the period to the integer token
+					#                but we cannot do that here as I don't know about other tokens
 					self.type=1+os.find(self.text[-1].getText())
 			if l>0:
 				self.text[-1].unend()
@@ -3004,7 +3007,21 @@ class Expression(Token):
 					if self.token.isEmpty(): # the token is now empty, so should be removed from the expression
 						self.removeLastToken()
 					else: # now comes the interesting part
-						if isinstance(self.token,Expression): # we've deleted a tokenchar in a subexpression, that must have been the closing parenthesis
+						if self.token.getType()==4: # just removed the second period of the .. operator
+							if self.token.backspace() is not None: # remove the first period as well
+								if self.token.isEmpty():
+									# as we're adding the period below I have to remove it first
+									userInputLine.removeLastCharacter(True)
+									self.removeLastToken()
+									# the integer in front of the .. should now become a (continuable) real!!
+									self.token.unend()
+									# we want to 'add' the period to the integer token BUT it should not be written because it's already visible
+									self.token.add(periodchar) # will change the type to REAL_TOKENTYPE
+								else:
+									self.error="Failed to remove the .. operator!"
+							else:
+								self.error=self.token.getError()
+						elif isinstance(self.token,Expression): # we've deleted a tokenchar in a subexpression, that must have been the closing parenthesis
 							result=self.token # continue with the subexpression
 			else: # somewhere in the prefix probably
 				# NOTE as soon as we empty this (sub)expression we should move back to the parent expression if any, to take it from there
@@ -3057,7 +3074,7 @@ class IdentifierElementExpression(Expression):
 	# an additional method to get at the value of this expression returns the index value
 	def getIndexValue(self):
 		# MDH@18SEP2017: given that we can now have an index into a 'multidimensional' list
-		#                self.indexvalue could now evaluate to a list of indices
+		#								 self.indexvalue could now evaluate to a list of indices
 		if self.indexvalue is None:
 			self.indexvalue=Expression.evaluatesTo(self,self.environment)
 		return self.indexvalue
