@@ -1,9 +1,11 @@
 count=0
 ; count to the left
 c=col
-while(c>=1&&count<=3&&board(row,c)==playerindex,c-=1)
+while(c>=1&&count<3&&board(row,c)==playerindex,c-=1,count+=1)
+out("count left: ",count,lf)
 if(count>=3,return(1))
 ; count to the right
 c=col
-while(c<=7&&count<=3&&board(row,c)==playerindex,c+=1)
+while(c<=7&&count<3&&board(row,c)==playerindex,c+=1,count+=1)
+out("count right: ",count,lf)
 $=(count>=3) ; if we counted 3 to the left or right success

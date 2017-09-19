@@ -1,6 +1,6 @@
 showboard
 won
-horizontally
-vertically
-diagonally
-reversediagonally
+horizontally	count	c
+vertically	count	r
+diagonally	count	r	c
+reversediagonally	count	r	c

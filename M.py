@@ -2833,7 +2833,7 @@ class Expression(Token):
 						if conditionvalue!=1: # everything not equal to 1 should be considered false!
 							break
 						bodyvalues=[bodyexpression.evaluatesTo(evaluationenvironment) for bodyexpression in whilebody]
-						######note("Value of body '"+str(whilebody)+"': '"+str(bodyvalues)+"'...")
+						note("Value of body '"+str(whilebody)+"': '"+str(bodyvalues)+"'...")
 						result.append(bodyvalues)
 				else:
 					note("Please report the following bug: The condition in the while loop is not an expression, but of type "+str(type(_arglist[0]))+"!")

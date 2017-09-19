@@ -1,1 +1,9 @@
-$=False
+count=0
+r=row
+c=col
+while(r<=6&&c<=7&&count<3&&board(r,c)==playerindex,r+=1,c+=1,count+=1)
+if(count>=3,return(1))
+r=row
+c=col
+while(r>=1&&c>=1&&count<3&&board(r,c)==playerindex,r-=1,c-=1,count+=1)
+$=(count>=3)

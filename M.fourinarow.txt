@@ -16,7 +16,6 @@ board(row,col)=playerindex
 out("Board after ",movecount," moves:",lf)
 for(r,1..6,for(c,1..7,out("|",board(r,c))),out(lf))
 $=won() ; determine if the current player won
-if($>0,return())
-if(movecount==42,return())
+if($>0||movecount==42,return())
 playerindex=3-playerindex ; switch player
-jump(-13)
+jump(-12)
