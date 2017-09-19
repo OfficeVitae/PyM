@@ -878,7 +878,7 @@ class Identifier:
 		if self.name is None:
 			raise Exception("Cannot change the value of a constant.")
 		self.value=_value
-		note("Value of identifier '"+self.name+"' set to '"+str(self.value)+"'.")
+		####note("Value of identifier '"+self.name+"' set to '"+str(self.value)+"'.")
 		return self
 	def __init__(self,_name=None,_value=None):
 		self.name=_name
@@ -886,7 +886,7 @@ class Identifier:
 	def getName(self):
 		return self.name
 	def getValue(self):
-		note("Returning value ("+str(self.value)+") of "+("?",self.name)[self.name is not None]+".")
+		####note("Returning value ("+str(self.value)+") of "+("?",self.name)[self.name is not None]+".")
 		return self.value
 	def __repr__(self):
 		return self.name
@@ -1145,15 +1145,15 @@ class Environment:
 		return None
 	def getIdentifier(self,_identifiername):
 		# creates the identifier if it does not exist anywhere
-		note("Looking for identifier '"+_identifiername+"' in environment '"+self.getName()+"'.")
+		####note("Looking for identifier '"+_identifiername+"' in environment '"+self.getName()+"'.")
 		identifier=self.getExistingIdentifier(_identifiername)
 		# create it if not found!!
 		if identifier is None: # not defined anywhere
-			note("Identifier '"+_identifiername+" not found!")
+			####note("Identifier '"+_identifiername+" not found!")
 			identifier=Identifier(_identifiername)
 			self.identifiers[_identifiername]=identifier
 		else:
-			note("Current value of identifier '"+_identifiername+"': "+str(identifier.getValue())+".")
+			pass ####note("Current value of identifier '"+_identifiername+"': "+str(identifier.getValue())+".")
 		return identifier
 	def getExistingIdentifier(self,_identifiername):
 		# check whether 'locally' defined first
@@ -1508,8 +1508,8 @@ def getInteger(_value):
 		return int(_value)
 	return None
 def getValue(_value):
-	#if DEBUG&8:
-	note("Obtaining the value of "+str(_value)+"...")
+	if DEBUG&8:
+		note("Obtaining the value of "+str(_value)+"...")
 	if _value is not None:
 		if isinstance(_value,list):
 			return map(getValue,_value)
@@ -1518,7 +1518,7 @@ def getValue(_value):
 		if isinstance(_value,str):
 			return _value
 		# everything else is assumed to have a getValue() method (like Identifier and Expression)
-		note("Calling getValue() on the value of type "+str(type(_value))+".")
+		#####note("Calling getValue() on the value of type "+str(type(_value))+".")
 		return _value.getValue()
 	return _value
 def listify(t):
@@ -2804,7 +2804,7 @@ class Expression(Token):
 		self.value=_value
 	# MDH@07SEP2017: getValue() renamed to evaluatesTo, so we can use getValue() to request the value computed
 	def evaluatesTo(self,_environment=None):
-		note("Value of '"+self.getText()+"' requested!")
+		#####note("Value of '"+self.getText()+"' requested!")
 		self.value=None
 		self.error=None
 		evaluationenvironment=(self.environment,_environment)[_environment is not None]
@@ -2829,11 +2829,11 @@ class Expression(Token):
 					# NOTE: we can force computation of the value (as we should), by passing True as second argument!!!
 					while 1:
 						conditionvalue=condition.evaluatesTo(evaluationenvironment)
-						note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
+						######note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
 						if conditionvalue!=1: # everything not equal to 1 should be considered false!
 							break
 						bodyvalues=[bodyexpression.evaluatesTo(evaluationenvironment) for bodyexpression in whilebody]
-						note("Value of body '"+str(whilebody)+"': '"+str(bodyvalues)+"'...")
+						######note("Value of body '"+str(whilebody)+"': '"+str(bodyvalues)+"'...")
 						result.append(bodyvalues)
 				else:
 					note("Please report the following bug: The condition in the while loop is not an expression, but of type "+str(type(_arglist[0]))+"!")
@@ -2851,13 +2851,13 @@ class Expression(Token):
 						if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType() in (IDENTIFIER_TOKENTYPE,VARIABLE_TOKENTYPE):
 							forindexidentifiername=forindexexpression.tokens[-1].getText()
 							forindexidentifier=Identifier(forindexidentifiername)
-							note("For index identifier: '"+forindexidentifier.getName()+"'.")
+							########note("For index identifier: '"+forindexidentifier.getName()+"'.")
 						else:
 							forindexidentifier=None
 						# create the for index environment BUT then the problem is that all variables declared in the for loop are local to the for loop and lost afterwards!!!
 						# which means that whatever is assigned to in the for loop should already exist!!
 						if forindexidentifier is not None:
-							forindexenvironment=Environment(None,evaluationenvironment).addIdentifier(forindexidentifier)
+							forindexenvironment=Environment(forindexidentifiername,evaluationenvironment).addIdentifier(forindexidentifier)
 						else: # just execute in the current 'global' environment
 							forindexenvironment=evaluationenvironment
 						# do we have a for index identifier????
@@ -2869,7 +2869,7 @@ class Expression(Token):
 								forindexenvironment.getIdentifier(forindexidentifiername).setValue(forindexvalue)
 								###########forindexidentifier.setValue(forindexvalue) # this is a bit of an issue
 							forbodyvalues=[forbodyexpression.setImmediatelyExecutable(True).evaluatesTo(forindexenvironment) for forbodyexpression in forbodyexpressions] # evaluate the remaining arguments
-							note("For body values: "+str(forbodyvalues)+".")
+							######note("For body values: "+str(forbodyvalues)+".")
 							if not isIterable(forbodyvalues) or len(forbodyvalues)!=1:
 								result.append(forbodyvalues)
 							else: # a single result
@@ -2936,12 +2936,12 @@ class Expression(Token):
 						########note("ERROR: the element is a list, which should NOT happen!")
 						return map(getElementValue,_element)
 					if isinstance(_element,Expression):
-						note("Evaluating expression "+str(_element)+".")
+						#######note("Evaluating expression "+str(_element)+".")
 						elementvalue=_element.evaluatesTo(evaluationenvironment)
 					else:
 						elementvalue=getValue(_element)
-					####if self.debug&8:
-					note("Value of "+str(_element)+" of type "+str(type(_element))+": '"+str(elementvalue)+"' of type '"+str(type(elementvalue))+"'.")
+					if self.debug&8:
+						note("Value of "+str(_element)+" of type "+str(type(_element))+": '"+str(elementvalue)+"' of type '"+str(type(elementvalue))+"'.")
 					return elementvalue
 				elements=[] # arguments (functions and values) and operators intertwined
 				# as we will be applying functions to arguments multiple times, we create a subfunction to do that for us
@@ -3082,9 +3082,9 @@ class Expression(Token):
 						self.error="No operands left."
 					elif len(elements)>1:
 						self.error="Too few operators."
-				note("Elements: "+str(elements)+".")
+				####note("Elements: "+str(elements)+".")
 				self.value=map(getElementValue,elements) # evaluate what's left
-				note("Result value: "+str(self.value)+".")
+				####note("Result value: "+str(self.value)+".")
 				if isinstance(self.value,list) and len(self.value)==1:
 					self.value=self.value[0]
 				if self.debug&8:
@@ -3201,18 +3201,22 @@ class IdentifierElementExpression(Expression):
 		Expression.__init__(self,_environment,_parent,_debug,_output) # no passing _tokenchar (yet)
 		# copy all token characters over from the identifier token
 		self.text=_identifiertext # use the text (the token characters representing the identifiers)
-		self.indexvalue=None # no need to evaluate more than once!!!
 		if isinstance(_tokenchar,str):
 			self.append(_tokenchar)
 	def getIdentifier(self):
 		return str(self.text)
 	# an additional method to get at the value of this expression returns the index value
-	def getIndexValue(self):
+	"""
+	# MDH@19SEP2017: essential to evaluate getIndexValue() in the evaluation environment
+	#                instead of the creation environment (which e.g. are different in a for)
+	def getIndexValue(self,_environment):
 		# MDH@18SEP2017: given that we can now have an index into a 'multidimensional' list
 		#								 self.indexvalue could now evaluate to a list of indices
-		if self.indexvalue is None:
-			self.indexvalue=Expression.evaluatesTo(self,self.environment)
-		return self.indexvalue
+		#                oh, in a for loop getIndexValue() might change!!!
+		indexvalue=Expression.evaluatesTo(self,_environment)
+		###note("Index expression '"+self.getText()+"' evaluates to '"+str(self.indexvalue)+"'.")
+		return indexvalue
+	"""
 	def evaluatesTo(self,_environment):
 		######note("Value of an element of "+str(self.identifiername)+" requested.")
 		identifier=_environment.getExistingIdentifier(self.getIdentifier())
@@ -3237,7 +3241,7 @@ class IdentifierElementExpression(Expression):
 		value=identifier.getValue() # which should be a list
 		if not isinstance(value,list):
 			raise Exception("Value of indexed variable "+self.getIdentifier()+" not a list.")
-		indexvalues=self.getIndexValue()
+		indexvalues=Expression.evaluatesTo(self,_environment) ##self.getIndexValue(_environment)
 		if isinstance(indexvalues,list):
 			for indexvalue in indexvalues:
 				# replace value with the value at the given index
@@ -3288,7 +3292,7 @@ class IdentifierElementExpression(Expression):
 			raise Exception("Variable "+self.getIdentifier()+" cannot be indexed: its value is not a list.")
 		####note("Setting the element at index "+str(indexvalue)+" of "+self.identifiername+" with value "+str(value)+".")
 		maxindex=len(value) # get the length of the list
-		indexvalues=self.getIndexValue() # MDH@18SEP2017: could now be multidimensional
+		indexvalues=Expression.evaluatesTo(self,_environment) ##self.getIndexValue(_environment)
 		# typically the last index will do the actually assigning
 		# and therefore it makes sense to start with popping that one off
 		#########note("Index values: "+getText(indexvalues)+".")
