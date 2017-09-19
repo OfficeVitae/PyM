@@ -1,0 +1,7 @@
+; determine whether after movecount moves, and the last player putting a disc in cell (row,column) that player wins
+$=0 ; default result
+if(movecount<7,return()) ; if less than 7 moves so far, no need to check!
+if(horizontally(),return(playerindex))
+if(vertically(),return(playerindex))
+if(diagonally(),return(playerindex))
+if(reversediagonally(),return(playerindex))

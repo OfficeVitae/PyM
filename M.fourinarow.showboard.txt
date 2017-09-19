@@ -1,0 +1,2 @@
+out("Board after "+movecount+"moves:"+lf)
+for(row,1..6,for(col,1..7,out('|'+board(row,col))),out(lf)) ; loop-local variables row and col
