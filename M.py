@@ -838,7 +838,7 @@ class UserFunction(Function):
 		if expressions is not None:
 			l=len(expressions)
 			if l>0:
-				note("Number of expressions to evaluate "+str(l)+"...")
+				######note("Number of expressions to evaluate "+str(l)+"...")
 				executionenvironment=self.getExecutionEnvironment(_arglist)
 				expressionindex=0
 				while expressionindex<len(expressions):
@@ -847,9 +847,9 @@ class UserFunction(Function):
 					expression=expressions[expressionindex].setImmediatelyExecutable(True)
 					if not expression.isEmpty(): # MDH@19SEP2017: skip 'comment' lines
 						try:
-							note("Evaluating '"+expression.getText()+"'...")
+							#####note("Evaluating '"+expression.getText()+"'...")
 							expressionvalue=expression.evaluatesTo(executionenvironment) # evaluate the expression in the execution environment
-							note("Value of "+str(expression)+": "+str(expressionvalue)+".")
+							#####note("Value of "+str(expression)+": "+str(expressionvalue)+".")
 						except JumpException,jumpException:
 							deltaexpressionindex=jumpException.getValue()
 							if isinstance(deltaexpressionindex,(int,long)):
@@ -949,7 +949,7 @@ class Environment:
 		self.M.value=list() # initialize the list of expressions (this is a bit of cheating as we cannot use setValue() on a constant like M)
 		expressionsfilename=self.getExpressionsFilename()
 		if opsyspath.exists(expressionsfilename):
-			note("Reading expressions from "+expressionsfilename+".")
+			#######note("Reading expressions from "+expressionsfilename+".")
 			expressionsfile=open(expressionsfilename,'r')
 			if expressionsfile:
 				expressionline=expressionsfile.readline()
@@ -961,7 +961,7 @@ class Environment:
 							tabpos=expressiontext.find('\t')
 							if tabpos>=0: # expression available
 								expressiontext=expressiontext[tabpos+1:]
-							note("\tParsing '"+expressiontext+"'...")
+							#######note("\tParsing '"+expressiontext+"'...")
 							# MDH@10SEP2017: essential to pass 0 for the debug value!!!
 							(expression,error)=getExpression(expressiontext,self,_evaluate,0)
 							if error is None: # no error
@@ -3588,7 +3588,7 @@ def readExpressions(_environment,_evaluate=False):
 	# _expressionfile designates the open file containing the expressions to populate _environment with
 	expressionsfilename=_environment.getExpressionsFilename()
 	if opsyspath.exists(expressionsfilename):
-		note("Reading expressions from "+expressionsfilename+".")
+		#######note("Reading expressions from "+expressionsfilename+".")
 		expressionsfile=open(expressionsfilename,'r')
 		if expressionsfile:
 			expressionline=expressionsfile.readline()
