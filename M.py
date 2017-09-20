@@ -4047,8 +4047,7 @@ def main():
 				if environment.getNumberOfStartedUserFunctions()==0: # not creating a function right now
 					if len(currentusername)==0:
 						break
-					else:
-						setUsername("")
+					setUsername("")
 				else:
 					# MDH@03SEP2017: at the top level exit M otherwise exit the function creation
 					endFunctionCreation()
@@ -4160,7 +4159,7 @@ def main():
 				# forget about the continuation if an error occurred
 				if expressionerror is None:
 					expressioncontinuation=mexpression.getContinuation()
-					if len(expressioncontinuation)>0:
+					if len(expressioncontinuation)>0: # an expression continuation to show
 						# remove any current intermediate result, so it won't be visible when showing the continuation
 						resultlength=len(resulttext)
 						if resultlength>0:
@@ -4221,8 +4220,8 @@ def main():
 							output("\033["+str(resultlength+1)+"D") # return to the previous cursor position
 						resulttext=newresulttext
 						resultlength=newresultlength
+					# we have to skip any continuation showing, increment resultlength before showing the intermediate result
 					if resultlength>0: # still some result to display
-						# we have to skip any continuation showing
 						if len(expressioncontinuation)>0:
 							output("\033["+str(len(expressioncontinuation))+"C") # jump over the showing expression continuation
 							resultlength+=len(expressioncontinuation) # when we jump back we have to jump over the continuation as well
@@ -4231,6 +4230,11 @@ def main():
 						output("\033["+str(resultlength)+"D") # return to the original cursor position
 			# ready to read and process the next character!!!
 			tokenchar=getexprch()
+			# it's prudent to remove any expression continuation here immediately
+			expressioncontinuationlength=len(expressioncontinuation)
+			if expressioncontinuationlength>0:
+				expressioncontinuation=""
+				output((" "*expressioncontinuationlength)+"\033["+str(expressioncontinuationlength)+"D")
 			#######output("("+str(ord(tokenchar))+")")
 		#####writeln("Done processing user input...")
 		if tokenchar=='`': # backtick, do NOT read another token

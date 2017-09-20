@@ -1,5 +1,8 @@
 ; player1 plays against player2 dropping disc in a 7-by-6 board
 ; game setup
+if(player1==player2,error("The player names should be different!"))
+out("The first character in the player names that differs is used in displaying the board.",lf)
+if(cols==7&&rows==6,out("You can change the number of rows and/or columns by adding them as third and/or fourth argument.",lf))
 board=replicate(replicate(0,cols),rows) ; initialize the rows x cols board
 playerindex=1 ; the current player index (1 or 2)
 maxmovecount=rows*cols ; the maximum number of moves
