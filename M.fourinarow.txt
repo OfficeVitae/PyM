@@ -1,7 +1,8 @@
 ; player1 plays against player2 dropping disc in a 7-by-6 board
 ; game setup
-board=replicate(replicate(0,7),6) ; 6 rows of 7 cells
+board=replicate(replicate(0,cols),rows) ; initialize the rows x cols board
 playerindex=1 ; the current player index (1 or 2)
+maxmovecount=rows*cols ; the maximum number of moves
 movecount=0 ; the number of moves
 $=0 ; the player who won
 ; determine the first different character in the player names
@@ -14,18 +15,22 @@ symbols=(' ',c1,c2) ; the symbols to use in the board, assuming the player names
 ; get move from current player
 col=intin(if(playerindex==1,player1,player2)+', what column to drop the disc in? ',-1) ; ask for column to drop disc in
 if(col<0,return(3-playerindex)) ; user gave up
-if(col<1||col>7||board(1,col)>0,jump(-2)) ; if invalid column ask again
+if(col<1||col>cols||board(1,col)>0,jump(-2)) ; if invalid column ask again
 movecount+=1 ; increment number of moves
 row=1 ; find last available row to occupy
-while(row<6&&board(row+1,col)==0,row+=1)
+while(row<rows&&board(row+1,col)==0,row+=1)
 board(row,col)=playerindex
 out("Board after ",movecount," moves:",lf,' ')
-for(c,1..7,out('|',c)) ; header
-out('|',lf,' +-+-+-+-+-+-+-+',lf) ; header end
+for(c,1..cols,out('|',c)) ; header
+out('|',lf,' +')
+for(c,1..cols,out('-+'))
+out(lf)
 ; board rows
-for(r,1..6,out(r),for(c,1..7,out('|',symbols(1+board(r,c)))),out('|',lf))
-out(' +-+-+-+-+-+-+-+',lf)
+for(r,1..rows,out(r),for(c,1..cols,out('|',symbols(1+board(r,c)))),out('|',lf))
+out(' +')
+for(c,1..cols,out('-+'))
+out(lf)
 $=won() ; determine if the current player won
-if($>0||movecount==42,return())
+if($>0||movecount==maxmovecount,return())
 playerindex=3-playerindex ; switch player
-jump(-16)
+jump(-20)

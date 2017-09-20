@@ -3,8 +3,8 @@ count=0
 ; count to the left
 c=col-1
 while(c>=1&&count<3&&board(row,c)==playerindex,count+=1,c-=1)
-if(count>=3,return(1))
+if(count==3,return(1))
 ; count to the right
 c=col+1
-while(c<=7&&count<3&&board(row,c)==playerindex,count+=1,c+=1)
-if(count>=3,return(1))
+while(c<=cols&&count<3&&board(row,c)==playerindex,count+=1,c+=1)
+if(count==3,return(1))

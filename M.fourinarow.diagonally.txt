@@ -2,9 +2,9 @@ $=0
 count=0
 r=row-1
 c=col+1
-while(r>=1&&c<=7&&count<3&&board(r,c)==playerindex,r-=1,c+=1,count+=1)
-if(count>=3,return(1))
+while(r>=1&&c<=cols&&count<3&&board(r,c)==playerindex,r-=1,c+=1,count+=1)
+if(count==3,return(1))
 r=row+1
 c=col-1
-while(r<=6&&c>=1&&count<3&&board(r,c)==playerindex,r+=1,c-=1,count+=1)
-if(count>=3,return(1))
+while(r<=rows&&c>=1&&count<3&&board(r,c)==playerindex,r+=1,c-=1,count+=1)
+if(count==3,return(1))
