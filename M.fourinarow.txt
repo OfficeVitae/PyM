@@ -4,18 +4,28 @@ board=replicate(replicate(0,7),6) ; 6 rows of 7 cells
 playerindex=1 ; the current player index (1 or 2)
 movecount=0 ; the number of moves
 $=0 ; the player who won
+; determine the first different character in the player names
+(c=1,l1=len(player1),l2=len(player2))
+while(c<=l1&&c<=l2&&player1(c)==player2(c),c+=1)
+c1=if(c<=l1,player1(c),player1(l1))
+c2=if(c<=l2,player2(c),player2(l2))
+symbols=(' ',c1,c2) ; the symbols to use in the board, assuming the player names do not start with the same character
 ; ready to play
 ; get move from current player
 col=intin(if(playerindex==1,player1,player2)+', what column to drop the disc in? ',-1) ; ask for column to drop disc in
 if(col<0,return(3-playerindex)) ; user gave up
-if(col<1||col>7||board(1,col)>0,jump(-1)) ; if invalid column ask again
+if(col<1||col>7||board(1,col)>0,jump(-2)) ; if invalid column ask again
 movecount+=1 ; increment number of moves
 row=1 ; find last available row to occupy
 while(row<6&&board(row+1,col)==0,row+=1)
 board(row,col)=playerindex
-out("Board after ",movecount," moves:",lf)
-for(r,1..6,for(c,1..7,out("|",board(r,c))),out(lf))
+out("Board after ",movecount," moves:",lf,' ')
+for(c,1..7,out('|',c)) ; header
+out('|',lf,' +-+-+-+-+-+-+-+',lf) ; header end
+; board rows
+for(r,1..6,out(r),for(c,1..7,out('|',symbols(1+board(r,c)))),out('|',lf))
+out(' +-+-+-+-+-+-+-+',lf)
 $=won() ; determine if the current player won
 if($>0||movecount==42,return())
 playerindex=3-playerindex ; switch player
-jump(-12)
+jump(-16)

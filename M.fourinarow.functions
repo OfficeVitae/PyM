@@ -1,6 +1,5 @@
-showboard
 won
-horizontally	count	c
-vertically	count	r
-diagonally	count	r	c
-reversediagonally	count	r	c
+horizontally
+vertically
+diagonally
+reversediagonally

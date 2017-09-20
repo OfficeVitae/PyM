@@ -4,4 +4,4 @@ test*	a='a'	b='b'
 test2*	a=1	b=2	c=3
 test3*	a=2	b=3	c=4
 test4*	x='x'	y='y'	z='z'
-fourinarow*	player1='Marc'	player2='Petra'	board	movecount	row	col	playerindex
+fourinarow*	player1='Marc'	player2='Petra'

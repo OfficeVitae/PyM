@@ -69,6 +69,7 @@ IDENTIFIER_COLOR=202 # orange for unknown identifiers (although these would be u
 LITERAL_COLOR=22 # green
 OPERATOR_COLOR=12 # blue
 RESULT_COLOR=15 # quite dark
+OPTION_COLOR=RESULT_COLOR
 
 # the back colors
 DEBUG_BACKCOLOR=255 # light-gray
@@ -78,7 +79,7 @@ IDENTIFIER_BACKCOLOR=231
 LITERAL_BACKCOLOR=231
 OPERATOR_BACKCOLOR=231
 RESULT_BACKCOLOR=69
-
+OPTION_BACKCOLOR=RESULT_BACKCOLOR
 PROMPT_COLOR=INFO_COLOR # same as the info color
 
 """
@@ -464,7 +465,10 @@ class Function:
 						return undefined
 					if self.functionindex==-4: # length
 						i=len(arguments)
-						while i>0 and arguments[i-1]==undefined:
+						# MDH@20SEP2017: if a single argument string, we return the length of that string (dequoted)
+						if i==1 and isinstance(arguments[0],str):
+							return len(dequote(arguments[0])[0])
+						while i>0 and arguments[i-1]==undefined.getValue():
 							i-=1
 						return i
 					if self.functionindex==-5: # size
@@ -529,6 +533,11 @@ class Function:
 							return getExpressionValue(expressiontext,_environment) # don't show debug information
 						if self.functionindex==22: # error
 							raise Exception(value) # generate an error
+						if self.functionindex==24: # chr
+							return chr(value)
+						if self.functionindex==25: # ord
+							expressiontext=dequote(value)[0]
+							return [ord(ch) for ch in expressiontext]
 						if self.functionindex==26: # readlines
 							textfile=open(dequote(value)[0],'r')
 							if textfile:
@@ -614,6 +623,7 @@ class Function:
 							while 1:
 								try:
 									inttext=raw_input(prompttext).strip() # removing whitespace
+									########note("IN: '"+inttext+"'")
 									if len(inttext)==0: # no input, so return the default!!!!
 										break
 									return int(inttext)
@@ -971,6 +981,12 @@ class Environment:
 										expression.evaluatesTo(self) # return statements throw the return exception, which we want to catch
 									except ReturnException,returnException:
 										expression.setValue(returnException.getValue()) # TODO an IdentifierElementExpression also has a setValue but that one requires an environment as well
+								else: # MDH@20SEP2017: ok, if this expression initializes identifier not yet existing in this environment, we're going to declare them!!!
+									expressioninitializes=expression.initializes(self)
+									if len(expressioninitializes)>0:
+										#######note("Initialized in '"+expressiontext+"': "+getText(expressioninitializes)+".")
+										for expressioninitialize in expressioninitializes:
+											self.addIdentifier(Identifier(expressioninitialize))
 							else: # some error, add None
 								note("ERROR: '"+error+"' in processing expression text '"+expressiontext+"' of '"+_environment.getName()+"'.")
 								self.addExpression(None)
@@ -1392,7 +1408,7 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6,'concat':-7,'out':-8}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'readlines':26,'exec':27,'readvalues':28,'int':46,'jump':47,'in':48})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'int':46,'jump':47,'in':48})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 
@@ -2305,6 +2321,36 @@ class Expression(Token):
 	def flagAsDeclared(self):
 		self.declared=True
 		return self
+	# MDH@20SEP2017: it makes sense to collect all identifier names assigned to that do not yet exist????
+	def initializes(self,_environment):
+		result=list()
+		behindassigningoperator=False
+		behindidentifiername=None # the name of the non-existing identifier we are behind
+		for token in self.tokens:
+			# first look at the conditions that will prevent further searching
+			if behindassigningoperator: # something being assigned to
+				# only accept iff the given identifier does not yet exist, and is therefore initialized...
+				if not _environment.identifierExists(behindidentifiername):
+					result.append(behindidentifiername)
+				# start over
+				behindassigningoperator=False
+				behindidentifiername=None
+			tokentype=token.getType()
+			if tokentype==EXPRESSION_TOKENTYPE:
+				# theoretically one could initialize variables in the indices of an IdentifierElementExpression as well
+				subexpressioninitializes=token.initializes(_environment)
+				if len(subexpressioninitializes)>0:
+					result.extend(subexpressioninitializes)
+			elif tokentype==IDENTIFIER_TOKENTYPE:
+				# careful the identifier might be a function
+				identifiername=token.getText()
+				if not _environment.functionExists(identifiername):
+					behindidentifiername=identifiername
+			else: # neither expression nor identifier, so could be an operator (but also a literal of course)
+				if behindidentifiername is not None: # previous token was an identifier
+					if token.assigns(): # if this is an assigning operator token almost there!!!
+						behindassigningoperator=True
+		return result
 	def assigns(self):
 		# an expression assigns when it contains an assignment or any of it's expression assigns
 		# an assignment operator can only occur behind an identifier so we can speed up testing this way
@@ -2423,7 +2469,7 @@ class Expression(Token):
 										identifier=self.getIdentifier(tokentext)
 									if not self.immediatelyexecutable or identifier is not None: # an existing variable # MDH@30AUG2017: allow for 'locally' defined identifiers as well
 										# MDH@19SEP2017: if not supposed to be immediately executable, don't check whether the current value is a list because it should be (when the expression is executed)
-										if not self.immediatelyexecutable or isinstance(identifier.getValue(),list): # can be indexed
+										if not self.immediatelyexecutable or isinstance(identifier.getValue(),list) or isinstance(identifier.getValue(),str): # can be indexed
 											# we're going to replace the identifier by an IdentifierElementExpression
 											self.tokens.pop() # popping off the identifier token (so we can replace it with the IdentifierElementExpression
 											# MDH@19SEP2017: the IdentifierElementExpression has to set it's text to the text of the identifier token
@@ -2833,7 +2879,7 @@ class Expression(Token):
 						if conditionvalue!=1: # everything not equal to 1 should be considered false!
 							break
 						bodyvalues=[bodyexpression.evaluatesTo(evaluationenvironment) for bodyexpression in whilebody]
-						note("Value of body '"+str(whilebody)+"': '"+str(bodyvalues)+"'...")
+						########note("Value of body '"+str(whilebody)+"': '"+str(bodyvalues)+"'...")
 						result.append(bodyvalues)
 				else:
 					note("Please report the following bug: The condition in the while loop is not an expression, but of type "+str(type(_arglist[0]))+"!")
@@ -3225,22 +3271,24 @@ class IdentifierElementExpression(Expression):
 		# help function to return the value at a given index (even when a list of indices)
 		def getValueAtIndex(_value,_index):
 			if not isinstance(_value,list):
-				return undefined
+				return undefined.getValue()
 			if isinstance(_index,list):
 				newvalue=list()
 				for index in _index:
 					newvalue.append(getValueAtIndex(_value,index))
 				return newvalue
-			if _index==0:
-				return undefined
 			if _index<0:
-				index+=(len(_value)+1)
+				_index+=(len(_value)+1)
 			if _index<=0 or _index>len(_value):
-				return undefined
+				return undefined.getValue()
 			return _value[_index-1]
-		value=identifier.getValue() # which should be a list
-		if not isinstance(value,list):
-			raise Exception("Value of indexed variable "+self.getIdentifier()+" not a list.")
+		value=identifier.getValue() # which should be a list or string
+		if not isinstance(value,list) and not isinstance(value,str):
+			raise Exception("Value of variable "+self.getIdentifier()+" not cannot be indexed.")
+		# convert any string into a list of string characters
+		if isinstance(value,str):
+			(text,quotechar)=dequote(value)
+			value=[enquote(c,quotechar) for c in text]
 		indexvalues=Expression.evaluatesTo(self,_environment) ##self.getIndexValue(_environment)
 		if isinstance(indexvalues,list):
 			for indexvalue in indexvalues:
@@ -3255,7 +3303,7 @@ class IdentifierElementExpression(Expression):
 			raise Exception("Identifier "+self.getIdentifier()+" vanished.")
 		value=identifier.getValue() # the list of which elements are to be set
 		def setValueAtIndex(_index):
-			if isinstance(value,list): # we should be assigning to a list element
+			if isinstance(value,list) or isinstance(value,str): # we should be assigning to a list element
 				if isinstance(_index,list):
 					result=list()
 					for index in _index:
@@ -3275,7 +3323,7 @@ class IdentifierElementExpression(Expression):
 						return result
 			return undefined
 		def getValueAtIndex(_index):
-			if isinstance(value,list):
+			if isinstance(value,list) or isinstance(value,str):
 				if isinstance(_index,list):
 					newvalue=list()
 					for index in _index:
@@ -3703,14 +3751,23 @@ def initializeEnvironment(_environment):
 	initializeUsers(_environment) # load the users
 	initializeFunctions(_environment) # load the functions (but not the expressions yet!!!)
 	_environment.loadExpressions(True) # force load the expressions (which should force load the expressions of those functions actually called!!!)
+# we'd like to write the option character in a different backcolor e.g. the DEBUG_BACKCOLOR?
+def getOptionText(_text):
+	return str(ColoredText(_text,OPTION_COLOR,OPTION_BACKCOLOR))
+options=(getOptionText(':')+' (declaration) mode',getOptionText('=')+' (value) mode',getOptionText('b')+'ackcolor',getOptionText('c')+'olor',getOptionText('d')+'ebug',getOptionText('f')+'unction',getOptionText('h')+'elp',getOptionText('l')+'ogin','show '+getOptionText('M'),getOptionText('o')+'perators',getOptionText('s')+'hell',getOptionText('u')+'sers',getOptionText('v')+'ariables','e'+getOptionText('x')+'it M')
+def writeOptions():
+	####lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|M|o|s|u|v|x] ") #### replacing: write(tokenchar)
+	lnwrite("Options: ")
+	for option in options:
+		output(option+'  ')
 """
 READY FOR THE MAIN USER INPUT LOOP
 """
 def main():
 	global DEBUG
 	global environment,Menvironment
-	global INFO_BACKCOLOR,LITERAL_BACKCOLOR,OPERATOR_BACKCOLOR,DEBUG_BACKCOLOR,IDENTIFIER_BACKCOLOR,RESULT_BACKCOLOR,ERROR_BACKCOLOR
-	global INFO_COLOR,LITERAL_COLOR,OPERATOR_COLOR,DEBUG_COLOR,IDENTIFIER_COLOR,RESULT_COLOR,ERROR_COLOR
+	global INFO_BACKCOLOR,LITERAL_BACKCOLOR,OPERATOR_BACKCOLOR,DEBUG_BACKCOLOR,IDENTIFIER_BACKCOLOR,RESULT_BACKCOLOR,ERROR_BACKCOLOR,OPTION_BACKCOLOR
+	global INFO_COLOR,LITERAL_COLOR,OPERATOR_COLOR,DEBUG_COLOR,IDENTIFIER_COLOR,RESULT_COLOR,ERROR_COLOR,OPTION_COLOR
 	# keep a list of statements, every line is one statement
 	# MDH@03SEP2017: I suppose we can let M remember the last user
 	lnwrite("Welcome to M.")
@@ -3729,7 +3786,9 @@ def main():
 		if controlmode:
 			# MDH@02SEP2017: it might be a good idea to to a Q&A
 			while 1:
-				lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|M|o|s|u|v|x] ") #### replacing: write(tokenchar)
+				# TODO write what each possible option means on a single line here
+				writeOptions()
+				lnwrite("What would you like to do? [:=bcdfhlMosuvx] ") #### replacing: write(tokenchar)
 				controlch=getch()
 				writeln(controlch)
 				if ord(controlch)==3 or ord(controlch)==4 or ord(controlch)==10 or ord(controlch)==13:
@@ -3747,7 +3806,7 @@ def main():
 						except Exception,ex:
 							writeln("\tERROR: '"+str(ex)+"' executing '"+shellcommand+"'.")
 				elif controlch=='h' or controlch=="H":
-					writeln("Possible control characters (following the backtick):")
+					writeln("Options (following the backtick):")
 					writelnleft(":\tto switch to declaration mode (default).")
 					writeln("=\tto switch to evaluation mode.")
 					writelnleft("b\tto set back colors (d=debug, i=identifier, l=literal, o=operator, p=prompt).")
