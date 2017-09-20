@@ -229,7 +229,7 @@ def newprompt():
 	updateprompt() # MDH@27AUG2017: we need a new prompt
 	writeprompt()
 def note(_note):
-	lnwrite('\t'+_note)
+	writeln('\t'+_note)
 def writeerror(_error):
 	write(" "*len(prompt)) # go to a new line and start with as many blanks as the length of the prompt
 	# write the error followed by a newline so we can show the user input line immediately
@@ -389,7 +389,7 @@ def concatenate(_texts,_enquoted=True):
 		return result
 	return enquote(result,(quotechar,ts[0])[quotechar is None])
 def valueof(_valuetext):
-	if len(_valuetext)>0:
+	if isinstance(_valuetext,str) and len(_valuetext)>0:
 		if _valuetext[0] in ts:
 			return _valuetext # as is (i.e. text)
 		# either a integer or a float
@@ -831,12 +831,17 @@ class UserFunction(Function):
 			result.addIdentifier(Identifier(self.resultidentifiername))
 		# use arguments when available and the defaults otherwise
 		for (parameterindex,(parametername,parameterdefault)) in enumerate(self.parameterdefaults):
-			if isIterable(_arglist) and parameterindex<len(_arglist):
+			if isIterable(_arglist) and parameterindex<len(_arglist) and _arglist[parameterindex] is not None:
 				argumentvalue=getValue(_arglist[parameterindex])
-				debugnote("Value of argument #"+str(parameterindex)+": "+str(argumentvalue)+".")
+				####note("Value of argument #"+str(parameterindex)+": "+str(argumentvalue)+".")
 				result.addIdentifier(Identifier(parametername).setValue(argumentvalue))
 			else:
-				result.addIdentifier(Identifier(parametername).setValue(parameterdefault))
+				###note("Using default "+str(parameterdefault)+" of parameter "+parametername+".")
+				# MDH@20SEP2017: essential to evaluate the default AS expression, otherwise it would be stored as string
+				#                and fuck up stuff (like using it in certain binary operations like .. that expect numbers)
+				#                as you can see this JIT evaluation of the parameter default is BEST
+				parameterdefaultvalue=getExpressionValue(parameterdefault,self.definitionenvironment)
+				result.addIdentifier(Identifier(parametername).setValue(parameterdefaultvalue))
 		return result
 	def getName(self):
 		return self.name
@@ -853,7 +858,7 @@ class UserFunction(Function):
 				expressionindex=0
 				while expressionindex<len(expressions):
 					# MDH@19SEP2017: TODO do we need to change immediately executable to True here anyway?????
-					#                     as I think evaluatesTo does not use it!!!!
+					#											as I think evaluatesTo does not use it!!!!
 					expression=expressions[expressionindex].setImmediatelyExecutable(True)
 					if not expression.isEmpty(): # MDH@19SEP2017: skip 'comment' lines
 						try:
@@ -1214,6 +1219,7 @@ class Environment:
 			self.addFunction(Function(_functionindexdict[functionname]),functionname)
 	# MDH@15AUG2017: the way we're pushing the elements of the expression on the stack, we're always popping the second operand first, then the operator, then the first argument
 	def getOperationResult(self,argument2,operator,argument1):
+		#####note("Computing "+str(argument1)+" "+str(operator)+" "+str(argument2)+"...")
 		result=None
 		if argument2 is not None and argument1 is not None:
 			def getElementValue(_element):
@@ -1240,6 +1246,7 @@ class Environment:
 				raise Exception("Expression destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
 			# MDH@27AUG2017: all other operations require evaluation of the RHS expression!!!
 			operand2=getElementValue(argument2) # could be a list containing expressions (which hide themselves!!!)
+			#####note("Operand 2: "+str(operand2)+".")
 			if DEBUG&8:
 				note("Computing "+str(argument1)+" "+str(operator)+" "+str(argument2)+"...")
 			# with an assignment the left-hand side will not be a 'list' but the right-hand side can be a list to assign
@@ -1259,6 +1266,7 @@ class Environment:
 				raise Exception("Assignment destination of type "+str(type(argument1))+" of "+str(argument1)+" not an identifier (element)!") # TODO this error should've been identified by the tokenizer
 			# if assigning do not evaluate the left-hand side
 			operand1=getElementValue(argument1)
+			#####note("Operand 1: "+str(operand1)+".")
 			# both operands need not be None
 			if operand1 is not None and operand2 is not None:
 				# with the period also defined as list concatenation operand we should simply extend operand1 with (listified) operand2
@@ -1268,6 +1276,7 @@ class Environment:
 				# ok, both elements should be either lists or scalars, at least to apply the non-assignment binary operators to
 				# although we should always obtain two list or two items, we make a list of either if need be
 				elif isinstance(operand2,list):
+					####note("Operand 2 is a list.")
 					if len(operand2)==0:
 						return operand1
 					if not isinstance(operand1,list):
@@ -1280,6 +1289,7 @@ class Environment:
 						for i in range(0,max(len(operand1),len(operand2))):
 							result.append(self.getOperationResult(getItem(operand2,i),operator,getItem(operand1,i)))
 				elif isinstance(operand1,list):
+					####note("Operand 1 is a list.")
 					if len(operand1)==0:
 						result=operand2
 					else:
@@ -1295,6 +1305,7 @@ class Environment:
 							while operand1-1>=operand2:
 								operand1-=1
 								result.append(operand1)
+						#####note("Range result: "+str(result)+".")
 				elif operator=="-":
 					result=operand1-operand2
 				elif operator=="+":
@@ -1392,6 +1403,7 @@ class Environment:
 			if shortcutting:
 				#######note("Shortcutting!")
 				argument1.setValue(result)
+		#######note("Operation result: "+str(result)+".")
 		return result
 
 # create the main M environment
@@ -2891,6 +2903,7 @@ class Expression(Token):
 				# NOTE any argument should always be an expression, which should create the identifier mentioned in it
 				#			 now, if it is not a single token in it of type identifier
 				if isinstance(forindexexpression,Expression): # which it should be
+					#######note("Evaluating for loop range '"+str(_arglist[1])+"'.")
 					forindexvalues=_arglist[1].evaluatesTo(evaluationenvironment)
 					if isIterable(forindexvalues):
 						# it's MORE convenient to ALWAYS create a new environment, with the for index identifier as identifier
@@ -3254,11 +3267,11 @@ class IdentifierElementExpression(Expression):
 	# an additional method to get at the value of this expression returns the index value
 	"""
 	# MDH@19SEP2017: essential to evaluate getIndexValue() in the evaluation environment
-	#                instead of the creation environment (which e.g. are different in a for)
+	#								 instead of the creation environment (which e.g. are different in a for)
 	def getIndexValue(self,_environment):
 		# MDH@18SEP2017: given that we can now have an index into a 'multidimensional' list
 		#								 self.indexvalue could now evaluate to a list of indices
-		#                oh, in a for loop getIndexValue() might change!!!
+		#								 oh, in a for loop getIndexValue() might change!!!
 		indexvalue=Expression.evaluatesTo(self,_environment)
 		###note("Index expression '"+self.getText()+"' evaluates to '"+str(self.indexvalue)+"'.")
 		return indexvalue
@@ -3719,6 +3732,7 @@ def initializeFunctions(_environment):
 								if len(functionparameterparts)>1 and len(functionparameterparts[1])>0:
 									functionresultidentifiername=functionparameterparts[1]
 							else:
+								note("Registering parameter default "+getText(functionparameterparts)+" of function "+functionname+".")
 								if len(functionparameterparts)>1:
 									functionparameterdefaults.append((functionparameterparts[0],functionparameterparts[1]))
 								else:
@@ -3759,7 +3773,7 @@ def writeOptions():
 	####lnwrite("What would you like to do? [:|=|b|c|d|f|h|l|M|o|s|u|v|x] ") #### replacing: write(tokenchar)
 	lnwrite("Options: ")
 	for option in options:
-		output(option+'  ')
+		output(option+'	 ')
 """
 READY FOR THE MAIN USER INPUT LOOP
 """
@@ -3770,7 +3784,7 @@ def main():
 	global INFO_COLOR,LITERAL_COLOR,OPERATOR_COLOR,DEBUG_COLOR,IDENTIFIER_COLOR,RESULT_COLOR,ERROR_COLOR,OPTION_COLOR
 	# keep a list of statements, every line is one statement
 	# MDH@03SEP2017: I suppose we can let M remember the last user
-	lnwrite("Welcome to M.")
+	writeln("Welcome to M.")
 	# initialize the list of possible M function filenames (as used by initializeFunctions)
 	initializeEnvironment(Menvironment) # load whatever expressions were entered in the root environment
 	setUsername("") # start with an undefined current user
@@ -4231,10 +4245,15 @@ def main():
 			# ready to read and process the next character!!!
 			tokenchar=getexprch()
 			# it's prudent to remove any expression continuation here immediately
-			expressioncontinuationlength=len(expressioncontinuation)
-			if expressioncontinuationlength>0:
-				expressioncontinuation=""
-				output((" "*expressioncontinuationlength)+"\033["+str(expressioncontinuationlength)+"D")
+			# NOTE you can overwrite the expression continuation with blanks but you cannot
+			#			 clear expressioncontinuation because the user could still choose it
+			# NOTE we can check right now whether the new token character is a Tab though
+			#			 so when it is NOT a Tab we can safely remove the continuation right away
+			if ord(tokenchar)!=9: # not a tab
+				expressioncontinuationlength=len(expressioncontinuation)
+				if expressioncontinuationlength>0:
+					expressioncontinuation=""
+					output((" "*expressioncontinuationlength)+"\033["+str(expressioncontinuationlength)+"D")
 			#######output("("+str(ord(tokenchar))+")")
 		#####writeln("Done processing user input...")
 		if tokenchar=='`': # backtick, do NOT read another token
