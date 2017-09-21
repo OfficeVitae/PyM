@@ -1,1 +1,3 @@
+showboard
+canmove row col piece
 checkmove	move

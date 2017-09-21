@@ -358,7 +358,7 @@ def getExpression(_expressiontext,_environment,_immediatelyexecutable,_debug=Non
 	autoinserted=None
 	for ch in _expressiontext:
 		# MDH@21SEP2017: a quick hack to skip the situation where the expression inserted additional characters like the = behind a !
-		#                it's better if the expression exposes what it inserted automatically...
+		#								 it's better if the expression exposes what it inserted automatically...
 		if autoinserted is not None and ch==autoinserted:
 			continue
 		new_expression=expression.add(ch,_output) # MDH@12SEP2017: passing _output is essential BUT TODO have to find out why!!!!
@@ -610,6 +610,8 @@ class Function:
 										textline=textfile.readline()
 								textfile.close()
 								return valuelines
+						elif self.functionindex==45: # MDH@21SEP2017: sign function
+							return ((-1,1)[value>0],0)[value==0]
 						elif self.functionindex==46: # MDH@18SEP2017: int function
 							try:
 								return int(dequote(value)[0])
@@ -624,8 +626,16 @@ class Function:
 							intext=raw_input(dequote(value)[0])
 							return enquote(intext)
 						elif self.functionindex==49: # inch
-							output(dequote(value)[0]) # the question to ask
-							return enquote(getch())
+							# how about letting the argument represent the characters getch() should return??????
+							possiblechars=dequote(value)[0]
+							if len(possiblechars)>0:
+								while 1:
+									ch=getch()
+									if ord(ch) in (3,4,9,10,13): # break anyway on Ctrl-C, Ctrl-D, Enter or Tab
+										break
+									if possiblechars.find(ch)>=0:
+										output(ch) # echo the character input
+										return enquote(ch)
 					elif len(arguments)>1: # shouldn't happen though
 						return [self.apply([x]) for x in arguments] # we have to listify the arguments because self.apply expects an argument list (even a single one)
 				elif self.functionindex<200: # the two-argument functions
@@ -984,6 +994,7 @@ class Environment:
 			#######note("Reading expressions from "+expressionsfilename+".")
 			expressionsfile=open(expressionsfilename,'r')
 			if expressionsfile:
+				expression=None # the current expression
 				expressionline=expressionsfile.readline()
 				while len(expressionline)>0:
 					try:
@@ -1437,7 +1448,7 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'int':46,'jump':47,'in':48,'inch':49})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 

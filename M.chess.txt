@@ -1,5 +1,6 @@
 ; arguments: player1 and player2
-pieces=('p','R','N','B','Q','K') ; characters to use (pawn, rook, knight, bishop, queen and king)
+$=0 ; assume no winner
+pieces='pRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and king)
 ranges=(8..1,1..8) ; display ranges
 board=((2,3,4,5,6,4,3,2),(1,1,1,1,1,1,1,1),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0),(-1,-1,-1,-1,-1,-1,-1,-1),(-2,-3,-4,-5,-6,-4,-3,-2))
 ; initialize the game
@@ -10,14 +11,19 @@ checkmate=false
 checkplayer=0 ; the player being checked
 playerindex=1 ; current player
 ; show chess board in the orientation of the current player
-out("Chess board after ",movecount+" moves.",lf,'  a  b  c  d  e  f  g  h',lf)
-for(row,ranges(playerindex),out(row),for(col,1..8,outc((if(board(row,col)<0,16,231),if((row%2)^(col%2),251,247)),' ',if(board(row,col)!=0,pieces(abs(board(row,col))),' '),' ')),out(row,lf))
-out('  a  b  c  d  e  f  g  h',lf)
+showboard()
 ; ask the user for his/her move
-move=inch(if(playerindex==1,player1,player2)+', what piece do you want to move? ')
-fromtomove=(2,2) ; checkmove(move) ; check the move
-if(fromtomove==?,(out("Invalid move"),jump(-2)))
-; execute the move
+; determine the list of pieces the current player still has
+playerpieces=''
+for(row,ranges(3-playerindex),for(col,1..8,if(if(playerindex==1,board(row,col)>0,board(row,col)<0),if(canmove(row,col),(playerpiece=pieces(abs(board(row,col))),if(find(playerpiece,playerpieces)==0,playerpieces+=playerpiece))))))
+out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+playerpieces+']? ')
+piece=inch(playerpieces) ; get one of the player pieces characters
+out(lf)
+if(piece==?,return()) ; no piece specified
+; now we need to know the end position of that piece
+;;fromtomove=(2,2) ; checkmove(move) ; check the move
+;;if(fromtomove==?,(out("Invalid move"),jump(-2)))
+;;; execute the move
 movecount+=1
 playerindex=3-playerindex
-jump(-11)
+jump(-15)
