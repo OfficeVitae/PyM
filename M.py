@@ -488,6 +488,10 @@ class Function:
 						if len(arguments)==1 and isIterable(arguments[0]): # quick fix
 							arguments=arguments[0]
 						write(concatenate(arguments,False)) # do not enquote, and the result of out remains undefined!!!
+					elif self.functionindex==-9: # outc i.e. colored output
+						# the first argument should be the foreground and background color value, the remainder the elements to show
+						if len(arguments)>1 and isinstance(arguments[0],list) and len(arguments[0])>1:
+							write(concatenate(arguments[1:],False),arguments[0][0],arguments[0][1])
 			else: # a fixed-argument function
 				# application of a scalar function to a list, means applying the function to each element of the list (and return the list of it)
 				if self.functionindex<100: # a scalar function
@@ -838,8 +842,8 @@ class UserFunction(Function):
 			else:
 				###note("Using default "+str(parameterdefault)+" of parameter "+parametername+".")
 				# MDH@20SEP2017: essential to evaluate the default AS expression, otherwise it would be stored as string
-				#                and fuck up stuff (like using it in certain binary operations like .. that expect numbers)
-				#                as you can see this JIT evaluation of the parameter default is BEST
+				#								 and fuck up stuff (like using it in certain binary operations like .. that expect numbers)
+				#								 as you can see this JIT evaluation of the parameter default is BEST
 				parameterdefaultvalue=getExpressionValue(parameterdefault,self.definitionenvironment)
 				result.addIdentifier(Identifier(parametername).setValue(parameterdefaultvalue))
 		return result
@@ -1419,7 +1423,7 @@ Menvironment.addIdentifier(Identifier(_value="'\r'"),'cr') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
-Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6,'concat':-7,'out':-8}) # special functions (0=return,negative ids=list functions)
+Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
 Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'int':46,'jump':47,'in':48})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})

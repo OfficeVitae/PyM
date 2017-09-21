@@ -14,7 +14,7 @@ $=0 ; the player who won
 while(c<=l1&&c<=l2&&player1(c)==player2(c),c+=1)
 c1=if(c<=l1,player1(c),player1(l1))
 c2=if(c<=l2,player2(c),player2(l2))
-symbols=(' ',c1,c2) ; the symbols to use in the board, assuming the player names do not start with the same character
+symbols=(c1,c2) ; the symbols to use in the board, assuming the player names do not start with the same character
 ; ready to play
 ; get move from current player
 col=intin(if(playerindex==1,player1,player2)+', what column to drop the disc in? ',-1) ; ask for column to drop disc in
@@ -30,11 +30,12 @@ out('|',lf,' +')
 for(c,1..cols,out('-+'))
 out(lf)
 ; board rows
-for(r,1..rows,out(r),for(c,1..cols,out('|',symbols(1+board(r,c)))),out('|',lf))
+; if the cell is empty, we'd like to show the column value light grey on white
+for(r,1..rows,out(r),for(c,1..cols,out('|'),if(board(r,c)>0,out(symbols(board(r,c))),outc((7,?),c))),out('|',lf))
 out(' +')
 for(c,1..cols,out('-+'))
 out(lf)
 $=won() ; determine if the current player won
 if($>0||movecount==maxmovecount,return())
 playerindex=3-playerindex ; switch player
-jump(-20)
+jump(-21)
