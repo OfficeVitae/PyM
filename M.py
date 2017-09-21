@@ -354,12 +354,19 @@ def getExpression(_expressiontext,_environment,_immediatelyexecutable,_debug=Non
 	if debug&8:
 		lnwrite("\tEvaluating '"+_expressiontext+"': ")
 	error=None
+	# MDH@62ND_BIRTHDAY: QUICK FIX we have to skip any character auto-inserted on parsing the expression!!
+	autoinserted=None
 	for ch in _expressiontext:
+		# MDH@21SEP2017: a quick hack to skip the situation where the expression inserted additional characters like the = behind a !
+		#                it's better if the expression exposes what it inserted automatically...
+		if autoinserted is not None and ch==autoinserted:
+			continue
 		new_expression=expression.add(ch,_output) # MDH@12SEP2017: passing _output is essential BUT TODO have to find out why!!!!
 		error=expression.getError()
 		if error is not None:
 			lnwrite("\t'"+error+"' evaluating '"+_expressiontext+"'.")
 			break
+		autoinserted=expression.getAutoInserted() # remember any character auto-inserted
 		expression=new_expression
 	if error is not None:
 		error=expression.ends()
@@ -381,6 +388,7 @@ def concatenate(_texts,_enquoted=True):
 	result=""
 	quotechar=None
 	for text in _texts:
+		######note("To show: '"+text+"'.")
 		(dqtext,dqchar)=dequote(text)
 		if quotechar is None and dqchar is not None:
 			quotechar=dqchar
@@ -502,47 +510,47 @@ class Function:
 						value=arguments[0] # the single scalar argument to apply the function to
 						if self.functionindex==7:
 							return ~value
-						if self.functionindex==8: # NOT unary operator (which is !)
+						elif self.functionindex==8: # NOT unary operator (which is !)
 							return (0,1)[value==0]
-						if self.functionindex==9: # = which means evaluate the expression behind it, which we already did!!!
+						elif self.functionindex==9: # = which means evaluate the expression behind it, which we already did!!!
 							return value
-						if self.functionindex==10: # minus unary operator
+						elif self.functionindex==10: # minus unary operator
 							return -value
-						if self.functionindex==11:
+						elif self.functionindex==11:
 							return value
-						if self.functionindex==12:
+						elif self.functionindex==12:
 							######debugnote("Returning the square root!")
 							return math.sqrt(value)
-						if self.functionindex==13:
+						elif self.functionindex==13:
 							return abs(value)
-						if self.functionindex==14:
+						elif self.functionindex==14:
 							return math.cos(value)
-						if self.functionindex==15:
+						elif self.functionindex==15:
 							return math.sin(value)
-						if self.functionindex==16:
+						elif self.functionindex==16:
 							return math.tan(value)
-						if self.functionindex==17:
+						elif self.functionindex==17:
 							return 1/math.tan(value)
-						if self.functionindex==18:
+						elif self.functionindex==18:
 							return random.uniform(0,value)
-						if self.functionindex==19:
+						elif self.functionindex==19:
 							return math.log(value)
-						if self.functionindex==20:
+						elif self.functionindex==20:
 							return math.log10(value)
-						if self.functionindex==21: # eval
+						elif self.functionindex==21: # eval
 							# __value is supposed to be a string which is a bit of an issue if it isn't
 							# nevertheless we should treat __value as an expression that we need to evaluate
 							expressiontext=dequote(value)[0]
 							####note("To evaluate: '"+expressiontext+"'.")
 							return getExpressionValue(expressiontext,_environment) # don't show debug information
-						if self.functionindex==22: # error
+						elif self.functionindex==22: # error
 							raise Exception(value) # generate an error
-						if self.functionindex==24: # chr
+						elif self.functionindex==24: # chr
 							return chr(value)
-						if self.functionindex==25: # ord
+						elif self.functionindex==25: # ord
 							expressiontext=dequote(value)[0]
 							return [ord(ch) for ch in expressiontext]
-						if self.functionindex==26: # readlines
+						elif self.functionindex==26: # readlines
 							textfile=open(dequote(value)[0],'r')
 							if textfile:
 								textlines=list()
@@ -554,9 +562,9 @@ class Function:
 										textline=textfile.readline()
 								textfile.close()
 								return textlines
-						if self.functionindex==27: # sh
+						elif self.functionindex==27: # sh
 							return executecommand(dequote(value)[0])
-						if self.functionindex==28: # readvalues
+						elif self.functionindex==28: # readvalues
 							textfile=open(dequote(value)[0],'r')
 							if textfile:
 								valuelines=list()
@@ -602,7 +610,7 @@ class Function:
 										textline=textfile.readline()
 								textfile.close()
 								return valuelines
-						if self.functionindex==46: # MDH@18SEP2017: int function
+						elif self.functionindex==46: # MDH@18SEP2017: int function
 							try:
 								return int(dequote(value)[0])
 							except:
@@ -610,18 +618,23 @@ class Function:
 									return long(dequote(value)[0])
 								except:
 									pass
-						if self.functionindex==47: # MDH@18SEP2017: jump only allowed in a function
+						elif self.functionindex==47: # MDH@18SEP2017: jump only allowed in a function
 							raise JumpException(value)
-						if self.functionindex==48: # MDH@18SEP2017: get input from the user
-							return enquote(raw_input(dequote(value)[0]))
-						""" MDH@19SEP2017: turned into a list function which concatenates the texts
-						if self.functionindex==49: # out
-							return write(dequote(value)[0])
-						"""
+						elif self.functionindex==48: # MDH@18SEP2017: get input from the user
+							intext=raw_input(dequote(value)[0])
+							return enquote(intext)
+						elif self.functionindex==49: # inch
+							output(dequote(value)[0]) # the question to ask
+							return enquote(getch())
 					elif len(arguments)>1: # shouldn't happen though
 						return [self.apply([x]) for x in arguments] # we have to listify the arguments because self.apply expects an argument list (even a single one)
 				elif self.functionindex<200: # the two-argument functions
-					if self.functionindex==104: # MDH@19SEP2017: get integer from user
+					if self.functionindex==105: # MDH@21SEP2017: find text in string
+						if len(arguments)>1 and isinstance(arguments[0],str) and isinstance(arguments[1],str):
+							findtext=dequote(arguments[0])[0]
+							searchtext=dequote(arguments[1])[0]
+							return 1+searchtext.find(findtext)
+					elif self.functionindex==104: # MDH@19SEP2017: get integer from user
 						if len(arguments)>1 and isinstance(arguments[1],(int,long)):
 							prompttext=dequote(arguments[0])[0]
 							while 1:
@@ -634,7 +647,7 @@ class Function:
 								except:
 									writeln("Integer (or no) input required. Please try again!")
 							return arguments[1] # the default
-					if self.functionindex==103: # MDH@18SEP2017: replicate
+					elif self.functionindex==103: # MDH@18SEP2017: replicate
 						# the second argument should be a positive integer telling us how many times to replace the first argument
 						if len(arguments)>1 and isinstance(arguments[1],(int,long)):
 							replicatecount=arguments[1]
@@ -646,7 +659,7 @@ class Function:
 									replicates.append(arguments[0])
 								replicatecount-=1
 							return replicates
-					if self.functionindex==101 or self.functionindex==102: # ls/dir
+					elif self.functionindex==101 or self.functionindex==102: # ls/dir
 						if len(arguments)>0:
 							directory=dequote(arguments[0])[0] # the name of the directory requested
 						else:
@@ -663,7 +676,7 @@ class Function:
 							filter=("*","*.*")[self.functionindex==102] # Unix or Windows style
 						import glob
 						return map(enquote,glob.glob(opsyspath.join(directory,filter)))
-					if self.functionindex==199: # join
+					elif self.functionindex==199: # join
 						if len(arguments)==2:
 							if isIterable(arguments[0]) and isinstance(arguments[1],(int,long)) and arguments[1]>0:
 								listl=arguments[1]
@@ -1424,8 +1437,8 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'int':46,'jump':47,'in':48})
-Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'function':150,'join':199})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'int':46,'jump':47,'in':48,'inch':49})
+Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 
 environment=None # MDH@03SEP2017: wait for the user name to be known!!!
@@ -2396,11 +2409,14 @@ class Expression(Token):
 		return False
 	def getContinuation(self):
 		return self.continuation
+	def getAutoInserted(self):
+		return self.autoinserted
 	def add(self,_tokenchar,_echo=None):
 		echo=(self.echo,_echo)[isinstance(_echo,bool)]
 		# default result is the current expression itself
 		self.value=None # MDH@07SEP2017: recomputation would be needed afterwards for sure
 		self.error=None # to store the error in
+		self.autoinserted=None # MDH@21SEP2017: what was automatically inserted by add()
 		self.continuation=None # MDH@12SEP2017: we are going to compute a continuation
 		result=self # the default result is self
 		try:
@@ -2704,6 +2720,7 @@ class Expression(Token):
 												# force equal is comparison operator
 												# if we want to be able to undo the entire token with backspace
 												# we move the second token character directly in the 'whitespace' suffix so we can recognize that situation
+												self.autoinserted=_tokenchar # MDH@21SEP2017: expose any auto inserted character!!!
 												self.addToken(OPERATOR_TOKENTYPE,_tokenchar+_tokenchar,echo).discontinued() # instead of 'ignoring' the second character, we put both in ONE token char and discontinue the lot
 												if echo:
 													beep()
@@ -2746,6 +2763,7 @@ class Expression(Token):
 										if soroindex==0: # this would be the two-character unequal to operator to which we may automatically add the equal character
 											# TODO we might decide not to auto-append the = character of the unequal to operator
 											# we now create a token with a single tokenchar containing both token, so they will be removed as a whole (whether or not that is a good idea????)
+											self.autoinserted=assignmentchar # MDH@21SEP2017: expose to the outside what was auto inserted...
 											self.addToken(OPERATOR_TOKENTYPE,_tokenchar+assignmentchar,echo).discontinued() # todo more likely the equal-to-character
 											if echo: # interactive mode
 												beep() # inform user of something special happening
@@ -2947,6 +2965,7 @@ class Expression(Token):
 			#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
 			result=list()
 			conditionvalue=_arglist[0].evaluatesTo(evaluationenvironment)
+			#######note("Condition '"+str(_arglist[0])+"' evaluates to '"+str(conditionvalue)+"'.")
 			if isinstance(conditionvalue,(int,long)): # an acceptible outcome
 				if conditionvalue!=0: # condition evaluates to True
 					if len(_arglist)>1:
@@ -4160,6 +4179,7 @@ def main():
 						expressionerror=mexpression.getError()
 						# write the error first (if so required)
 						if expressionerror is not None:
+							newline()
 							writeerror(expressionerror)
 						if mexpression_new is not None: # success i.e. definitely NO error
 							userInputLine.removeLastCharacter(expressionerror is None)
@@ -4171,6 +4191,7 @@ def main():
 					mexpression_new=mexpression.add(tokenchar)
 					expressionerror=mexpression.getError()
 					if expressionerror is not None:
+						newline()
 						writeerror(expressionerror)
 						updateUserInputLine(False) # no need to empty the line because it is already empty after writing the error
 				# next to write any expression continuation available

@@ -1,0 +1,11 @@
+; checks the move entered by the current player
+; if last two characters represent the end position
+$=?
+if(len(move)<2,return()) ; at least two characters required
+mc=find(move(-1),cols)
+out("End column: ",mc,lf)
+if(mc==0,return()) ; invalid colum
+mr=find(move(-2),rows)
+out("End row: ",mr,lf)
+$=((mr,mc))
+
