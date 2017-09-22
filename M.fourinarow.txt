@@ -1,5 +1,7 @@
 ; player1 plays against player2 dropping disc in a 7-by-6 board
 ; game setup
+debugnow=debug ; remember the current debug level
+debug=0 ; do not allow debug information to show while playing
 if(player1==player2,error("The player names should be different!"))
 out("Arguments: player 1=",player1," - player 2=",player2," - rows=",rows," - columns=",cols,".",lf)
 out("The first character in the player names that differs is used in displaying the board.",lf)
@@ -15,11 +17,14 @@ while(c<=l1&&c<=l2&&player1(c)==player2(c),c+=1)
 c1=if(c<=l1,player1(c),player1(l1))
 c2=if(c<=l2,player2(c),player2(l2))
 symbols=(c1,c2) ; the symbols to use in the board, assuming the player names do not start with the same character
-; ready to play
+; determine columns that a disc can be dropped in
+availablecolumns=''
+for(c,1..cols,if(board(1,c)==0,availablecolumns+=c))
 ; get move from current player
-col=intin(if(playerindex==1,player1,player2)+', what column to drop the disc in? ',-1) ; ask for column to drop disc in
-if(col<0,return(3-playerindex)) ; user gave up
-if(col<1||col>cols||board(1,col)>0,jump(-2)) ; if invalid column ask again
+out(if(playerindex==1,player1,player2)+', what column to drop the disc in [',availablecolumns,']? ')
+col=int(inch(availablecolumns)) ; ask for column to drop disc in
+if(col==?,(debug=debugnow,return(3-playerindex))) ; user gave up
+out(lf)
 movecount+=1 ; increment number of moves
 row=1 ; find last available row to occupy
 while(row<rows&&board(row+1,col)==0,row+=1)
@@ -36,6 +41,6 @@ out(' +')
 for(c,1..cols,out('-+'))
 out(lf)
 $=won() ; determine if the current player won
-if($>0||movecount==maxmovecount,return())
+if($>0||movecount==maxmovecount,(debugnow=debug,return()))
 playerindex=3-playerindex ; switch player
-jump(-21)
+jump(-25)

@@ -4,6 +4,7 @@ Marc's expression tokenizer and evaluator
 """ History of development:
 22SEP2017:
 - allowing continuation of expressions on successive lines (preferably indented with a tab)
+- adding DEBUG to Menvironment, so it can be controlled in input mode!!!
 21SEP2017:
 - function 'sign', 'inch' (e.g. to be used in M.chess)
 18SEP2017:
@@ -351,7 +352,28 @@ def group(_by,_list):
 			return result
 	return None
 # helper classes Function, Identifier and Token
-DEBUG=1
+class Identifier:
+	def setValue(self,_value=None):
+		if self.name is None:
+			raise Exception("Cannot change the value of a constant.")
+		self.value=_value
+		####note("Value of identifier '"+self.name+"' set to '"+str(self.value)+"'.")
+		return self
+	def __init__(self,_name=None,_value=None):
+		self.name=_name
+		self.value=_value
+	def getName(self):
+		return self.name
+	def getValue(self):
+		####note("Returning value ("+str(self.value)+") of "+("?",self.name)[self.name is not None]+".")
+		return self.value
+	def __repr__(self):
+		return self.name
+	def __str__(self):
+		return self.name
+DEBUG=Identifier('debug',1) # MDH@22SEP2017: let's make debug accessible to the expressions
+def getDebug():
+	return DEBUG.getValue()
 # MDH@19SEP2017: _executable signifies whether or not the expressions should be immediately executable
 # MDH@22SEP2017: by allowing to pass in an expression it's possible to continue that expression with the given expression text!!!!
 def getNewExpression(_environment,_immediatelyexecutable,_debug=None,_output=False):
@@ -399,6 +421,7 @@ def concatenate(_texts,_enquoted=True):
 		return dequote(_texts)[0]
 	result=""
 	quotechar=None
+	#######note("Concatenating '"+str(_texts)+"'.")
 	for text in _texts:
 		######note("To show: '"+text+"'.")
 		(dqtext,dqchar)=dequote(text)
@@ -457,8 +480,9 @@ class Function:
 			arguments=map(getValue,_args) # get all arguments evaluated
 			if self.functionindex<0: # a list function
 				if isIterable(arguments): # as it should be
+					########note("Applying list function #"+str(self.functionindex)+" to "+str(arguments)+".")
 					if self.functionindex==-1: # list
-						return List(arguments) # wrap the list of arguments in a List, to prevent it from being recognized as a single-item list that might be devaluated!
+						return list(arguments) # wrap the list of arguments in a List, to prevent it from being recognized as a single-item list that might be devaluated!
 					if self.functionindex==-2: # sum
 						i=len(arguments)-1
 						if i>=0:
@@ -470,7 +494,7 @@ class Function:
 								return sum
 							except Exception,ex:
 								pass
-						return undefined
+						return undefined.getValue()
 					if self.functionindex==-3: # product
 						i=len(arguments)-1
 						if i>=0:
@@ -482,7 +506,7 @@ class Function:
 								return product
 							except Exception,ex:
 								pass
-						return undefined
+						return undefined.getValue()
 					if self.functionindex==-4: # length
 						# length is a single-argument function that works on lists, so every argument needs to be a list, otherwise we return -1 as the length!!!
 						i=len(arguments)
@@ -768,6 +792,14 @@ class Function:
 		# if we get here the function result is undefined
 		return undefined
 	def getValue(self,_arglist):
+		""" it's easier if we let apply consume the argument list by popping arguments (already being done, see below)
+		functionvaluelist=list()
+		while len(_arglist)>0:
+			self.apply(_arglist)
+		if len(functionvaluelist)==1:
+			return functionvaluelist[0]
+		return functionvaluelist
+		"""
 		# every function has a fixed number of arguments it requires (except for the list functions which consume the argument list as a whole)
 		# for single-argument functions we can use Python's map() to take care of generating the results
 		# for all others we apply the function to as many arguments it needs until all arguments are consumed
@@ -778,7 +810,7 @@ class Function:
 		if self.functionindex==-1:
 			return List(_arglist)
 		if self.functionindex<-1: # assumed list function TODO can we somehow process these as any other 'normal' function??????
-			return [self.apply(_arg) for _arg in _arglist] # but we want to apply the list function to each of the arguments
+			return self.apply(_arglist) # but we want to apply the list function to each of the arguments
 		argcount=1+(self.functionindex/100) # the number of arguments the function requires
 		# the function needs to be applied at least once
 		functionvaluelist=list() # the list containing the successive results of the function application
@@ -933,25 +965,6 @@ class UserFunction(Function):
 			note("ERROR: No expressions to evaluate!")
 		return (undefined,result)[result is not None]
 # keep track of the identifier (that have a value)
-class Identifier:
-	def setValue(self,_value=None):
-		if self.name is None:
-			raise Exception("Cannot change the value of a constant.")
-		self.value=_value
-		####note("Value of identifier '"+self.name+"' set to '"+str(self.value)+"'.")
-		return self
-	def __init__(self,_name=None,_value=None):
-		self.name=_name
-		self.value=_value
-	def getName(self):
-		return self.name
-	def getValue(self):
-		####note("Returning value ("+str(self.value)+") of "+("?",self.name)[self.name is not None]+".")
-		return self.value
-	def __repr__(self):
-		return self.name
-	def __str__(self):
-		return self.name
 undefined=Identifier(_value='?') # the identifier with None value is used to indicate an undefined value and is to be returned as value when non-computable/computed
 # MDH@30AUG2017: an 'environment is basically a dictionary of identifiers
 # MDH@02SEP2017: we're gonna let Environment keep a list of user functions being created
@@ -1303,7 +1316,7 @@ class Environment:
 					raise Exception("Please report this bug. Shortcut assignment operator cannot be applied to a non-variable.")
 				operator=operator[:-1]
 			if operator==declarationchar: # the expression assignment operator (which is very special indeed)
-				if DEBUG&8:
+				if getDebug()&8:
 					note("Declaring "+str(argument2)+" as "+str(argument1)+".")
 				if isinstance(argument1,Identifier):
 					return argument1.setValue(argument2).getValue()
@@ -1314,7 +1327,7 @@ class Environment:
 			# MDH@27AUG2017: all other operations require evaluation of the RHS expression!!!
 			operand2=getElementValue(argument2) # could be a list containing expressions (which hide themselves!!!)
 			#####note("Operand 2: "+str(operand2)+".")
-			if DEBUG&8:
+			if getDebug()&8:
 				note("Computing "+str(argument1)+" "+str(operator)+" "+str(argument2)+"...")
 			# with an assignment the left-hand side will not be a 'list' but the right-hand side can be a list to assign
 			# so it's easist to deal with the assignment separately
@@ -1323,7 +1336,7 @@ class Environment:
 					operand1=argument1[0]
 				else: # which could be an empty list!!!
 					operand1=argument1
-				if DEBUG&8:
+				if getDebug()&8:
 					note("Assigning "+str(operand2)+" to "+str(operand1)+".")
 				if isinstance(operand1,Identifier):
 					return operand1.setValue(operand2).getValue()
@@ -1339,11 +1352,11 @@ class Environment:
 				# with the period also defined as list concatenation operand we should simply extend operand1 with (listified) operand2
 				if operator==periodchar: # the list concatenation operator
 					# MDH@22SEP2017: ah, we have to be careful here because the original list might be empty
-					note("Concatenating lists '"+str(operand1)+"' and '"+str(operand2)+"'.")
+					######note("Concatenating lists '"+str(operand1)+"' and '"+str(operand2)+"'.")
 					result=list()
 					result.extend(listify(operand1))
 					result.extend(listify(operand2))
-					note("Result list: '"+str(result)+"'.")
+					######note("Result list: '"+str(result)+"'.")
 				# ok, both elements should be either lists or scalars, at least to apply the non-assignment binary operators to
 				# although we should always obtain two list or two items, we make a list of either if need be
 				elif isinstance(operand2,list):
@@ -1468,7 +1481,7 @@ class Environment:
 					result=(falsevalue,truevalue)[operand1==operand2]
 				elif operator=="!=":
 					result=(falsevalue,truevalue)[operand1!=operand2]
-			if DEBUG&8:
+			if getDebug()&8:
 				note("Result of applying "+str(operator)+" to "+str(operand1)+" and "+str(operand2)+"="+str(result))
 			# MDH@05SEP2017: when a shortcut assignment place the result in the argument1 variable as well!!!
 			if shortcutting:
@@ -1482,6 +1495,7 @@ import math
 # create the root environment
 Menvironment=Environment() # MDH@03SEP2017: the root M environment containing the M identifiers and functions always accessible
 # populate the M environment with the predefined constants/variables
+Menvironment.addIdentifier(DEBUG) # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(undefined,'?') # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(Identifier(_value=0),'false')
 Menvironment.addIdentifier(Identifier(_value=1),'true')
@@ -1598,13 +1612,11 @@ te="'"+'"' # ends a string literal
 # we have some predefined identifiers which are all functions of a fixed number of arguments
 # and here's the dictionary in which the identifiers themselves are stored
 # we allow using M as variable, referring to the previously executed commands, given that the value is a list you can change elements (not recommended though)
-class List: # wraps a list, to prevent de-listing
+class List(tuple): # wraps a list, to prevent de-listing
 	def __init__(self,_list):
-		self.list=_list
+		tuple.__init__(self,_list)
 	def getValue(self):
-		if self.list is None:
-			return list()
-		return self.list
+		return self
 def getInteger(_value):
 	if isinstance(_value,(int,long)):
 		return _value
@@ -1614,7 +1626,7 @@ def getInteger(_value):
 		return int(_value)
 	return None
 def getValue(_value):
-	if DEBUG&8:
+	if getDebug()&8:
 		note("Obtaining the value of "+str(_value)+"...")
 	if _value is not None:
 		if isinstance(_value,list):
@@ -1747,17 +1759,17 @@ class UserInputLine(list):
 		return result
 	def append(self,_character):
 		list.append(self,_character)
-		if DEBUG&128:
+		if getDebug()&128:
 			write("$",DEBUG_COLOR)
 	def extend(self,_characters):
 		list.extend(self,_characters)
-		if DEBUG&128:
+		if getDebug()&128:
 			write("$",DEBUG_COLOR)
 	def reset(self,_characters=None):
 		del self[:]
 		if isinstance(_characters,list) and len(_characters)>0:
 			self.extend(_characters)
-		if DEBUG&128:
+		if getDebug()&128:
 			write("@",DEBUG_COLOR) # for testing purposes
 userInputLine=UserInputLine() # we only need a single instance
 
@@ -3226,12 +3238,14 @@ class Expression(Token):
 							self.error="No operands left."
 						elif len(elements)>1:
 							self.error="Too few operators."
-					####note("Elements: "+str(elements)+".")
+					########note("Elements: "+str(elements)+".")
 					self.value=map(getElementValue,elements) # evaluate what's left
 					# MDH@22SEP2017: we do NOT want to unlist a single result, which would mean that expressions enclosed in parenthesis return a list!!!!
-					#                alternatively, we might remove all None elements at the end so that a list would remain if only a single element (like Python does!)
-					####note("Result value: "+str(self.value)+".")
-					if isinstance(self.value,list) and len(self.value)==1:
+					#								 alternatively, we might remove all None elements at the end so that a list would remain if only a single element (like Python does!)
+					########note("Result value: "+str(self.value)+".")
+					# MDH@22SEP2017: how about NOT delisting here, to honour the parentheses around the subexpressions?????
+					#                unless this is the topmost expression
+					while isinstance(self.value,list) and len(self.value)==1:
 						self.value=self.value[0]
 					# MDH@22SEP2017: we can force to return a list by appending None elements (i.e. empty expressions), as Python does!!!
 					if isinstance(self.value,list):
@@ -4116,11 +4130,11 @@ def main():
 				elif controlch=="l" or controlch=="L":
 					setUsername(getUsername())
 				elif controlch=="d" or controlch=="D":
-					write("Please enter the new debug level (replacing: "+str(DEBUG)+"): ")
+					write("Please enter the new debug level (replacing: "+str(DEBUG.getValue())+"): ")
 					debugtext=raw_input().strip()
 					try:
-						DEBUG=int(debugtext)
-						writeln("Debug level set to "+str(DEBUG)+".")
+						DEBUG.setValue(int(debugtext))
+						writeln("Debug level set to "+str(DEBUG.getValue())+".")
 					except:
 						writeln("Invalid debug level input '"+debugtext+"': only non-negative integer values are allowed!")
 				elif controlch=="x" or controlch=="X":
@@ -4304,7 +4318,7 @@ def main():
 			if mexpression_new is not None: # whatever we did we succeeded!!!
 				mexpression=mexpression_new
 				# MDH@31AUG2017: it's neat to show the value of the expression in debug mode when it could end
-				if DEBUG&1:
+				if getDebug()&1:
 					newresulttext=""
 					# MDH@19SEP2017: if empty do not evaluate
 					if mexpression.parent is None and not mexpression.isEmpty() and not mexpression.assigns(): # we're at the top level in a non-assigning expression
@@ -4380,6 +4394,7 @@ def main():
 			# MDH@22SEP2017: empty expressions now return None, whereas if somehow invalid, they return undefined!!!
 			try:
 				expressionvalue=mexpression.evaluatesTo(environment) # pass in the global environment to evaluate the expression
+				#######note("Expression value: "+str(expressionvalue)+"'!")
 			except ReturnException,returnException:
 				expressionvalue=returnException.getValue()
 			# write the value of the expression on a separate line (before writing any error)
@@ -4408,6 +4423,6 @@ def main():
 if __name__=="__main__":
 	try:
 		if len(sys.argv)>1:
-			DEBUG=int(sys.argv[1])
+			DEBUG.setValue(int(sys.argv[1]))
 	finally:
 		main()
