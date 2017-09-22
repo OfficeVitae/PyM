@@ -3,28 +3,32 @@ $=0 ; assume no winner
 piecetypes='pRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and king)
 piecetypenames=('pawn','rook','knight','bishop','queen','king') ; the names of the piece (types)
 ranges=(8..1,1..8) ; display ranges
-board=((2,3,4,5,6,4,3,2),(1,1,1,1,1,1,1,1),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0),(-1,-1,-1,-1,-1,-1,-1,-1),(-2,-3,-4,-5,-6,-4,-3,-2))
+board=replicate(replicate(0,8),8) ; create empty board
 ; initialize the game
 rows='abcdefgh' ; the row names
 cols='12345678' ; the column names
 movecount=0
 checkmate=false
 kingmoved=(false,false) ; whether or not the king was moved yet, if it hasn't it can still castle
+enpassantposition=(?,?) ; keep track of the en passant capture positions (which is always the position behind a two-step pawn movement)
 playerincheck=0 ; the player currently in check
 playerindex=1 ; current player
 playersign=1 ; the sign of the player's pieces on the board
 ; keep track of the positions of all pieces (by player, by type)
-piecepositions=((((2,1),(2,2),(2,3),(2,4),(2,5),(2,6),(2,7),(2,8)),((1,1),(1,8)),((1,2),(1,7)),((1,3),(1,6)),((1,4)),((1,5))),(((7,1),(7,2),(7,3),(7,4),(7,5),(7,6),(7,7),(7,8)),((8,1),(8,8)),((8,2),(8,7)),((8,3),(8,6)),((8,4)),((8,5))))
+; if we always store the position of the king in the first element, it's easy to find
+piecepositions=(((6,1,5),(2,1,1),(3,1,2),(4,1,3),(5,1,4),(4,1,6),(3,1,7),(2,1,8),(1,2,1),(1,2,2),(1,2,3),(1,2,4),(1,2,5),(1,2,6),(1,2,7),(1,2,8)),((6,8,5),(2,8,1),(3,8,2),(4,8,3),(5,8,4),(4,8,6),(3,8,7),(2,8,8),(1,7,1),(1,7,2),(1,7,3),(1,7,4),(1,7,5),(1,7,6),(1,7,7),(1,7,8)))
+; put the pieces on the board
+for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1))))
 ; show chess board in the orientation of the current player
 showBoard()
 ; let's determine all the theoretic positions the pieces of the current player can move to when I'm not in check, otherwise checkMate() would've determined them
 if(playerincheck!=playerindex,candidateEndPositions=getCandidateEndPositions())
 ; ask the user for his/her move
 ; determine the list of pieces the current player still has
-playerpiecetypes=''
-for(row,ranges(3-playerindex),for(col,1..8,if(if(playerindex==1,board(row,col)>0,board(row,col)<0),if(canmove(row,col),(playerpiecetype=piecetypes(abs(board(row,col))),if(find(playerpiecetype,playerpiecetypes)==0,playerpiecetypes+=playerpiecetype))))))
-out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+playerpiecetypes+']? ')
-piecetype=inch(playerpiecetypes) ; get one of the player pieces characters
+(ppts='',ppps=piecepositions(playerindex))
+for(ppi,1..len(ppps),ppt=piecetypes(ppps(ppi)),if(find(ppt,playerpiecetypes)==0,ppts+=ppt))
+out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+ppts+']? ')
+piecetype=inch(ppts) ; get one of the player pieces characters
 out(lf)
 if(piecetype==?,if(givingUp(),return(3-playerindex),jump(-3))) ; if no piece defined, ask the user if they want to give up
 ; get the position of this piece, if multiple positions exist, ask the user which one he means, there can be at most 8 of them (pawns), which we may number
@@ -37,4 +41,4 @@ updateInCheck() ; check whether the opponent is now in check
 if(playerincheck>0&&checkMate(),return(playerindex)) ; if opponent in check, check for checkmate
 playerindex=3-playerindex
 playersign=-playersign
-jump(-18)
+jump(-21)

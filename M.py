@@ -510,14 +510,27 @@ class Function:
 					if self.functionindex==-4: # length
 						# length is a single-argument function that works on lists, so every argument needs to be a list, otherwise we return -1 as the length!!!
 						i=len(arguments)
+						note("Determining the length of "+str(arguments)+".")
 						# MDH@20SEP2017: if a single argument string, we return the length of that string (dequoted)
-						if i==1 and isinstance(arguments[0],str):
-							return len(dequote(arguments[0])[0])
+						if i==1:
+							if isinstance(arguments[0],str):
+								return len(dequote(arguments[0])[0])
+							if not isinstance(arguments[0],list):
+								return -1
+							arguments=arguments[0] # a single list
+							i=len(arguments)
 						while i>0 and arguments[i-1]==undefined.getValue():
 							i-=1
 						return i
 					if self.functionindex==-5: # size
-						return len(arguments)
+						i=len(arguments)
+						if i==1:
+							if isinstance(arguments[0],str):
+								return len(dequote(arguments[0])[0])
+							if isinstance(arguments[0],list):
+								return len(arguments[0])
+							return -1
+						return i
 					if self.functionindex==-6: # sorti
 						# it's possible to have a single argument that is a list
 						if len(arguments)==1 and isIterable(arguments[0]): # quick fix
@@ -544,10 +557,22 @@ class Function:
 				# application of a scalar function to a list, means applying the function to each element of the list (and return the list of it)
 				if self.functionindex<100: # a scalar function
 					if len(arguments)==1:
-						# if the single argument is still list-like, we again have to use map on it!!!!
-						if isIterable(arguments[0]):
-							return [self.apply([x]) for x in arguments[0]] # map(self.apply,map(listify,arguments[0])) didn't work
 						value=arguments[0] # the single scalar argument to apply the function to
+						# some of these 1-argument functions work on list arguments
+						if self.functionindex==29: # MDH@22SEP2017: len function
+							if isinstance(value,list):
+								i=len(value)
+								while i>0 and value[-1]==undefined.getValue():
+									i-=1
+								return i
+							return -1
+						elif self.functionindex==30: # MDH@22SEP2017: size function
+							if isinstance(value,list):
+								return len(value)
+							return -1 # not a list
+						# if the single argument is still list-like, we again have to use map on it!!!!
+						if isIterable(value):
+							return [self.apply([x]) for x in value] # map(self.apply,map(listify,arguments[0])) didn't work
 						if self.functionindex==7:
 							return ~value
 						elif self.functionindex==8: # NOT unary operator (which is !)
@@ -800,6 +825,7 @@ class Function:
 			return functionvaluelist[0]
 		return functionvaluelist
 		"""
+		##########note("Applying function #"+str(self.functionindex)+" to '"+str(_arglist)+"'.")
 		# every function has a fixed number of arguments it requires (except for the list functions which consume the argument list as a whole)
 		# for single-argument functions we can use Python's map() to take care of generating the results
 		# for all others we apply the function to as many arguments it needs until all arguments are consumed
@@ -1504,8 +1530,8 @@ Menvironment.addIdentifier(Identifier(_value="'\r'"),'cr') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
-Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'isalist':-10}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
+Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'isalist':-10}) # special functions (0=return,negative ids=list functions)
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 
@@ -3244,7 +3270,7 @@ class Expression(Token):
 					#								 alternatively, we might remove all None elements at the end so that a list would remain if only a single element (like Python does!)
 					########note("Result value: "+str(self.value)+".")
 					# MDH@22SEP2017: how about NOT delisting here, to honour the parentheses around the subexpressions?????
-					#                unless this is the topmost expression
+					#								 unless this is the topmost expression
 					while isinstance(self.value,list) and len(self.value)==1:
 						self.value=self.value[0]
 					# MDH@22SEP2017: we can force to return a list by appending None elements (i.e. empty expressions), as Python does!!!
