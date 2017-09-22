@@ -1,0 +1,9 @@
+; determines whether the rook at (row,col) of the chess board can move
+; assumes piece contains the value at that board position set in outer function canmove
+; a rook can move forward or sideways, but if it can't move one step it can't move at all
+; NOTE it does not matter what (sign) piece is because all rooks can move all directions
+$=0 ; assume can't move
+; 1. check whether a single step forward or backward is possible
+if((row>1&&board(row-1,col)==0)||(row<8&&board(row+1,col)==0),return(1))
+; 2. check whether a single step left or right is possible
+if((col>1&&board(row,col-1)==0)||(col<8&&board(row,col+1)==0),return(1))

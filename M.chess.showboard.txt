@@ -1,0 +1,3 @@
+out("Chess board after ",movecount+" moves.",lf,'  a  b  c  d  e  f  g  h',lf)
+for(row,ranges(playerindex),out(row),for(col,1..8,outc((if(board(row,col)<0,16,231),if((row%2)^(col%2),251,247)),' ',if(board(row,col)!=0,pieces(abs(board(row,col))),' '),' ')),out(row,lf))
+out('  a  b  c  d  e  f  g  h',lf)

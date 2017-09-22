@@ -1,0 +1,11 @@
+; determines whether the pawn at (row,col) of the chess board can move
+; assumes piece contains the value at that board position set in outer function canmove
+; a pawn can move forward one or two steps if nothing in between
+; BUT we do not need to check two steps because that requires to be able to do one step
+$=0 ; assume can't move
+; 1. check whether a single step forward is possible
+if(piece<0,if(row>1&&board(row-1,col)==0,return(1))
+if(piece>0,if(row<8&&board(row+1,col)==0,return(1))
+; 2. check whether the pawn can go sideways left or right
+if(piece<0,if(row>1&&((col>1&&board(row-1,col-1)>0)||(col<8&&board(row-1,col+1)>0)),return(1))
+if(piece>0,if(row<8&&((col>1&&board(row+1,col-1)>0)||(col<8&&board(row+1,col+1)>0)),return(1))

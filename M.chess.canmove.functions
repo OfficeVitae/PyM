@@ -1,0 +1,12 @@
+blackpawn	row	col
+whitepawn	row	col
+blackrook	row	col
+whiterook	row	col
+blackbishop	row	col
+whitebishop	row	col
+blackknight	row	col
+whiteknight	row	col
+blackqueen	row	col
+whitequeen	row	col
+blackking	row	col
+whiteking	row	col
