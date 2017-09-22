@@ -1,0 +1,13 @@
+; returns the position of #piece of the current player selected by the player if there are multiple pieces
+pieceindex=find(piece,pieces) # get the index of the piece (name)
+positions=piecepositions(playerindex,pieceindex) ; the current set of positions of the given piece (type)
+numberofpositions=len(positions)
+if(numberofpositions==1,return(positions(1))) ; if only a single position, no need to ask the user
+; we need to ask the user what position to choose from the list of available positions
+out("Available positions:")
+positionindices=''
+for(positionindex,1..numberofpositions,out(' ',positionindex,'=',rows(positions(positionindex,1)),positions(positionindex,2)),positionindices+=positionindex)
+out(lf)
+out("What is the position of your ",piecenames(pieceindex),' [',positionindices,']? ")
+piecepositionindex=int(inch(positionindices))
+$=positions(piecepositionindex)

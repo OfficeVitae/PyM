@@ -1,3 +1,5 @@
-showboard
-canmove row col piece
-checkmove	move
+showBoard
+getPieceToMove
+givingUp
+updateInCheck
+checkMate

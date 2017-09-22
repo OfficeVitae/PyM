@@ -1,0 +1,2 @@
+; checkMate() determines whether or not the opponent is now check mate (presumes the opponent is now in check)
+$=0

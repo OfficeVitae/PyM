@@ -1,6 +1,7 @@
 ; arguments: player1 and player2
 $=0 ; assume no winner
-pieces='pRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and king)
+piecetypes='pRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and king)
+piecetypenames=('pawn','rook','knight','bishop','queen','king') ; the names of the piece (types)
 ranges=(8..1,1..8) ; display ranges
 board=((2,3,4,5,6,4,3,2),(1,1,1,1,1,1,1,1),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0),(0,0,0,0,0,0,0,0),(-1,-1,-1,-1,-1,-1,-1,-1),(-2,-3,-4,-5,-6,-4,-3,-2))
 ; initialize the game
@@ -8,22 +9,32 @@ rows='abcdefgh' ; the row names
 cols='12345678' ; the column names
 movecount=0
 checkmate=false
-checkplayer=0 ; the player being checked
+kingmoved=(false,false) ; whether or not the king was moved yet, if it hasn't it can still castle
+playerincheck=0 ; the player currently in check
 playerindex=1 ; current player
+playersign=1 ; the sign of the player's pieces on the board
+; keep track of the positions of all pieces (by player, by type)
+piecepositions=((((2,1),(2,2),(2,3),(2,4),(2,5),(2,6),(2,7),(2,8)),((1,1),(1,8)),((1,2),(1,7)),((1,3),(1,6)),((1,4)),((1,5))),(((7,1),(7,2),(7,3),(7,4),(7,5),(7,6),(7,7),(7,8)),((8,1),(8,8)),((8,2),(8,7)),((8,3),(8,6)),((8,4)),((8,5))))
 ; show chess board in the orientation of the current player
-showboard()
+showBoard()
+; let's determine all the theoretic positions the pieces of the current player can move to when I'm not in check, otherwise checkMate() would've determined them
+if(playerincheck!=playerindex,candidateEndPositions=getCandidateEndPositions())
 ; ask the user for his/her move
 ; determine the list of pieces the current player still has
-playerpieces=''
-for(row,ranges(3-playerindex),for(col,1..8,if(if(playerindex==1,board(row,col)>0,board(row,col)<0),if(canmove(row,col),(playerpiece=pieces(abs(board(row,col))),if(find(playerpiece,playerpieces)==0,playerpieces+=playerpiece))))))
-out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+playerpieces+']? ')
-piece=inch(playerpieces) ; get one of the player pieces characters
+playerpiecetypes=''
+for(row,ranges(3-playerindex),for(col,1..8,if(if(playerindex==1,board(row,col)>0,board(row,col)<0),if(canmove(row,col),(playerpiecetype=piecetypes(abs(board(row,col))),if(find(playerpiecetype,playerpiecetypes)==0,playerpiecetypes+=playerpiecetype))))))
+out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+playerpiecetypes+']? ')
+piecetype=inch(playerpiecetypes) ; get one of the player pieces characters
 out(lf)
-if(piece==?,return()) ; no piece specified
-; now we need to know the end position of that piece
-;;fromtomove=(2,2) ; checkmove(move) ; check the move
-;;if(fromtomove==?,(out("Invalid move"),jump(-2)))
+if(piecetype==?,if(givingUp(),return(3-playerindex),jump(-3))) ; if no piece defined, ask the user if they want to give up
+; get the position of this piece, if multiple positions exist, ask the user which one he means, there can be at most 8 of them (pawns), which we may number
+piecetypeindex=find(piecetype,piecetypes) ; the piece index is the position of the piece (type)
+pieceindex=getPieceToMove(piecetypeindex) ; returns the index of the piece to move (so piecepositions(pieceindex,piecetomove) is the start position)
+; ask for the destination position
 ;;; execute the move
 movecount+=1
+updateInCheck() ; check whether the opponent is now in check
+if(playerincheck>0&&checkMate(),return(playerindex)) ; if opponent in check, check for checkmate
 playerindex=3-playerindex
-jump(-15)
+playersign=-playersign
+jump(-18)

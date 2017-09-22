@@ -1,14 +1,18 @@
 """
 Marc's expression tokenizer and evaluator
 """
-""" History
+""" History of development:
+22SEP2017:
+- allowing continuation of expressions on successive lines (preferably indented with a tab)
+21SEP2017:
+- function 'sign', 'inch' (e.g. to be used in M.chess)
 18SEP2017:
 - function 'in' added, to get input from the end user
 - bug fix: undiscontinued() called in backspace() method of Token when the suffix ends for non string literals, and otherwise when the last text token character is removed
 16SEP2017:
 - executecommand() to execute a shell command using the sh function
 - execute shell command control mode option
-- readvalues function to read values from text file
+- readvalues function to read values from (e.g. a CSV) text file
 15SEP2017:
 - functions and variables (dynamic value) environment identifiers, exposing the list of functions and variables respectively
 13SEP2017:
@@ -320,9 +324,12 @@ def isIndexable(_obj):
 def getText(_obj):
 	if _obj is not None:
 		###print "To print: "+str(_obj)+"."
+		# NOTE a list is a list is a list, even if it has a single element!!!!
 		if isinstance(_obj,list): # get rid of the blanks behind the comma's
+			"""
 			if len(_obj)==1:
 				return getText(_obj[0])
+			"""
 			return "("+",".join(map(getText,_obj))+")"
 		if isinstance(_obj,str):
 			return _obj
@@ -346,41 +353,46 @@ def group(_by,_list):
 # helper classes Function, Identifier and Token
 DEBUG=1
 # MDH@19SEP2017: _executable signifies whether or not the expressions should be immediately executable
-def getExpression(_expressiontext,_environment,_immediatelyexecutable,_debug=None,_output=False):
-	expression=None
+# MDH@22SEP2017: by allowing to pass in an expression it's possible to continue that expression with the given expression text!!!!
+def getNewExpression(_environment,_immediatelyexecutable,_debug=None,_output=False):
+	return Expression(_environment,None,(DEBUG,_debug)[isinstance(_debug,int)],_output).setImmediatelyExecutable(_immediatelyexecutable) # do not show any debug information while constructing the expression from the expression text!!!
+def continueExpression(_expression,_expressiontext): # continues the given expression with the given expression text
 	error=None
-	debug=(DEBUG,_debug)[isinstance(_debug,int)]
-	expression=Expression(_environment,None,debug,_output).setImmediatelyExecutable(_immediatelyexecutable) # do not show any debug information while constructing the expression from the expression text!!!
-	if debug&8:
-		lnwrite("\tEvaluating '"+_expressiontext+"': ")
-	error=None
-	# MDH@62ND_BIRTHDAY: QUICK FIX we have to skip any character auto-inserted on parsing the expression!!
-	autoinserted=None
-	for ch in _expressiontext:
-		# MDH@21SEP2017: a quick hack to skip the situation where the expression inserted additional characters like the = behind a !
-		#								 it's better if the expression exposes what it inserted automatically...
-		if autoinserted is not None and ch==autoinserted:
-			continue
-		new_expression=expression.add(ch,_output) # MDH@12SEP2017: passing _output is essential BUT TODO have to find out why!!!!
-		error=expression.getError()
-		if error is not None:
-			lnwrite("\t'"+error+"' evaluating '"+_expressiontext+"'.")
-			break
-		autoinserted=expression.getAutoInserted() # remember any character auto-inserted
-		expression=new_expression
-	if error is not None:
-		error=expression.ends()
+	if isinstance(_expressiontext,str): # text required
+		expression=_expression # start out with the given expression
+		# MDH@62ND_BIRTHDAY: QUICK FIX we have to skip any character auto-inserted on parsing the expression!!
+		autoinserted=None
+		for ch in _expressiontext:
+			# MDH@21SEP2017: a quick hack to skip the situation where the expression inserted additional characters like the = behind a !
+			#								 it's better if the expression exposes what it inserted automatically...
+			if autoinserted is not None and ch==autoinserted:
+				continue
+			if expression is None:
+				break
+			new_expression=expression.add(ch) # MDH@12SEP2017: passing _output is essential BUT TODO have to find out why!!!!
+			error=expression.getError()
+			if error is not None:
+				lnwrite("\t'"+error+"' evaluating '"+_expressiontext+"'.")
+				break
+			autoinserted=expression.getAutoInserted() # remember any character auto-inserted
+			expression=new_expression # which hopefully is not None!!!!
+	else:
+		expression=None
 	return (expression,error)
+# MDH@22SEP2017: any single-line text expression can be obtained calling getExpression()
+def getExpression(_expressiontext,_environment,_debug=None):
+	return continueExpression(getNewExpression(_environment,True,_debug),_expressiontext)
 def getExpressionValue(_expressiontext,_environment,_debug=None):
-	debug=(DEBUG,_debug)[isinstance(_debug,int)]
-	(expression,expressionerror)=getExpression(_expressiontext,_environment,True,debug) # yes, should be immediately executable
-	if expressionerror is None: # no error so far
+	# 1. parse the expression from the given expression text
+	(expression,expressionerror)=getExpression(_expressiontext,_environment,_debug)
+	# 2. check for invalid expression text (expression would be None) and completeness (which it should be)
+	if expression is None:
+		expressionerror="Failed to parse '"+str(_expressiontext)+"'."
+	elif expressionerror is None: # no error so far
 		expressionerror=expression.ends()
 	# if an error occurred somehow, raise an exception, alternatively we could return None to indicate no result (and therefore some error)
 	if expressionerror is not None:
 		raise Exception(expressionerror)
-	if debug&8:
-		note("Expression to evaluate: "+expression.getText()+".")
 	return expression.evaluatesTo(_environment)
 def concatenate(_texts,_enquoted=True):
 	if not isIterable(_texts):
@@ -446,7 +458,7 @@ class Function:
 			if self.functionindex<0: # a list function
 				if isIterable(arguments): # as it should be
 					if self.functionindex==-1: # list
-						return list(arguments)
+						return List(arguments) # wrap the list of arguments in a List, to prevent it from being recognized as a single-item list that might be devaluated!
 					if self.functionindex==-2: # sum
 						i=len(arguments)-1
 						if i>=0:
@@ -472,6 +484,7 @@ class Function:
 								pass
 						return undefined
 					if self.functionindex==-4: # length
+						# length is a single-argument function that works on lists, so every argument needs to be a list, otherwise we return -1 as the length!!!
 						i=len(arguments)
 						# MDH@20SEP2017: if a single argument string, we return the length of that string (dequoted)
 						if i==1 and isinstance(arguments[0],str):
@@ -491,6 +504,9 @@ class Function:
 						if len(arguments)==1 and isIterable(arguments[0]): # quick fix
 							return concatenate(arguments[0])
 						return concatenate(arguments)
+					if self.functionindex==-10: # isalist
+						#####note("Is '"+str(arguments)+"' a list?")
+						return (0,1)[isinstance(arguments,list)]
 					if self.functionindex==-8: # out (turned into a list function more convenient)
 						# it's possible to have a single argument that is a list
 						if len(arguments)==1 and isIterable(arguments[0]): # quick fix
@@ -759,8 +775,10 @@ class Function:
 			raise JumpException(_arglist)
 		if self.functionindex==0: # the return function
 			raise ReturnException(_arglist)
-		if self.functionindex<0: # assumed list function
-			return self.apply(_arglist)
+		if self.functionindex==-1:
+			return List(_arglist)
+		if self.functionindex<-1: # assumed list function TODO can we somehow process these as any other 'normal' function??????
+			return [self.apply(_arg) for _arg in _arglist] # but we want to apply the list function to each of the arguments
 		argcount=1+(self.functionindex/100) # the number of arguments the function requires
 		# the function needs to be applied at least once
 		functionvaluelist=list() # the list containing the successive results of the function application
@@ -886,8 +904,8 @@ class UserFunction(Function):
 				while expressionindex<len(expressions):
 					# MDH@19SEP2017: TODO do we need to change immediately executable to True here anyway?????
 					#											as I think evaluatesTo does not use it!!!!
-					expression=expressions[expressionindex].setImmediatelyExecutable(True)
-					if not expression.isEmpty(): # MDH@19SEP2017: skip 'comment' lines
+					expression=expressions[expressionindex]
+					if expression is not None and not expression.isEmpty(): # MDH@19SEP2017: skip 'comment' lines
 						try:
 							#####note("Evaluating '"+expression.getText()+"'...")
 							expressionvalue=expression.evaluatesTo(executionenvironment) # evaluate the expression in the execution environment
@@ -996,8 +1014,10 @@ class Environment:
 			if expressionsfile:
 				expression=None # the current expression
 				expressionline=expressionsfile.readline()
+				expressionlineindex=0
 				while len(expressionline)>0:
 					try:
+						expressionlineindex+=1
 						expressiontext=expressionline.rstrip('\r\n')
 						# there's either a value or a value and an expression on the line
 						if len(expressiontext)>0: # not an expression declaration (probably the value of the expression)
@@ -1006,22 +1026,38 @@ class Environment:
 								expressiontext=expressiontext[tabpos+1:]
 							#######note("\tParsing '"+expressiontext+"'...")
 							# MDH@10SEP2017: essential to pass 0 for the debug value!!!
-							(expression,error)=getExpression(expressiontext,self,_evaluate,0)
-							if error is None: # no error
-								self.addExpression(expression)
-								if _evaluate:
+							# MDH@22SEP2017: we're going to allow expression continuation on the next line
+							if expression is None: # not an expression continuation
+								expression=getNewExpression(self,_evaluate,0)
+							elif tabpos!=0: # how about letting every continuation (preferably) start with a tab????
+								note("WARNING: Not indented expression continuation '"+expressiontext+"' encountered on line #"+str(expressionlineindex)+" of "+expressionsfilename+".")
+							# 'continue' the expression with the expression text
+							(new_expression,error)=continueExpression(expression,expressiontext)
+							if expression.isEmpty(): # the expression is empty
+								self.addExpression(None)
+								expression=None # can't be continued on the next line!!
+							elif error is None: # no error
+								if expression.ends() is None: # a completed expression, ready to add
 									try:
-										expression.evaluatesTo(self) # return statements throw the return exception, which we want to catch
-									except ReturnException,returnException:
-										expression.setValue(returnException.getValue()) # TODO an IdentifierElementExpression also has a setValue but that one requires an environment as well
-								else: # MDH@20SEP2017: ok, if this expression initializes identifier not yet existing in this environment, we're going to declare them!!!
-									expressioninitializes=expression.initializes(self)
-									if len(expressioninitializes)>0:
-										#######note("Initialized in '"+expressiontext+"': "+getText(expressioninitializes)+".")
-										for expressioninitialize in expressioninitializes:
-											self.addIdentifier(Identifier(expressioninitialize))
+										self.addExpression(expression)
+										if _evaluate:
+											try:
+												expression.evaluatesTo(self) # return statements throw the return exception, which we want to catch
+											except ReturnException,returnException:
+												expression.setValue(returnException.getValue()) # TODO an IdentifierElementExpression also has a setValue but that one requires an environment as well
+										else: # MDH@20SEP2017: ok, if this expression initializes identifier not yet existing in this environment, we're going to declare them!!!
+											expressioninitializes=expression.initializes(self)
+											if len(expressioninitializes)>0:
+												#######note("Initialized in '"+expressiontext+"': "+getText(expressioninitializes)+".")
+												for expressioninitialize in expressioninitializes:
+													self.addIdentifier(Identifier(expressioninitialize))
+									finally:
+										expression=None # ready to start a new expression
+								else: # expression, not yet complete, we'll end up with the original expression in the end (hopefully)
+									note("WARNING: Expression '"+expressiontext+"' does not end on line #"+str(expressionlineindex)+" of "+expressionsfilename+".")
+									expression=new_expression # continue with the (sub)expression
 							else: # some error, add None
-								note("ERROR: '"+error+"' in processing expression text '"+expressiontext+"' of '"+_environment.getName()+"'.")
+								note("ERROR: '"+error+"' in processing expression text '"+expressiontext+"' on line #"+str(expressionlineindex)+" of "+expressionsfilename+".")
 								self.addExpression(None)
 					finally:
 						expressionline=expressionsfile.readline() # read the next line
@@ -1048,7 +1084,8 @@ class Environment:
 		# MDH@12SEP2017: the name comes first
 		return join('.',(self.name,self.getHostName()))
 	def getFilename(self): # reverses the parent and own name
-		return join('.',(self.getHostName(),self.name))
+		# MDH@22SEP2017: let's only use lowercase in filenames (except for the leading M of course), thus allowing functions to use uppercase characters in the name
+		return join('.',(self.getHostName().lower(),self.name.lower()))
 	def getFunctionFilename(self,_functionname):
 		return join('.',("M",self.getFilename(),_functionname,'txt'))
 	def getExpressionsFilename(self):
@@ -1252,6 +1289,8 @@ class Environment:
 		if argument2 is not None and argument1 is not None:
 			def getElementValue(_element):
 				if isinstance(_element,list):
+					if len(_element)==0: # nothing to evaluate...
+						return _element
 					return map(getElementValue,_element)
 				if isinstance(_element,Expression):
 					return _element.evaluatesTo(self)
@@ -1299,8 +1338,12 @@ class Environment:
 			if operand1 is not None and operand2 is not None:
 				# with the period also defined as list concatenation operand we should simply extend operand1 with (listified) operand2
 				if operator==periodchar: # the list concatenation operator
-					result=list(operand1)
-					result.extend(listify(operand2)) # do NOT use listify() on operand1, because we need to actually extend a copy not the original
+					# MDH@22SEP2017: ah, we have to be careful here because the original list might be empty
+					note("Concatenating lists '"+str(operand1)+"' and '"+str(operand2)+"'.")
+					result=list()
+					result.extend(listify(operand1))
+					result.extend(listify(operand2))
+					note("Result list: '"+str(result)+"'.")
 				# ok, both elements should be either lists or scalars, at least to apply the non-assignment binary operators to
 				# although we should always obtain two list or two items, we make a list of either if need be
 				elif isinstance(operand2,list):
@@ -1447,7 +1490,7 @@ Menvironment.addIdentifier(Identifier(_value="'\r'"),'cr') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
-Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
+Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'len':-4,'size':-5,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'isalist':-10}) # special functions (0=return,negative ids=list functions)
 Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
@@ -1555,6 +1598,13 @@ te="'"+'"' # ends a string literal
 # we have some predefined identifiers which are all functions of a fixed number of arguments
 # and here's the dictionary in which the identifiers themselves are stored
 # we allow using M as variable, referring to the previously executed commands, given that the value is a list you can change elements (not recommended though)
+class List: # wraps a list, to prevent de-listing
+	def __init__(self,_list):
+		self.list=_list
+	def getValue(self):
+		if self.list is None:
+			return list()
+		return self.list
 def getInteger(_value):
 	if isinstance(_value,(int,long)):
 		return _value
@@ -2898,303 +2948,310 @@ class Expression(Token):
 		#####note("Value of '"+self.getText()+"' requested!")
 		self.value=None
 		self.error=None
-		evaluationenvironment=(self.environment,_environment)[_environment is not None]
-		# MDH@05SEP2017: we can define the while, for, if and eval 'function' calls here, as they need their execution environment
-		def getEvalResult(arguments):
-			result=list()
-			if len(arguments)>0:
-				for argument in arguments:
-					# we need the text representation of the argument's value
-					argumenttext=dequote(getText(argument.evaluatesTo(evaluationenvironment)))[0] # dequoting is essential!!!
-					if not isinstance(argumenttext,str) or len(argumenttext)==0:
-						result.append(undefined)
-					else:
-						result.append(getExpressionValue(argumenttext,evaluationenvironment))
-			return result
-		def getWhileResult(_arglist):
-			result=list()
-			if len(_arglist)>1: # we really need two arguments here
-				condition=_arglist[0] # or we might pop this last argument
-				if isinstance(condition,Expression):
-					whilebody=_arglist[1:]
-					# NOTE: we can force computation of the value (as we should), by passing True as second argument!!!
-					while 1:
-						conditionvalue=condition.evaluatesTo(evaluationenvironment)
-						######note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
-						if conditionvalue!=1: # everything not equal to 1 should be considered false!
-							break
-						bodyvalues=[bodyexpression.evaluatesTo(evaluationenvironment) for bodyexpression in whilebody]
-						########note("Value of body '"+str(whilebody)+"': '"+str(bodyvalues)+"'...")
-						result.append(bodyvalues)
-				else:
-					note("Please report the following bug: The condition in the while loop is not an expression, but of type "+str(type(_arglist[0]))+"!")
-			return result
-		def getForResult(_arglist):
-			result=list()
-			if len(_arglist)>2:
-				forindexexpression=_arglist[0]
-				# NOTE any argument should always be an expression, which should create the identifier mentioned in it
-				#			 now, if it is not a single token in it of type identifier
-				if isinstance(forindexexpression,Expression): # which it should be
-					#######note("Evaluating for loop range '"+str(_arglist[1])+"'.")
-					forindexvalues=_arglist[1].evaluatesTo(evaluationenvironment)
-					if isIterable(forindexvalues):
-						# it's MORE convenient to ALWAYS create a new environment, with the for index identifier as identifier
-						if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType() in (IDENTIFIER_TOKENTYPE,VARIABLE_TOKENTYPE):
-							forindexidentifiername=forindexexpression.tokens[-1].getText()
-							forindexidentifier=Identifier(forindexidentifiername)
-							########note("For index identifier: '"+forindexidentifier.getName()+"'.")
+		if not self.isEmpty():
+			evaluationenvironment=(self.environment,_environment)[_environment is not None]
+			# MDH@05SEP2017: we can define the while, for, if and eval 'function' calls here, as they need their execution environment
+			def getEvalResult(arguments):
+				result=list()
+				if len(arguments)>0:
+					for argument in arguments:
+						# we need the text representation of the argument's value
+						argumenttext=dequote(getText(argument.evaluatesTo(evaluationenvironment)))[0] # dequoting is essential!!!
+						if not isinstance(argumenttext,str) or len(argumenttext)==0:
+							result.append(undefined)
 						else:
-							forindexidentifier=None
-						# create the for index environment BUT then the problem is that all variables declared in the for loop are local to the for loop and lost afterwards!!!
-						# which means that whatever is assigned to in the for loop should already exist!!
-						if forindexidentifier is not None:
-							forindexenvironment=Environment(forindexidentifiername,evaluationenvironment).addIdentifier(forindexidentifier)
-						else: # just execute in the current 'global' environment
-							forindexenvironment=evaluationenvironment
-						# do we have a for index identifier????
-						# NOTE we might consider leaving the loop if it's value changed within the loop
-						forbodyexpressions=_arglist[2:]
-						for forindexvalue in forindexvalues:
-							# update the value of the forindex identifier (if any)
+							result.append(getExpressionValue(argumenttext,evaluationenvironment))
+				return result
+			def getWhileResult(_arglist):
+				result=list()
+				if len(_arglist)>1: # we really need two arguments here
+					condition=_arglist[0] # or we might pop this last argument
+					if isinstance(condition,Expression):
+						whilebody=_arglist[1:]
+						# NOTE: we can force computation of the value (as we should), by passing True as second argument!!!
+						while 1:
+							conditionvalue=condition.evaluatesTo(evaluationenvironment)
+							######note("Value of condition '"+str(condition)+"': '"+str(conditionvalue)+"'...")
+							if conditionvalue!=1: # everything not equal to 1 should be considered false!
+								break
+							bodyvalues=[bodyexpression.evaluatesTo(evaluationenvironment) for bodyexpression in whilebody]
+							########note("Value of body '"+str(whilebody)+"': '"+str(bodyvalues)+"'...")
+							result.append(bodyvalues)
+					else:
+						note("Please report the following bug: The condition in the while loop is not an expression, but of type "+str(type(_arglist[0]))+"!")
+				return result
+			def getForResult(_arglist):
+				result=list()
+				if len(_arglist)>2:
+					forindexexpression=_arglist[0]
+					# NOTE any argument should always be an expression, which should create the identifier mentioned in it
+					#			 now, if it is not a single token in it of type identifier
+					if isinstance(forindexexpression,Expression): # which it should be
+						#######note("Evaluating for loop range '"+str(_arglist[1])+"'.")
+						forindexvalues=_arglist[1].evaluatesTo(evaluationenvironment)
+						if isIterable(forindexvalues):
+							# it's MORE convenient to ALWAYS create a new environment, with the for index identifier as identifier
+							if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType() in (IDENTIFIER_TOKENTYPE,VARIABLE_TOKENTYPE):
+								forindexidentifiername=forindexexpression.tokens[-1].getText()
+								forindexidentifier=Identifier(forindexidentifiername)
+								########note("For index identifier: '"+forindexidentifier.getName()+"'.")
+							else:
+								forindexidentifier=None
+							# create the for index environment BUT then the problem is that all variables declared in the for loop are local to the for loop and lost afterwards!!!
+							# which means that whatever is assigned to in the for loop should already exist!!
 							if forindexidentifier is not None:
-								forindexenvironment.getIdentifier(forindexidentifiername).setValue(forindexvalue)
-								###########forindexidentifier.setValue(forindexvalue) # this is a bit of an issue
-							forbodyvalues=[forbodyexpression.setImmediatelyExecutable(True).evaluatesTo(forindexenvironment) for forbodyexpression in forbodyexpressions] # evaluate the remaining arguments
-							######note("For body values: "+str(forbodyvalues)+".")
-							if not isIterable(forbodyvalues) or len(forbodyvalues)!=1:
-								result.append(forbodyvalues)
-							else: # a single result
-								result.append(forbodyvalues[0])
+								forindexenvironment=Environment(forindexidentifiername,evaluationenvironment).addIdentifier(forindexidentifier)
+							else: # just execute in the current 'global' environment
+								forindexenvironment=evaluationenvironment
+							# do we have a for index identifier????
+							# NOTE we might consider leaving the loop if it's value changed within the loop
+							forbodyexpressions=_arglist[2:]
+							for forindexvalue in forindexvalues:
+								# update the value of the forindex identifier (if any)
+								if forindexidentifier is not None:
+									forindexenvironment.getIdentifier(forindexidentifiername).setValue(forindexvalue)
+									###########forindexidentifier.setValue(forindexvalue) # this is a bit of an issue
+								forbodyvalues=[forbodyexpression.setImmediatelyExecutable(True).evaluatesTo(forindexenvironment) for forbodyexpression in forbodyexpressions] # evaluate the remaining arguments
+								######note("For body values: "+str(forbodyvalues)+".")
+								if not isIterable(forbodyvalues) or len(forbodyvalues)!=1:
+									result.append(forbodyvalues)
+								else: # a single result
+									result.append(forbodyvalues[0])
+						else:
+							note("Second for loop argument ("+str(forindexvalues)+") not a list.")
 					else:
-						note("Second for loop argument ("+str(forindexvalues)+") not a list.")
-				else:
-					note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
-			return result
-		def getIfResult(_arglist):
-			# NOTE we might expand if a bit but making it a multiselector
-			#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
-			result=list()
-			conditionvalue=_arglist[0].evaluatesTo(evaluationenvironment)
-			#######note("Condition '"+str(_arglist[0])+"' evaluates to '"+str(conditionvalue)+"'.")
-			if isinstance(conditionvalue,(int,long)): # an acceptible outcome
-				if conditionvalue!=0: # condition evaluates to True
-					if len(_arglist)>1:
-						result.append(_arglist[1].evaluatesTo(evaluationenvironment))
-				else:
-					if len(_arglist)>2:
-						result.append(_arglist[2].evaluatesTo(evaluationenvironment))
-			return result
-		def getSwitchResult(_arglist):
-			result=list()
-			conditionvalue=_arglist[0].evaluatesTo(evaluationenvironment)
-			if isinstance(conditionvalue,(int,long)): # an acceptible outcome
-				# with the True and False clause switched, we should use ! to get the proper index
-				# wrap around the condition value to be in the range [0,len(_arglist)-2]
-				if conditionvalue>0:
-					conditionvalue%=len(_arglist)-1
-				if conditionvalue<0:
-					conditionvalue=0
-				result.append(_arglist[conditionvalue+1].evaluatesTo(evaluationenvironment))
-			return result
-		def getExistsResult(_arglist):
-			# MDH@12SEP2017: should return 1 if ALL arguments denote existing identifiers			result=1
-			for arg in _arglist: # each argument should be an expression
-				# the arguments needs to have exactly one token or all tokens need to be expressions
-				if len(arg.tokens)==0:
-					continue
-				# with multiple arguments, or a single expression token, just call getExistsResult on all tokens...
-				tokentype=arg.tokens[-1].getType()
-				if len(arg.tokens)>1 or tokentype==EXPRESSION_TOKENTYPE:
-					return getExistsResult(arg.tokens)
-				# a single token in this argument, needs to be either an expression or an identifier that exists
-				if tokentype!=IDENTIFIER_TOKENTYPE or not evaluationenvironment.identifierExists(arg.tokens[-1].getText()):
-					return 0
-			return 1 # success
-		# best not to end with a period, given the possible color showing the last token
-		try:
-			if self.debug&8:
-				valueText=self.getRepresentation()
-			# MDH@18AUG2017: an expression with no tokens will return the undefined identifier!!!
-			#								 in order to be able to assign this we need to return the empty list!!!
-			if len(self.tokens)>0 or len(self.text)==0 or not (self.text[0] in ls): # not an empty subexpression
-				# MDH@15AUG2017: instead of keeping separate list to store the operators and arguments it's a good idea to create an expression that will contain the end result
-				#								 of the evaluation of the tokens by applying the functions and binary operators
-				#								 the point is that if we allow argument lists with multiple arguments (=values), it's easiest to store the list of these arguments in a single argument
-				#								 to which the function is to be applied, then the function has to take care of processing the list and apply itself to the number of arguments it needs
-				########evaluatedexpression=Expression() # the expression to populate with the values of the successive tokens and operators to apply
-				def getElementValue(_element):
-					######note("Get the value of element "+str(_element)+" of type "+str(type(_element))+"...")
-					if isinstance(_element,list):
-						########note("ERROR: the element is a list, which should NOT happen!")
-						return map(getElementValue,_element)
-					if isinstance(_element,Expression):
-						#######note("Evaluating expression "+str(_element)+".")
-						elementvalue=_element.evaluatesTo(evaluationenvironment)
+						note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
+				return result
+			def getIfResult(_arglist):
+				# NOTE we might expand if a bit but making it a multiselector
+				#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
+				result=list()
+				conditionvalue=_arglist[0].evaluatesTo(evaluationenvironment)
+				#######note("Condition '"+str(_arglist[0])+"' evaluates to '"+str(conditionvalue)+"'.")
+				if isinstance(conditionvalue,(int,long)): # an acceptible outcome
+					if conditionvalue!=0: # condition evaluates to True
+						if len(_arglist)>1:
+							result.append(_arglist[1].evaluatesTo(evaluationenvironment))
 					else:
-						elementvalue=getValue(_element)
-					if self.debug&8:
-						note("Value of "+str(_element)+" of type "+str(type(_element))+": '"+str(elementvalue)+"' of type '"+str(type(elementvalue))+"'.")
-					return elementvalue
-				elements=[] # arguments (functions and values) and operators intertwined
-				# as we will be applying functions to arguments multiple times, we create a subfunction to do that for us
-				def applyFunctions():
-					# 1. POP OFF ALL ARGUMENTS
-					arguments=[] # the list of arguments, there should be at least one
-					while len(elements)>0 and not isinstance(elements[-1],Operator) and not isinstance(elements[-1],Function):
-						arguments.insert(0,elements.pop())
-					# 2. APPLY ALL FUNCTIONS
-					while len(elements)>0 and isinstance(elements[-1],Function):
-						function=elements.pop().setDebug(self.debug) # make the function take over
-						if self.debug&8:
-							note("Applying function "+str(function)+" to arguments "+str(arguments)+".")
-						# MDH@02SEP2017: we cannot apply a function to arguments that are expressions
-						#								 as the function does NOT know the environment
-						#								 so any expression needs to be evaluated first
-						# TODO because we pre-evaluate function should NOT evaluate anymore!!!!!!
-						# MDH@04SEP2017: that is SO wrong because we already took care of converting
-						#								 Expression instances to ExpressionEvaluator instances which
-						#								 SO know in which environment to evaluate the expression
-						if function.getIndex()==9 or function.getIndex()==21: # = or eval
-							arguments=getEvalResult(arguments)
-						elif function.getIndex()==100: # while
-							arguments=getWhileResult(arguments)
-						elif function.getIndex()==210: # for
-							arguments=getForResult(arguments)
-						elif function.getIndex()==200: # if
-							arguments=getIfResult(arguments)
-						elif function.getIndex() in (201,202,203): # select/case/switch
-							arguments=getSwitchResult(arguments)
-						elif function.getIndex()==23: # exists
-							arguments=getExistsResult(arguments)
-						else: # application of a normal function (directly passing in the evaluated arguments
-							arguments=function.getValue(map(getElementValue,arguments)) ###### NO NO NO map(getElementValue,arguments))
-						# this would be an annoying step, we should let the function do that?????
-						if not isIterable(arguments):
-							arguments=[arguments]
-						if self.debug&8:
-							note("Result of the function application: "+str(arguments)+".")
-					# 3. PUSH THE RESULT (LIST) BACK ON THE elements STACK
-					# NOTE we need to 'delist' arguments
-					# the first step would be to remove the undefined values at the end
-					if isinstance(arguments,list):
-						if len(arguments)==1: # a single argument (which might be undefined though)
-							arguments=arguments[0]
-					elements.append(arguments) # which might be an empty list...
-				# process the tokens one at a time
-				# if we take the priorities into account
-				tokenindex=0
-				if self.debug&16:
-					note("Number of tokens to process: "+str(len(self.tokens))+".")
-				for token in self.tokens:
-					tokenindex+=1
-					if token is None:
+						if len(_arglist)>2:
+							result.append(_arglist[2].evaluatesTo(evaluationenvironment))
+				return result
+			def getSwitchResult(_arglist):
+				result=list()
+				conditionvalue=_arglist[0].evaluatesTo(evaluationenvironment)
+				if isinstance(conditionvalue,(int,long)): # an acceptible outcome
+					# with the True and False clause switched, we should use ! to get the proper index
+					# wrap around the condition value to be in the range [0,len(_arglist)-2]
+					if conditionvalue>0:
+						conditionvalue%=len(_arglist)-1
+					if conditionvalue<0:
+						conditionvalue=0
+					result.append(_arglist[conditionvalue+1].evaluatesTo(evaluationenvironment))
+				return result
+			def getExistsResult(_arglist):
+				# MDH@12SEP2017: should return 1 if ALL arguments denote existing identifiers			result=1
+				for arg in _arglist: # each argument should be an expression
+					# the arguments needs to have exactly one token or all tokens need to be expressions
+					if len(arg.tokens)==0:
 						continue
-					tokentype=token.getType()
-					tokentext=token.getText()
+					# with multiple arguments, or a single expression token, just call getExistsResult on all tokens...
+					tokentype=arg.tokens[-1].getType()
+					if len(arg.tokens)>1 or tokentype==EXPRESSION_TOKENTYPE:
+						return getExistsResult(arg.tokens)
+					# a single token in this argument, needs to be either an expression or an identifier that exists
+					if tokentype!=IDENTIFIER_TOKENTYPE or not evaluationenvironment.identifierExists(arg.tokens[-1].getText()):
+						return 0
+				return 1 # success
+			# best not to end with a period, given the possible color showing the last token
+			try:
+				if self.debug&8:
+					valueText=self.getRepresentation()
+				# MDH@18AUG2017: an expression with no tokens will return the undefined identifier!!!
+				#								 in order to be able to assign this we need to return the empty list!!!
+				if len(self.tokens)>0 or len(self.text)==0 or not (self.text[0] in ls): # not an empty subexpression
+					# MDH@15AUG2017: instead of keeping separate list to store the operators and arguments it's a good idea to create an expression that will contain the end result
+					#								 of the evaluation of the tokens by applying the functions and binary operators
+					#								 the point is that if we allow argument lists with multiple arguments (=values), it's easiest to store the list of these arguments in a single argument
+					#								 to which the function is to be applied, then the function has to take care of processing the list and apply itself to the number of arguments it needs
+					########evaluatedexpression=Expression() # the expression to populate with the values of the successive tokens and operators to apply
+					def getElementValue(_element):
+						######note("Get the value of element "+str(_element)+" of type "+str(type(_element))+"...")
+						if isinstance(_element,list):
+							########note("ERROR: the element is a list, which should NOT happen!")
+							return map(getElementValue,_element)
+						if isinstance(_element,Expression):
+							#######note("Evaluating expression "+str(_element)+".")
+							elementvalue=_element.evaluatesTo(evaluationenvironment)
+						else:
+							elementvalue=getValue(_element)
+						if self.debug&8:
+							note("Value of "+str(_element)+" of type "+str(type(_element))+": '"+str(elementvalue)+"' of type '"+str(type(elementvalue))+"'.")
+						return elementvalue
+					elements=[] # arguments (functions and values) and operators intertwined
+					# as we will be applying functions to arguments multiple times, we create a subfunction to do that for us
+					def applyFunctions():
+						# 1. POP OFF ALL ARGUMENTS
+						arguments=[] # the list of arguments, there should be at least one
+						while len(elements)>0 and not isinstance(elements[-1],Operator) and not isinstance(elements[-1],Function):
+							arguments.insert(0,elements.pop())
+						# 2. APPLY ALL FUNCTIONS
+						while len(elements)>0 and isinstance(elements[-1],Function):
+							function=elements.pop().setDebug(self.debug) # make the function take over
+							if self.debug&8:
+								note("Applying function "+str(function)+" to arguments "+str(arguments)+".")
+							# MDH@02SEP2017: we cannot apply a function to arguments that are expressions
+							#								 as the function does NOT know the environment
+							#								 so any expression needs to be evaluated first
+							# TODO because we pre-evaluate function should NOT evaluate anymore!!!!!!
+							# MDH@04SEP2017: that is SO wrong because we already took care of converting
+							#								 Expression instances to ExpressionEvaluator instances which
+							#								 SO know in which environment to evaluate the expression
+							if function.getIndex()==9 or function.getIndex()==21: # = or eval
+								arguments=getEvalResult(arguments)
+							elif function.getIndex()==100: # while
+								arguments=getWhileResult(arguments)
+							elif function.getIndex()==210: # for
+								arguments=getForResult(arguments)
+							elif function.getIndex()==200: # if
+								arguments=getIfResult(arguments)
+							elif function.getIndex() in (201,202,203): # select/case/switch
+								arguments=getSwitchResult(arguments)
+							elif function.getIndex()==23: # exists
+								arguments=getExistsResult(arguments)
+							else: # application of a normal function (directly passing in the evaluated arguments
+								arguments=function.getValue(map(getElementValue,arguments)) ###### NO NO NO map(getElementValue,arguments))
+							# this would be an annoying step, we should let the function do that?????
+							if not isIterable(arguments):
+								arguments=[arguments]
+							if self.debug&8:
+								note("Result of the function application: "+str(arguments)+".")
+						# 3. PUSH THE RESULT (LIST) BACK ON THE elements STACK
+						# NOTE we need to 'delist' arguments
+						# the first step would be to remove the undefined values at the end
+						if isinstance(arguments,list):
+							if len(arguments)==1: # a single argument (which might be undefined though)
+								arguments=arguments[0]
+						elements.append(arguments) # which might be an empty list...
+					# process the tokens one at a time
+					# if we take the priorities into account
+					tokenindex=0
 					if self.debug&16:
-						note("Processing token #"+str(tokenindex)+" of type "+getTokentypeRepresentation(tokentype)+": "+tokentext+"...")
-					if tokentype==SIGN_TOKENTYPE: # a unary operator (! or - or ~ or + and now even =)
-						# any token is either from s or soro
-						sindex=s.find(tokentext)
-						if sindex>=0: # ~
-							elements.append(Function(7+sindex))
-						else: # ! or = or - or +
-							elements.append(Function(7+len(s)+soro.index(tokentext)))
-					elif tokentype==OPERATOR_TOKENTYPE: # the token represents a binary operator (which might be the assignment operator =)
-						# MDH@15AUG2017: we should apply any function to any argument (list) in front of this operator to end up with a single argument to which the operator is to be applied
-						#								 so we end up with operand operator operand operator etc. (all odd elements will be operators and all even elements will be operands)
-						applyFunctions()
-						# determine whether or not we can apply the previous operator now which should be the before last element on the elements stack now (if any)
-						# we cannot apply an operator immediately until we encounter another operator with equal or lower precedence
-						# which basically means that we can at most apply the PREVIOUS operator i.e. the last one in operators
-						precedence=getOperatorPrecedence(tokentext)
+						note("Number of tokens to process: "+str(len(self.tokens))+".")
+					for token in self.tokens:
+						tokenindex+=1
+						if token is None:
+							continue
+						tokentype=token.getType()
+						tokentext=token.getText()
 						if self.debug&16:
-							note("Precedence of operator "+tokentext+": "+str(precedence)+".")
-							if len(elements)>2:
-								note("Precedence of "+str(elements[-2])+": "+str(elements[-2].getPrecedence())+".")
-						while len(elements)>2 and elements[-2].getPrecedence()<=precedence: # a lower (=better) or equal precedence, i.e. we should apply that operator to the last two arguments on the stack
+							note("Processing token #"+str(tokenindex)+" of type "+getTokentypeRepresentation(tokentype)+": "+tokentext+"...")
+						if tokentype==SIGN_TOKENTYPE: # a unary operator (! or - or ~ or + and now even =)
+							# any token is either from s or soro
+							sindex=s.find(tokentext)
+							if sindex>=0: # ~
+								elements.append(Function(7+sindex))
+							else: # ! or = or - or +
+								elements.append(Function(7+len(s)+soro.index(tokentext)))
+						elif tokentype==OPERATOR_TOKENTYPE: # the token represents a binary operator (which might be the assignment operator =)
+							# MDH@15AUG2017: we should apply any function to any argument (list) in front of this operator to end up with a single argument to which the operator is to be applied
+							#								 so we end up with operand operator operand operator etc. (all odd elements will be operators and all even elements will be operands)
+							applyFunctions()
+							# determine whether or not we can apply the previous operator now which should be the before last element on the elements stack now (if any)
+							# we cannot apply an operator immediately until we encounter another operator with equal or lower precedence
+							# which basically means that we can at most apply the PREVIOUS operator i.e. the last one in operators
+							precedence=getOperatorPrecedence(tokentext)
+							if self.debug&16:
+								note("Precedence of operator "+tokentext+": "+str(precedence)+".")
+								if len(elements)>2:
+									note("Precedence of "+str(elements[-2])+": "+str(elements[-2].getPrecedence())+".")
+							while len(elements)>2 and elements[-2].getPrecedence()<=precedence: # a lower (=better) or equal precedence, i.e. we should apply that operator to the last two arguments on the stack
+								try:
+									elements.append(evaluationenvironment.getOperationResult(elements.pop(),elements.pop().getText(),elements.pop())) # pretty neat to be able to do it this way (but I rewrote getOperationResult to accept the 2nd argument first!!!)
+								except Exception,ex:
+									self.error=ex
+									break
+							# remember this operator and its associated precedence
+							# MDH@15AUG2017: I need to be able to distinguish operators from operands
+							elements.append(Operator(tokentext,precedence))
+							# MDH@24AUG2017: it's a bit dangerous to assume that the assignment will succeed, in which case the token can be made continuable again
+							if tokentext==assignmentchar and not token.isContinuable():
+								token.undiscontinued()
+						else: # not an operator
+							argument=None
+							if tokentype==INTEGER_TOKENTYPE: # an integer
+								argument=getInteger(tokentext) # we've allowed using ~ as sign TODO make a function out of it
+							elif tokentype==REAL_TOKENTYPE: # a float
+								argument=float(tokentext)
+							elif tokentype==EXPRESSION_TOKENTYPE: # a subexpression which we should evaluate now
+								argument=token # MDH@05SEP2017: now again allowed to pass along token of type expression!!!!
+							elif tokentype==IDENTIFIER_TOKENTYPE: # some identifier, either a function or an identifier
+								# although an identifier can also be a function, we allow using function names as identifiers, so it depends on what's behind the identifier name
+								# whether it's a function or identifier
+								# on the other hand if there's nothing behind the identifier it's an existing identifier
+								# so if it's an existing identifier assume it's an identifier, and correct when an opening parenthesis comes next
+								function=self.getFunction(tokentext)
+								if function is not None:
+									argument=function # remember the function until we have the argument to apply it to
+								else: # identifier that does not yet exist
+									argument=evaluationenvironment.getIdentifier(tokentext)
+							else: # anything else (which is stored as text)
+								argument=getValue(tokentext) # like an expression
+							# MDH@15AUG2017: if we allow as many arguments as possible, we cannot immediately apply the functions to an argument, not until we come across an operator
+							#								 as soon as we come across the operator we should the functions to ALL arguments
+							elements.append(argument)
+						if self.debug&16:
+							for element in elements:
+								note("Element: "+str(element))
+					# apply all operators left
+					if self.error is None:
+						# because we do not have an operator at the end we need to first apply functions
+						while len(elements)>1:
+							if self.debug&8:
+								note("Evaluating: "+str(elements)+".")
 							try:
-								elements.append(evaluationenvironment.getOperationResult(elements.pop(),elements.pop().getText(),elements.pop())) # pretty neat to be able to do it this way (but I rewrote getOperationResult to accept the 2nd argument first!!!)
+								####note("Applying final functions!")
+								applyFunctions()
+								# the problem is that getOperationResult will receive expressions as well
+								# which it sometimes must evaluate and sometimes not, so it needs an environment
+								if len(elements)>2: # we should have at least an operator in front of it
+									elements.append(evaluationenvironment.getOperationResult(elements.pop(),elements.pop().getText(),elements.pop()))
 							except Exception,ex:
 								self.error=ex
+								#######note("ERROR: '"+str(ex)+"'!")
 								break
-						# remember this operator and its associated precedence
-						# MDH@15AUG2017: I need to be able to distinguish operators from operands
-						elements.append(Operator(tokentext,precedence))
-						# MDH@24AUG2017: it's a bit dangerous to assume that the assignment will succeed, in which case the token can be made continuable again
-						if tokentext==assignmentchar and not token.isContinuable():
-							token.undiscontinued()
-					else: # not an operator
-						argument=None
-						if tokentype==INTEGER_TOKENTYPE: # an integer
-							argument=getInteger(tokentext) # we've allowed using ~ as sign TODO make a function out of it
-						elif tokentype==REAL_TOKENTYPE: # a float
-							argument=float(tokentext)
-						elif tokentype==EXPRESSION_TOKENTYPE: # a subexpression which we should evaluate now
-							argument=token # MDH@05SEP2017: now again allowed to pass along token of type expression!!!!
-						elif tokentype==IDENTIFIER_TOKENTYPE: # some identifier, either a function or an identifier
-							# although an identifier can also be a function, we allow using function names as identifiers, so it depends on what's behind the identifier name
-							# whether it's a function or identifier
-							# on the other hand if there's nothing behind the identifier it's an existing identifier
-							# so if it's an existing identifier assume it's an identifier, and correct when an opening parenthesis comes next
-							function=self.getFunction(tokentext)
-							if function is not None:
-								argument=function # remember the function until we have the argument to apply it to
-							else: # identifier that does not yet exist
-								argument=evaluationenvironment.getIdentifier(tokentext)
-						else: # anything else (which is stored as text)
-							argument=getValue(tokentext) # like an expression
-						# MDH@15AUG2017: if we allow as many arguments as possible, we cannot immediately apply the functions to an argument, not until we come across an operator
-						#								 as soon as we come across the operator we should the functions to ALL arguments
-						elements.append(argument)
-					if self.debug&16:
-						for element in elements:
-							note("Element: "+str(element))
-				# apply all operators left
-				if self.error is None:
-					# because we do not have an operator at the end we need to first apply functions
-					while len(elements)>1:
+					if self.error is None:
 						if self.debug&8:
-							note("Evaluating: "+str(elements)+".")
-						try:
-							####note("Applying final functions!")
-							applyFunctions()
-							# the problem is that getOperationResult will receive expressions as well
-							# which it sometimes must evaluate and sometimes not, so it needs an environment
-							if len(elements)>2: # we should have at least an operator in front of it
-								elements.append(evaluationenvironment.getOperationResult(elements.pop(),elements.pop().getText(),elements.pop()))
-						except Exception,ex:
-							self.error=ex
-							#######note("ERROR: '"+str(ex)+"'!")
-							break
-				if self.error is None:
+							note("Final result: "+str(elements)+".")
+						if len(elements)==0: # we should end with one argument and no operators
+							self.error="No operands left."
+						elif len(elements)>1:
+							self.error="Too few operators."
+					####note("Elements: "+str(elements)+".")
+					self.value=map(getElementValue,elements) # evaluate what's left
+					# MDH@22SEP2017: we do NOT want to unlist a single result, which would mean that expressions enclosed in parenthesis return a list!!!!
+					#                alternatively, we might remove all None elements at the end so that a list would remain if only a single element (like Python does!)
+					####note("Result value: "+str(self.value)+".")
+					if isinstance(self.value,list) and len(self.value)==1:
+						self.value=self.value[0]
+					# MDH@22SEP2017: we can force to return a list by appending None elements (i.e. empty expressions), as Python does!!!
+					if isinstance(self.value,list):
+						while len(self.value)>0 and self.value[-1] is None:
+							self.value.pop()
 					if self.debug&8:
-						note("Final result: "+str(elements)+".")
-					if len(elements)==0: # we should end with one argument and no operators
-						self.error="No operands left."
-					elif len(elements)>1:
-						self.error="Too few operators."
-				####note("Elements: "+str(elements)+".")
-				self.value=map(getElementValue,elements) # evaluate what's left
-				####note("Result value: "+str(self.value)+".")
-				if isinstance(self.value,list) and len(self.value)==1:
-					self.value=self.value[0]
-				if self.debug&8:
-					output("\n\t"+valueText)
-					write(" = ",0)
-					if self.value is None:
-						output("(Undefined)")
-					else:
-						output(str(self.value))
-			else: # no tokens and a subexpression
+						output("\n\t"+valueText)
+						write(" = ",0)
+						if self.value is None:
+							output("(Undefined)")
+						else:
+							output(str(self.value))
+				else: # no tokens and a subexpression
+					self.value=undefined.getValue()
+			# the first argument might still have been left unevaluated, e.g. when a single identifier is typed!!!
+			except Exception,ex:
 				self.value=undefined
-		# the first argument might still have been left unevaluated, e.g. when a single identifier is typed!!!
-		except Exception,ex:
-			self.value=None
-			######note("ERROR: '"+str(ex)+"'...")
-			if self.error is None:
-				self.error=ex
+				######note("ERROR: '"+str(ex)+"'...")
+				if self.error is None:
+					self.error=ex
 		return self.value
 	def isEmpty(self):
 		return len(self.tokens)==0
@@ -4320,25 +4377,21 @@ def main():
 			if resultlength>0:
 				output(" "*resultlength)
 				output("\033["+str(resultlength)+"D") # return to the original cursor position
+			# MDH@22SEP2017: empty expressions now return None, whereas if somehow invalid, they return undefined!!!
+			try:
+				expressionvalue=mexpression.evaluatesTo(environment) # pass in the global environment to evaluate the expression
+			except ReturnException,returnException:
+				expressionvalue=returnException.getValue()
+			# write the value of the expression on a separate line (before writing any error)
 			newline()
-			#####writeln("Evaluating the expression...")
-			#######expressiontext=mexpression.getText().strip()
-			if not mexpression.isEmpty(): # something to evaluate at all
-				# better to show any syntax error first (because getValue() might also create an error
-				###sys.stdout.write("\n")
-				try:
-					expressionvalue=mexpression.evaluatesTo(environment) # pass in the global environment to evaluate the expression
-				except ReturnException,returnException:
-					expressionvalue=returnException.getValue()
-				output(' '*(len(prompt)-2)) # skip length of prompt!!
-				# MDH@27AUG2017: write the result on the same line
-				if expressionvalue is not None:
-					writeln(getColoredText("= ",INFO_COLOR)+getColoredText(getText(expressionvalue),RESULT_COLOR,RESULT_BACKCOLOR))
-				else: # probably best to indicate that the expression could not be evaluated
-					writeln(getColoredText("= ",INFO_COLOR)+getColoredText("Result undefined!",RESULT_COLOR,RESULT_BACKCOLOR))
-				computationerror=mexpression.getError()
-				if computationerror is not None:
-					writeerror(computationerror)
+			output(' '*(len(prompt)-2)) # skip length of prompt!!
+			write("= ",INFO_COLOR)
+			if expressionvalue is not None:
+				write(getText(expressionvalue),RESULT_COLOR,RESULT_BACKCOLOR)
+			newline()
+			computationerror=mexpression.getError()
+			if computationerror is not None:
+				writeerror(computationerror)
 			# even if the expression is empty we store it anyway (although it's best not referred to!!)
 			if environment.getMode()==0: # declaration mode
 				environment.addExpression(mexpression) # MDH@17AUG2017: storing the expression itself (which value might change dynamically)

@@ -1,0 +1,2 @@
+; updateInCheck() determines whether or not the opponent is now in check
+$=0
