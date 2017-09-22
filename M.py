@@ -952,7 +952,7 @@ class Identifier:
 		return self.name
 	def __str__(self):
 		return self.name
-undefined=Identifier() # the identifier with None value is used to indicate an undefined value and is to be returned as value when non-computable/computed
+undefined=Identifier(_value='?') # the identifier with None value is used to indicate an undefined value and is to be returned as value when non-computable/computed
 # MDH@30AUG2017: an 'environment is basically a dictionary of identifiers
 # MDH@02SEP2017: we're gonna let Environment keep a list of user functions being created
 #								 as it otherwise would need to keep a list of pending function creations
