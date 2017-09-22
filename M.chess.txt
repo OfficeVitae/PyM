@@ -8,7 +8,6 @@ board=replicate(replicate(0,8),8) ; create empty board
 rows='abcdefgh' ; the row names
 cols='12345678' ; the column names
 movecount=0
-checkmate=false
 kingmoved=(false,false) ; whether or not the king was moved yet, if it hasn't it can still castle
 enpassantposition=(?,?) ; keep track of the en passant capture positions (which is always the position behind a two-step pawn movement)
 playerincheck=0 ; the player currently in check
@@ -26,7 +25,7 @@ if(playerincheck!=playerindex,candidateEndPositions=getCandidateEndPositions())
 ; ask the user for his/her move
 ; determine the list of pieces the current player still has
 (ppts='',ppps=piecepositions(playerindex))
-for(ppi,1..len(ppps),ppt=piecetypes(ppps(ppi)),if(find(ppt,playerpiecetypes)==0,ppts+=ppt))
+for(ppi,1..len(ppps),ppt=piecetypes(ppps(ppi,1)),if(find(ppt,ppts)==0,ppts+=ppt))
 out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+ppts+']? ')
 piecetype=inch(ppts) ; get one of the player pieces characters
 out(lf)
