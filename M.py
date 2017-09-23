@@ -2,6 +2,8 @@
 Marc's expression tokenizer and evaluator
 """
 """ History of development:
+23SEP2017:
+- defined and undefined functions added
 22SEP2017:
 - allowing continuation of expressions on successive lines (preferably indented with a tab)
 - adding DEBUG to Menvironment, so it can be controlled in input mode!!!
@@ -560,6 +562,8 @@ class Function:
 						value=arguments[0] # the single scalar argument to apply the function to
 						# some of these 1-argument functions work on list arguments
 						if self.functionindex==29: # MDH@22SEP2017: len function
+							if isinstance(value,str):
+								return len(dequote(value)[0])
 							if isinstance(value,list):
 								i=len(value)
 								while i>0 and value[-1]==undefined.getValue():
@@ -675,6 +679,10 @@ class Function:
 										textline=textfile.readline()
 								textfile.close()
 								return valuelines
+						elif self.functionindex==31: # defined
+							return (1,0)[value==undefined.getValue()]
+						elif self.functionindex==32: # undefined
+							return (0,1)[value==undefined.getValue()]
 						elif self.functionindex==45: # MDH@21SEP2017: sign function
 							return ((-1,1)[value>0],0)[value==0]
 						elif self.functionindex==46: # MDH@18SEP2017: int function
@@ -697,7 +705,7 @@ class Function:
 								while 1:
 									ch=getch()
 									if ord(ch) in (3,4,9,10,13): # break anyway on Ctrl-C, Ctrl-D, Enter or Tab
-										break
+										return undefined.getValue()
 									if possiblechars.find(ch)>=0:
 										output(ch) # echo the character input
 										return enquote(ch)
@@ -1531,7 +1539,7 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'isalist':-10}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 

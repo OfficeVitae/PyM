@@ -1,5 +1,7 @@
 showBoard
+getCheckPieceCharacter	playerindex	row	col
 getPieceToMove
 givingUp
 updateInCheck
 checkMate
+updateCheckPieces

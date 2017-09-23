@@ -1,0 +1,2 @@
+; getCheckPieceCharacter return the check piece character at row #row and col #col of player #playerindex
+$=if(len(checkpieces(playerindex,row,col))>0,'!',' ')

@@ -1,0 +1,6 @@
+; givingUp() returns 1 if user answered with Y or y, 0 otherwise
+out(if(playerindex==1,player1,player2)+", do you want to give up? ")
+answer=inch('YyNn')
+if(undefined(answer),jump(-2)) ; try again
+$=(find(answer,'Yy')>0)
+out(lf)
