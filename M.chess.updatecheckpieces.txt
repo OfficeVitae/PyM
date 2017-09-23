@@ -1,0 +1,4 @@
+; updateCheckPieces() updates #checkpieces
+checkpieces=(replicate(replicate('',8),8),replicate(replicate('',8),8)) ; initialize
+updatePlayerCheckPieces(1)
+updatePlayerCheckPieces(2)

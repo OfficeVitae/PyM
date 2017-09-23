@@ -1,0 +1,4 @@
+; updatePlayerCheckPieces() updates the check pieces of player #playerindex
+playercheckpieces=checkpieces(playerindex)
+kingposition=piecepositions(playerindex,1) ; the position of the player's King
+
