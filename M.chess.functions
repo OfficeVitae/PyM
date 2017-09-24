@@ -5,4 +5,4 @@ givingUp
 updateInCheck
 checkMate
 updateCheckPieces
-updatePlayerCheckPieces	playerindex
+updatePlayerCheckPieces	pi

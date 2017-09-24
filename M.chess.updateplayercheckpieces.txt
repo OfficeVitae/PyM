@@ -1,4 +1,49 @@
-; updatePlayerCheckPieces() updates the check pieces of player #playerindex
-playercheckpieces=checkpieces(playerindex)
-kingposition=piecepositions(playerindex,1) ; the position of the player's King
+; updatePlayerCheckPieces() updates the check pieces of player #pi
+kingrow=piecepositions(playerindex,1,2) ; the row of the player's King
+kingcol=piecepositions(playerindex,1,3) ; the column of the player's King
 
+; from what positions can pawns capture the king?
+krow=kingrow+if(pi==1,1,-1)
+if(krow>0&&krow<9,if(kingcol>1,checkpieces(pi,krow,kingcol-1)+='p'),if(kingcol<8,checkpieces(pi,krow,kingcol+1)+='p'))
+
+; from what positions can knights capture the king?
+kps=((kingrow-1,kingcol-2),(kingrow-2,kingcol-1),(kingrow+1,kingcol-2),(kingrow+2,kingcol-1),(kingrow-1,kingcol+2),(kingrow-2,kingcol+1),(kingrow+1,kingcol+2),(kingrow+2,kingcol+1)) ; the knight positions
+for(kpi,1..len(kps),kp=kps(kpi),if(kp(1)>0&&kp(1)<9&&kp(2)>0&&kp(2)<9,checkpieces(kp(1),kp(2))+='N'))
+
+; from what positions can rooks capture the king?
+; we have to move in 4 directions until we bump into the border or a piece
+; 'down'
+krow=kingrow-1
+while(krow>0&&board(krow,kingcol)==0,checkpieces(pi,krow,kingcol)+='RQ',krow-=1)
+if(krow>0,checkpieces(pi,krow,kingcol)+='RQ')
+; 'up'
+krow=kingrow+1
+while(krow<8&&board(krow,kingcol)==0,checkpieces(pi,krow,kingcol)+='RQ',krow+=1)
+if(krow<8,checkpieces(pi,krow,kingcol)+='RQ')
+' left'
+kcol=kingcol-1
+while(kcol>0&&board(kingrow,kcol)==0,checkpieces(pi,kingrow,kcol)+='RQ',kcol-=1)
+if(kcol>0,checkpieces(pi,kingrow,kcol)+='RQ')
+; 'right'
+kcol=kingcol+1
+while(kcol<8&&board(kingrow,kcol)==0,checkpieces(pi,kingrow,kcol)+='RQ',kcol+=1)
+if(kcol<8,checkpieces(pi,kingrow,kcol)+='RQ')
+; from what positions can bishops capture the king?
+; 'down' and 'left'
+(krow=kingrow-1,kcol=kingcol-1)
+while(krow>0&&kcol>0&&board(krow,kcol)==0,checkpieces(pi,krow,kcol)+='BQ',krow-=1,kcol-=1)
+if(krow>0&&kcol>0,checkpieces(pi,krow,kcol)+='BQ')
+; 'up' and 'right'
+(krow=kingrow+1,kcol=kingcol+1)
+while(krow<9&&kcol<9&&board(krow,kcol)==0,checkpieces(pi,krow,kcol)+='BQ',krow+=1,kcol+=1)
+if(krow<9&&kcol<9,checkpieces(pi,krow,kcol)+='BQ')
+; 'down' and 'right'
+(krow=kingrow-1,kcol=kingcol+1)
+while(krow>0&&kcol<9&&board(krow,kcol)==0,checkpieces(pi,krow,kcol)+='BQ',krow-=1,kcol+=1)
+if(krow>0&&kcol<9,checkpieces(pi,krow,kcol)+='BQ')
+; 'up' and 'left'
+(krow=kingrow+1,kcol=kingcol-1)
+while(krow<9&&kcol>0&&board(krow,kcol)==0,checkpieces(pi,krow,kcol)+='BQ',krow+=1,kcol-=1)
+if(krow<9&&kcol>0,checkpieces(pi,krow,kcol)+='BQ')
+; from what positions can queens capture the king?
+; there's no need to determine these positions because they are marked with either B or R already

@@ -1545,7 +1545,7 @@ Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':2
 
 environment=None # MDH@03SEP2017: wait for the user name to be known!!!
 
-def getTokentypeRepresentation(_tokentype):
+def getTokentypeRepresentation(_tokentype,_ignoresign=False):
 	tokentype=abs(_tokentype)
 	result=str(tokentype)
 	if tokentype==0:
@@ -1572,6 +1572,8 @@ def getTokentypeRepresentation(_tokentype):
 		result="fun"
 	elif tokentype==USERFUNCTION_TOKENTYPE:
 		result="ufun"
+	if _ignoresign:
+		return result
 	return ("-","")[_tokentype>=0]+result
 def getOperatorPrecedence(_operator):
 	if _operator==declarationchar: # TODO I have to think about this...
@@ -2632,7 +2634,7 @@ class Expression(Token):
 						# or the assignment operator, so that's + *	 < <= > >= != == and =, and the rest is prohibited
 						# and also not behind any of the signs
 						if abs(tokentype)>=SIGN_TOKENTYPE: # everything starting at signs can never precede a string literal
-							self.error="String literal not allowed here!"
+							self.error="String literal not allowed behind token of type "+getTokentypeRepresentation(tokentype,True)+"!"
 						elif tokentype!=0: # this leaves the operators
 							# only the first four unfinished operator are acceptable i.e. < or > or = or * but not the rest i.e. & | / and %
 							# we might consider ending the operator token if need be so that all have the same type
@@ -2714,7 +2716,8 @@ class Expression(Token):
 												tokentype=-tokentype
 										else:
 											self.error="Failed to create two-character operator "+operatortext+"!"
-								elif _tokenchar==assignmentchar and self.tokens[-2].getType()==IDENTIFIER_TOKENTYPE and operatortext[-1]!=assignmentchar and operatortext!='||' and operatortext!='&&' and operatortext!='..': # yes, the shortcutter
+								elif _tokenchar==assignmentchar and (self.tokens[-2].getType()==IDENTIFIER_TOKENTYPE or (self.tokens[-2].getType()==EXPRESSION_TOKENTYPE and isinstance(self.tokens[-2],IdentifierElementExpression))) and operatortext[-1]!=assignmentchar and operatortext!='||' and operatortext!='&&' and operatortext!='..': # yes, the shortcutter
+									# MDH@24SEP2017: BUG FIX an IdentifierElementExpression should also be considered an 'identifier' to which one may assign
 									if self.token.add(_tokenchar) is not None:
 										_tokenchar=None
 										self.token.discontinued()
@@ -3449,8 +3452,9 @@ class IdentifierElementExpression(Expression):
 		else: # a single index
 			value=getValueAtIndex(value,indexvalues)
 		return value
-	def setValue(self,_value,_environment): # TODO do we need to know the environment here????
-		identifier=_environment.getExistingIdentifier(self.getIdentifier())
+	def setValue(self,_value,_environment=None): # TODO do we need to know the environment here????
+		environment=(_environment,self.environment)[_environment is None]
+		identifier=environment.getExistingIdentifier(self.getIdentifier())
 		if identifier is None:
 			raise Exception("Identifier "+self.getIdentifier()+" vanished.")
 		value=identifier.getValue() # the list of which elements are to be set
@@ -3492,7 +3496,7 @@ class IdentifierElementExpression(Expression):
 			raise Exception("Variable "+self.getIdentifier()+" cannot be indexed: its value is not a list.")
 		####note("Setting the element at index "+str(indexvalue)+" of "+self.identifiername+" with value "+str(value)+".")
 		maxindex=len(value) # get the length of the list
-		indexvalues=Expression.evaluatesTo(self,_environment) ##self.getIndexValue(_environment)
+		indexvalues=Expression.evaluatesTo(self,environment) ##self.getIndexValue(_environment)
 		# typically the last index will do the actually assigning
 		# and therefore it makes sense to start with popping that one off
 		#########note("Index values: "+getText(indexvalues)+".")
