@@ -1,8 +1,8 @@
 showBoard
-getCheckPieceCharacter	playerindex row col
+getCheckPieceCharacter	playerindex	row	col
 getPieceToMove
 givingUp
 updateInCheck
 checkMate
 updateCheckPieces
-updatePlayerCheckPieces	pi
+updatePlayerCheckPieces	pl

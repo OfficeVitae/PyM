@@ -4,17 +4,16 @@ $=0 ; assume no winner
 piecetypes='pRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and king)
 piecetypenames=('pawn','rook','knight','bishop','queen','king') ; the names of the piece (types)
 ranges=(8..1,1..8) ; display ranges
-playercolors=(16,231) ; the foreground color of the pieces
+colors=(231,16) ; the foreground color of the pieces
 board=replicate(replicate(0,8),8) ; create empty board
 ; initialize the game
-rows='abcdefgh' ; the row names
-cols='12345678' ; the column names
+rows='12345678' ; the row names
+cols='abcdefgh' ; the column names
 movecount=0
 kingmoved=(false,false) ; whether or not the king was moved yet, if it hasn't it can still castle
 enpassantposition=(?,?) ; keep track of the en passant capture positions (which is always the position behind a two-step pawn movement)
 playerincheck=0 ; the player currently in check
 playerindex=1 ; current player
-playersign=1 ; the sign of the player's pieces on the board
 ; keep track of the positions of all pieces (by player, by type)
 ; if we always store the position of the king in the first element, it's easy to find
 piecepositions=(((6,3,5),(2,1,1),(3,1,2),(4,1,3),(5,1,4),(4,1,6),(3,1,7),(2,1,8),(1,2,1),(1,2,2),(1,2,3),(1,2,4),(1,2,5),(1,2,6),(1,2,7),(1,2,8)),((6,6,5),(2,8,1),(3,8,2),(4,8,3),(5,8,4),(4,8,6),(3,8,7),(2,8,8),(1,7,1),(1,7,2),(1,7,3),(1,7,4),(1,7,5),(1,7,6),(1,7,7),(1,7,8)))
@@ -22,11 +21,8 @@ piecepositions=(((6,3,5),(2,1,1),(3,1,2),(4,1,3),(5,1,4),(4,1,6),(3,1,7),(2,1,8)
 for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1))))
 ; initialize check pieces (the positions on the board from where pieces can give check)
 ; NOTE that at the start of the game there are no check fields
-checkpieces=(replicate(replicate('',8),8),replicate(replicate('',8),8))
-; checkpieces(1,1,5)='p'
-; checkpieces(2,8,5)='N'
-updateCheckPieces() ; we can do this for testing purposes (if we put the king somewhere else)
-out(checkpieces)
+checkpieces=?
+updateCheckPieces() ; we can do this for testing purposes
 ; show chess board in the orientation of the current player
 showBoard()
 ; let's determine all the theoretic positions the pieces of the current player can move to when I'm not in check, otherwise checkMate() would've determined them
@@ -48,5 +44,4 @@ movecount+=1
 updateInCheck() ; check whether the opponent is now in check
 if(playerincheck>0&&checkMate(),debug=debugnow,return(playerindex)) ; if opponent in check, check for checkmate
 playerindex=3-playerindex
-playersign=-playersign
-jump(-21)
+jump(-22)

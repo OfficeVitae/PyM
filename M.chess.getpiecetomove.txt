@@ -7,6 +7,6 @@ out("Available positions:")
 positionindices=''
 for(positionindex,1..numberofpositions,out(' ',positionindex,'=',rows(positions(positionindex,1)),positions(positionindex,2)),positionindices+=positionindex)
 out(lf)
-out("What is the position of your ",piecenames(pieceindex),' [',positionindices,']? ")
+out("What is the position of your ",piecenames(pieceindex)," [",positionindices,"]? ")
 piecepositionindex=int(inch(positionindices))
 $=positions(piecepositionindex)

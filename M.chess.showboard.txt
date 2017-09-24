@@ -1,7 +1,10 @@
 ; displays the #board fields, showing the pieces and whether or not it is a check piece
+; appends a + to the King of the current player if currently in check
+; prepends the ! to every position
 ; the problem with check pieces it is that they can be for black and for white at the
 ; same position, we can show the current player's check field left and the other player's
 ; to the right in the proper color
-out("Chess board after ",movecount+" moves.",lf,'  a  b  c  d  e  f  g  h',lf)
-for(row,ranges(playerindex),out(row),for(col,1..8,bg=if((row%2)^(col%2),251,247),outc((if(playerindex==2,16,231),bg),getCheckPieceCharacter(playerindex,row,col)),outc((if(board(row,col)<0,16,231),bg),if(board(row,col)!=0,piecetypes(abs(board(row,col))),' ')),outc((if(playerindex==1,16,231),bg),getCheckPieceCharacter(3-playerindex,row,col))),out(row,lf))
-out('  a  b  c  d  e  f  g  h',lf)
+out("Chess board after ",movecount+" moves.",lf)
+(for(col,1..8,out('  ',cols(col))),out(lf))
+for(row,ranges(playerindex),out(row),for(col,1..8,p=board(row,col),pl=(3-sign(p))\2,bg=if((row%2)^(col%2),251,247),outc((colors(playerindex),bg),getCheckPieceCharacter(playerindex,row,col)),outc((colors(pl),bg),if(p!=0,piecetypes(abs(p)),' ')),outc((colors(3-playerindex),bg),getCheckPieceCharacter(3-playerindex,row,col))),out(row,lf))
+(for(col,1..8,out('  ',cols(col))),out(lf))

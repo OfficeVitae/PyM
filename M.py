@@ -2,11 +2,13 @@
 Marc's expression tokenizer and evaluator
 """
 """ History of development:
+24SEP2017:
+- BUG FIX: allowing shortcut assignment operators for 'array' elements 
 23SEP2017:
 - defined and undefined functions added
 22SEP2017:
 - allowing continuation of expressions on successive lines (preferably indented with a tab)
-- adding DEBUG to Menvironment, so it can be controlled in input mode!!!
+- adding DEBUG (as debug) to variable of Menvironment, so it can be controlled in (input mode) expressions
 21SEP2017:
 - function 'sign', 'inch' (e.g. to be used in M.chess)
 18SEP2017:
@@ -1056,10 +1058,10 @@ class Environment:
 		self.M.value=list() # initialize the list of expressions (this is a bit of cheating as we cannot use setValue() on a constant like M)
 		expressionsfilename=self.getExpressionsFilename()
 		if opsyspath.exists(expressionsfilename):
-			#######note("Reading expressions from "+expressionsfilename+".")
+			#######note("Reading expressions from "+expressionsfilename+"...")
 			expressionsfile=open(expressionsfilename,'r')
 			if expressionsfile:
-				expression=None # the current expression
+				expression=None # the current top-level expression
 				expressionline=expressionsfile.readline()
 				expressionlineindex=0
 				while len(expressionline)>0:
@@ -1075,17 +1077,19 @@ class Environment:
 							# MDH@10SEP2017: essential to pass 0 for the debug value!!!
 							# MDH@22SEP2017: we're going to allow expression continuation on the next line
 							if expression is None: # not an expression continuation
-								expression=getNewExpression(self,_evaluate,0)
+								mainexpression=getNewExpression(self,_evaluate,0)
+								expression=mainexpression
+								errors=list() # keep a list of errors
 							elif tabpos!=0: # how about letting every continuation (preferably) start with a tab????
 								note("WARNING: Not indented expression continuation '"+expressiontext+"' encountered on line #"+str(expressionlineindex)+" of "+expressionsfilename+".")
 							# 'continue' the expression with the expression text
-							(new_expression,error)=continueExpression(expression,expressiontext)
-							if expression.isEmpty(): # the expression is empty
-								self.addExpression(None)
-								expression=None # can't be continued on the next line!!
-							elif error is None: # no error
-								if expression.ends() is None: # a completed expression, ready to add
-									try:
+							(expression,error)=continueExpression(expression,expressiontext)
+							if error is not None: # register any error
+								note("ERROR: '"+str(error)+"' in processing expression text '"+expressiontext+"' on line #"+str(expressionlineindex)+" of "+expressionsfilename+".")
+								errors.append(error)
+							if expression==mainexpression: # a finished expression
+								try:
+									if len(errors)==0: # no errors
 										self.addExpression(expression)
 										if _evaluate:
 											try:
@@ -1098,14 +1102,10 @@ class Environment:
 												#######note("Initialized in '"+expressiontext+"': "+getText(expressioninitializes)+".")
 												for expressioninitialize in expressioninitializes:
 													self.addIdentifier(Identifier(expressioninitialize))
-									finally:
-										expression=None # ready to start a new expression
-								else: # expression, not yet complete, we'll end up with the original expression in the end (hopefully)
-									note("WARNING: Expression '"+expressiontext+"' does not end on line #"+str(expressionlineindex)+" of "+expressionsfilename+".")
-									expression=new_expression # continue with the (sub)expression
-							else: # some error, add None
-								note("ERROR: '"+error+"' in processing expression text '"+expressiontext+"' on line #"+str(expressionlineindex)+" of "+expressionsfilename+".")
-								self.addExpression(None)
+									else: # ignore expression
+										self.addExpression(None)
+								finally:
+									expression=None # ready to start a new expression
 					finally:
 						expressionline=expressionsfile.readline() # read the next line
 				expressionsfile.close()
@@ -1520,7 +1520,11 @@ class Environment:
 			# MDH@05SEP2017: when a shortcut assignment place the result in the argument1 variable as well!!!
 			if shortcutting:
 				#######note("Shortcutting!")
-				argument1.setValue(result)
+				######note("Setting the value of "+str(argument1)+" to "+str(result)+" in a shortcut assignment.")
+				if isinstance(argument1,Identifier): 
+					argument1.setValue(result)
+				elif isinstance(argument1,IdentifierElementExpression): # MDH@24SEP2017: we have to pass in the environment in which to evaluate the index values
+					argument1.setValue(result,self)
 		#######note("Operation result: "+str(result)+".")
 		return result
 
@@ -3452,9 +3456,8 @@ class IdentifierElementExpression(Expression):
 		else: # a single index
 			value=getValueAtIndex(value,indexvalues)
 		return value
-	def setValue(self,_value,_environment=None): # TODO do we need to know the environment here????
-		environment=(_environment,self.environment)[_environment is None]
-		identifier=environment.getExistingIdentifier(self.getIdentifier())
+	def setValue(self,_value,_environment): # TODO do we need to know the environment here????
+		identifier=_environment.getExistingIdentifier(self.getIdentifier())
 		if identifier is None:
 			raise Exception("Identifier "+self.getIdentifier()+" vanished.")
 		value=identifier.getValue() # the list of which elements are to be set
@@ -3496,10 +3499,11 @@ class IdentifierElementExpression(Expression):
 			raise Exception("Variable "+self.getIdentifier()+" cannot be indexed: its value is not a list.")
 		####note("Setting the element at index "+str(indexvalue)+" of "+self.identifiername+" with value "+str(value)+".")
 		maxindex=len(value) # get the length of the list
-		indexvalues=Expression.evaluatesTo(self,environment) ##self.getIndexValue(_environment)
+		#####note("Evaluating index expression '"+str(self)+"'. in environment '"+environment.getName()+"'.")
+		indexvalues=Expression.evaluatesTo(self,_environment) ##self.getIndexValue(_environment)
 		# typically the last index will do the actually assigning
 		# and therefore it makes sense to start with popping that one off
-		#########note("Index values: "+getText(indexvalues)+".")
+		#####note("Index values: "+getText(indexvalues)+".")
 		if isinstance(indexvalues,list):
 			lastindex=indexvalues.pop()
 			for indexvalue in indexvalues:
@@ -4429,6 +4433,7 @@ def main():
 			if resultlength>0:
 				output(" "*resultlength)
 				output("\033["+str(resultlength)+"D") # return to the original cursor position
+			newline() # BEFORE calling evaluatesTo() as any interactive function call (like chess) assumes to start on a new line
 			# MDH@22SEP2017: empty expressions now return None, whereas if somehow invalid, they return undefined!!!
 			try:
 				expressionvalue=mexpression.evaluatesTo(environment) # pass in the global environment to evaluate the expression
@@ -4436,7 +4441,6 @@ def main():
 			except ReturnException,returnException:
 				expressionvalue=returnException.getValue()
 			# write the value of the expression on a separate line (before writing any error)
-			newline()
 			output(' '*(len(prompt)-2)) # skip length of prompt!!
 			write("= ",INFO_COLOR)
 			if expressionvalue is not None:
