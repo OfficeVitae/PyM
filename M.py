@@ -3,7 +3,7 @@ Marc's expression tokenizer and evaluator
 """
 """ History of development:
 24SEP2017:
-- BUG FIX: allowing shortcut assignment operators for 'array' elements 
+- BUG FIX: allowing shortcut assignment operators for 'array' elements
 23SEP2017:
 - defined and undefined functions added
 22SEP2017:
@@ -545,9 +545,6 @@ class Function:
 						if len(arguments)==1 and isIterable(arguments[0]): # quick fix
 							return concatenate(arguments[0])
 						return concatenate(arguments)
-					if self.functionindex==-10: # isalist
-						#####note("Is '"+str(arguments)+"' a list?")
-						return (0,1)[isinstance(arguments,list)]
 					if self.functionindex==-8: # out (turned into a list function more convenient)
 						# it's possible to have a single argument that is a list
 						if len(arguments)==1 and isIterable(arguments[0]): # quick fix
@@ -564,8 +561,11 @@ class Function:
 						value=arguments[0] # the single scalar argument to apply the function to
 						# some of these 1-argument functions work on list arguments
 						if self.functionindex==29: # MDH@22SEP2017: len function
+							####note("Length of "+value+" of type "+str(type(value))+" requested.")
 							if isinstance(value,str):
-								return len(dequote(value)[0])
+								(valuetext,valueqc)=dequote(value) # MDH@26SEP2017: have to do this, as ? is also stored as string but then without the quotes!!!
+								if valueqc is not None:
+									return len(valuetext)
 							if isinstance(value,list):
 								i=len(value)
 								while i>0 and value[-1]==undefined.getValue():
@@ -576,6 +576,8 @@ class Function:
 							if isinstance(value,list):
 								return len(value)
 							return -1 # not a list
+						elif self.functionindex==33: # MDH@26SEP2017: isalist function
+							return (0,1)[isinstance(value,list)]
 						# if the single argument is still list-like, we again have to use map on it!!!!
 						if isIterable(value):
 							return [self.apply([x]) for x in value] # map(self.apply,map(listify,arguments[0])) didn't work
@@ -715,10 +717,20 @@ class Function:
 						return [self.apply([x]) for x in arguments] # we have to listify the arguments because self.apply expects an argument list (even a single one)
 				elif self.functionindex<200: # the two-argument functions
 					if self.functionindex==105: # MDH@21SEP2017: find text in string
-						if len(arguments)>1 and isinstance(arguments[0],str) and isinstance(arguments[1],str):
-							findtext=dequote(arguments[0])[0]
-							searchtext=dequote(arguments[1])[0]
-							return 1+searchtext.find(findtext)
+						if len(arguments)>1:
+							# we can find text in text, or anything in a list
+							if isinstance(arguments[1],str): # seach argument text
+								(searchtext,searchqc)=dquote(arguments[1])
+								if searchqc is not None:
+									if isinstance(arguments[0],str): # TODO perhaps we might stringify arguments[0]?????
+										findtext=dequote(arguments[0])[0]
+										return 1+searchtext.find(findtext)
+							elif isinstance(arguments[1],list): # search argument a list
+								try:
+									return 1+arguments[1].index(arguments[0])
+								except:
+									pass
+							return 0 # not found
 					elif self.functionindex==104: # MDH@19SEP2017: get integer from user
 						if len(arguments)>1 and isinstance(arguments[1],(int,long)):
 							prompttext=dequote(arguments[0])[0]
@@ -997,9 +1009,15 @@ class UserFunction(Function):
 						result=executionenvironment.getIdentifierValue(self.resultidentifiername)
 				if isIterable(result) and len(result)==1:
 					result=result[0]
+				# MDH@26SEP2017: execute any cleanup() function, but mostly will not exist!!!
+				try:
+					self.definitionenvironment.getFunction("cleanup").getValue([result])
+					note("Cleanup function executed!")
+				except Exception,ex:
+					pass
 		else:
 			note("ERROR: No expressions to evaluate!")
-		return (undefined,result)[result is not None]
+		return (undefined.getValue(),result)[result is not None]
 # keep track of the identifier (that have a value)
 undefined=Identifier(_value='?') # the identifier with None value is used to indicate an undefined value and is to be returned as value when non-computable/computed
 # MDH@30AUG2017: an 'environment is basically a dictionary of identifiers
@@ -1067,12 +1085,11 @@ class Environment:
 				while len(expressionline)>0:
 					try:
 						expressionlineindex+=1
-						expressiontext=expressionline.rstrip('\r\n')
+						rstrippedexpressiontext=expressionline.rstrip('\r\n')
 						# there's either a value or a value and an expression on the line
-						if len(expressiontext)>0: # not an expression declaration (probably the value of the expression)
-							tabpos=expressiontext.find('\t')
-							if tabpos>=0: # expression available
-								expressiontext=expressiontext[tabpos+1:]
+						if len(rstrippedexpressiontext)>0: # not an expression declaration (probably the value of the expression)
+							# remove any leading whitespace
+							expressiontext=rstrippedexpressiontext.lstrip()
 							#######note("\tParsing '"+expressiontext+"'...")
 							# MDH@10SEP2017: essential to pass 0 for the debug value!!!
 							# MDH@22SEP2017: we're going to allow expression continuation on the next line
@@ -1080,7 +1097,7 @@ class Environment:
 								mainexpression=getNewExpression(self,_evaluate,0)
 								expression=mainexpression
 								errors=list() # keep a list of errors
-							elif tabpos!=0: # how about letting every continuation (preferably) start with a tab????
+							elif len(rstrippedexpressiontext)==len(expressiontext): # how about indenting every continuation (preferably)
 								note("WARNING: Not indented expression continuation '"+expressiontext+"' encountered on line #"+str(expressionlineindex)+" of "+expressionsfilename+".")
 							# 'continue' the expression with the expression text
 							(expression,error)=continueExpression(expression,expressiontext)
@@ -1134,7 +1151,7 @@ class Environment:
 		# MDH@22SEP2017: let's only use lowercase in filenames (except for the leading M of course), thus allowing functions to use uppercase characters in the name
 		return join('.',(self.getHostName().lower(),self.name.lower()))
 	def getFunctionFilename(self,_functionname):
-		return join('.',("M",self.getFilename(),_functionname,'txt'))
+		return join('.',("M",self.getFilename(),_functionname.lower(),'txt'))
 	def getExpressionsFilename(self):
 		return join('.',("M",self.getFilename(),'txt'))
 	def getFunctionsFilename(self):
@@ -1388,7 +1405,17 @@ class Environment:
 					# MDH@22SEP2017: ah, we have to be careful here because the original list might be empty
 					######note("Concatenating lists '"+str(operand1)+"' and '"+str(operand2)+"'.")
 					result=list()
-					result.extend(listify(operand1))
+					# MDH@26SEP2017: theoretically operand1 (the value of argument1) should be a list
+					#								 we should start out with an empty list if operand1 is the undefined value
+					if isinstance(operand1,list):
+						# ignore all None values at the end of the list
+						i=len(operand1)
+						while i>0 and i>operand1[i-1] is None:
+							i-=1
+						if i>0:
+							result.extend(operand1[:i])
+					elif operand1!=undefined.getValue():
+						result.extend([operand1])
 					result.extend(listify(operand2))
 					######note("Result list: '"+str(result)+"'.")
 				# ok, both elements should be either lists or scalars, at least to apply the non-assignment binary operators to
@@ -1521,7 +1548,7 @@ class Environment:
 			if shortcutting:
 				#######note("Shortcutting!")
 				######note("Setting the value of "+str(argument1)+" to "+str(result)+" in a shortcut assignment.")
-				if isinstance(argument1,Identifier): 
+				if isinstance(argument1,Identifier):
 					argument1.setValue(result)
 				elif isinstance(argument1,IdentifierElementExpression): # MDH@24SEP2017: we have to pass in the environment in which to evaluate the index values
 					argument1.setValue(result,self)
@@ -1542,8 +1569,8 @@ Menvironment.addIdentifier(Identifier(_value="'\r'"),'cr') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
-Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'isalist':-10}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
+Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
 
@@ -3846,7 +3873,46 @@ def initializeUsers(_environment):
 			note("NOTE: Users file '"+usersfilename+"' does not exist!")
 	finally:
 		_environment.setUsersFile(open(usersfilename,'a'))
+# MDH@26SEP2017: initialize a function
+def initializeFunction(_environment,_functionname,_functionparameters,_standalone,_canhaveinnerfunctions=True):
+	ffn=_environment.getFunctionFilename(_functionname) # the name of the function file
+	result=opsyspath.exists(ffn)
+	if result:
+		note("Processing function definition file '"+ffn+"'.")
+		functionresultidentifiername=None
+		functionparameterdefaults=list()
+		for functionparameter in _functionparameters:
+			functionparameterparts=functionparameter.split("=")
+			if functionparameterparts[0]=='$': # defines the name to use for the result
+				if len(functionparameterparts)>1 and len(functionparameterparts[1])>0:
+					functionresultidentifiername=functionparameterparts[1]
+			else:
+				########note("Registering parameter default "+getText(functionparameterparts)+" of function "+_functionname+".")
+				if len(functionparameterparts)>1:
+					functionparameterdefaults.append((functionparameterparts[0],functionparameterparts[1]))
+				else:
+					functionparameterdefaults.append((functionparameterparts[0],None))
+		# ready to create the function
+		function=UserFunction(_functionname,_environment,_standalone,functionparameterdefaults,functionresultidentifiername)
+		# create an environment with the right name and initialize like any other environment
+		functiondefinitionenvironment=function.getDefinitionEnvironment() # in which we will read the expressions
+		# I need to read the subfunctions first before I can read the expressions from the file
+		if _canhaveinnerfunctions:
+			#######note("Looking for inner functions of "+_functionname+"...")
+			initializeFunctions(functiondefinitionenvironment) # the inner functions are stored in the definition environment
+		# MDH@19SEP2017: how about waiting loading the expressions until we encounter a function call??????
+		"""
+		note("Reading expressions defining function "+functionname+"...")
+		readExpressions(functiondefinitionenvironment) # all subsequent lines in the function file are expressions to be read into the function environment
+		"""
+		######functionenvironment=None # no further use for this function environment
+		######note("Registering function "+_functionname+"...")
+		_environment.addFunction(function) # store the function with the environment (without registering again)
+	return result
 def initializeFunctions(_environment):
+	# MDH@24SEP2017: convenient to immediately register the cleanup function
+	if not initializeFunction(_environment,"cleanup",["result"],False,False): # cleanup()'s default parameter is called result and is initialized with the result of the function it is defined in, no inner functions are allowed...
+		pass #####note("NOTE: No cleanup function of "+_environment.getName()+" defined!")
 	functionsfilename=_environment.getFunctionsFilename()
 	if opsyspath.exists(functionsfilename):
 		functionsfile=open(functionsfilename,'r')
@@ -3867,46 +3933,14 @@ def initializeFunctions(_environment):
 					if functionname.endswith('*'): # ends with the standalone indicator
 						functionname=functionname[:-1]
 						standalone=True
-					ffn=_environment.getFunctionFilename(functionname) # the name of the function file
-					if opsyspath.exists(ffn):
-						note("Creating function "+functionname+"...")
-						functionparameters=functionparameters[1:]
-						functionresultidentifiername=None
-						functionparameterdefaults=list()
-						for functionparameter in functionparameters:
-							functionparameterparts=functionparameter.split("=")
-							if functionparameterparts[0]=='$': # defines the name to use for the result
-								if len(functionparameterparts)>1 and len(functionparameterparts[1])>0:
-									functionresultidentifiername=functionparameterparts[1]
-							else:
-								note("Registering parameter default "+getText(functionparameterparts)+" of function "+functionname+".")
-								if len(functionparameterparts)>1:
-									functionparameterdefaults.append((functionparameterparts[0],functionparameterparts[1]))
-								else:
-									functionparameterdefaults.append((functionparameterparts[0],None))
-						# ready to create the function
-						function=UserFunction(functionname,_environment,standalone,functionparameterdefaults,functionresultidentifiername)
-						# create an environment with the right name and initialize like any other environment
-						functiondefinitionenvironment=function.getDefinitionEnvironment() # in which we will read the expressions
-						# I need to read the subfunctions first before I can read the expressions from the file
-						note("Looking for inner functions of "+functionname+"...")
-						initializeFunctions(functiondefinitionenvironment) # the inner functions are stored in the definition environment
-						# MDH@19SEP2017: how about waiting loading the expressions until we encounter a function call??????
-						"""
-						note("Reading expressions defining function "+functionname+"...")
-						readExpressions(functiondefinitionenvironment) # all subsequent lines in the function file are expressions to be read into the function environment
-						"""
-						######functionenvironment=None # no further use for this function environment
-						note("Registering function "+functionname+"...")
-						_environment.addFunction(function) # store the function with the environment (without registering again)
-					else:
-						note("ERROR: Assumed function file '"+ffn+"' does not exist!")
+					if not initializeFunction(_environment,functionname,functionparameters[1:],standalone):
+						note("ERROR: Unable to locate function file "+_environment.getFunctionFilename(functionname)+".")
 			else:
 				note("WARNING: No functions defined in functions file '"+functionsfilename+"'.")
-		else:
+		else: # no subfunctions defined in a file
 			note("ERROR: Failed to open functions file '"+functionsfilename+"'.")
 	else:
-		note("NOTE: Functions file '"+functionsfilename+"' does not exist!")
+		pass ######note("NOTE: Functions file '"+functionsfilename+"' does not exist!")
 	return 0
 def initializeEnvironment(_environment):
 	initializeUsers(_environment) # load the users

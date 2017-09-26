@@ -4,5 +4,5 @@ $=0 ; assume can't move
 piece=board(row,col)
 if(piece==0,return())
 $=if(piece<0,
-select(-piece,blackpawn(row,col),blackrook(row,col),blackknight(row,col),blackbishop(row,col),blackqueen(row,col),blackking(row,col)),
-select(piece,whitepawn(row,col),whiterook(row,col),whiteknight(row,col),whitebishop(row,col),whitequeen(row,col),whiteking(row,col)))
+  select(-piece,blackpawn(row,col),blackrook(row,col),blackknight(row,col),blackbishop(row,col),blackqueen(row,col),blackking(row,col)),
+  select(piece,whitepawn(row,col),whiterook(row,col),whiteknight(row,col),whitebishop(row,col),whitequeen(row,col),whiteking(row,col)))

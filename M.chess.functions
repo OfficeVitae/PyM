@@ -1,5 +1,5 @@
 showBoard
-getCheckPieceCharacter	playerindex	row	col
+getCheckPieceCharacter	pl	row	col
 getPieceToMove
 givingUp
 updateInCheck

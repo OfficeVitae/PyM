@@ -1,10 +1,24 @@
 ; displays the #board fields, showing the pieces and whether or not it is a check piece
 ; appends a + to the King of the current player if currently in check
-; prepends the ! to every position
-; the problem with check pieces it is that they can be for black and for white at the
-; same position, we can show the current player's check field left and the other player's
-; to the right in the proper color
+; to the left we show where the current player can check the opponent (!) or whether it checks the opponent(+)
 out("Chess board after ",movecount+" moves.",lf)
-(for(col,1..8,out('  ',cols(col))),out(lf))
-for(row,ranges(playerindex),out(row),for(col,1..8,p=board(row,col),pl=(3-sign(p))\2,bg=if((row%2)^(col%2),251,247),outc((colors(playerindex),bg),getCheckPieceCharacter(playerindex,row,col)),outc((colors(pl),bg),if(p!=0,piecetypes(abs(p)),' ')),outc((colors(3-playerindex),bg),getCheckPieceCharacter(3-playerindex,row,col))),out(row,lf))
-(for(col,1..8,out('  ',cols(col))),out(lf))
+(out('   '),for(col,1..7,out(cols(col),'    ')),out(cols(8),lf))
+for(row,ranges(playerindex),
+  out(' '),for(col,1..8,bgindex=1+((row%2)^(col%2)),outc((shadowcolors(bgindex),bgcolors(bgindex)),'  ',cols(col),'  ')),out(lf),
+  out(row),
+  for(col,1..8,
+    p=board(row,col),pl=(3-sign(p))\2,bgindex=1+((row%2)^(col%2)),bg=bgcolors(bgindex),
+    outc((shadowcolors(bgindex),bg),rows(row)),
+    if(abs(p)==6&&pl!=playerindex&&len(incheckinfo(playerindex))>0,
+      outc((9,bg),'+'),
+      outc((colors(playerindex),bg),getCheckPieceCharacter(3-playerindex,row,col))),
+    outc((colors(pl),bg),if(p!=0,piecetypes(abs(p)),' ')),
+    if(abs(p)==6&&pl==playerindex&&len(incheckinfo(3-playerindex))>0,
+      outc((9,bg),'+'),
+      outc((colors(3-playerindex),bg),getCheckPieceCharacter(playerindex,row,col))),
+    outc((shadowcolors(bgindex),bg),rows(row)),
+  ),out(row,lf),
+  out(' '),for(col,1..8,bgindex=1+((row%2)^(col%2)),outc((shadowcolors(bgindex),bgcolors(bgindex)),'  ',cols(col),'  ')),out(lf)
+  )
+(out('   '),for(col,1..7,out(cols(col),'    ')),out(cols(8),lf))
+
