@@ -1416,7 +1416,10 @@ class Environment:
 							result.extend(operand1[:i])
 					elif operand1!=undefined.getValue():
 						result.extend([operand1])
-					result.extend(listify(operand2))
+					if operand2!=undefined.getValue(): # something to append
+						result.extend(listify(operand2))
+					elif shortcutting: # nothing to append, no change to the assignment destination
+						shortcutting=False
 					######note("Result list: '"+str(result)+"'.")
 				# ok, both elements should be either lists or scalars, at least to apply the non-assignment binary operators to
 				# although we should always obtain two list or two items, we make a list of either if need be

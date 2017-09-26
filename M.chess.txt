@@ -12,13 +12,15 @@ board=replicate(replicate(0,8),8) ; create empty board
 rows='12345678' ; the row names
 cols='abcdefgh' ; the column names
 movecount=0
-kingmoved=(false,false) ; whether or not the king was moved yet, if it hasn't it can still castle
-enpassantposition=(?,?) ; keep track of the en passant capture positions (which is always the position behind a two-step pawn movement)
+enpassantcols=(?,?) ; keep track of the en passant capture positions (which is always the position behind a two-step pawn movement)
 playerincheck=0 ; the player currently in check
 playerindex=1 ; current player
 ; keep track of the positions of all pieces (by player, by type)
 ; if we always store the position of the king in the first element, it's easy to find
-piecepositions=(((6,1,5),(2,1,1),(3,1,2),(4,1,3),(5,1,4),(4,1,6),(3,1,7),(2,1,8),(1,2,1),(1,2,2),(1,2,3),(1,2,4),(1,2,5),(1,2,6),(1,2,7),(1,2,8)),((6,8,5),(2,8,1),(3,8,2),(4,8,3),(5,8,4),(4,8,6),(3,8,7),(2,8,8),(1,7,1),(1,7,2),(1,7,3),(1,7,4),(1,7,5),(1,7,6),(1,7,7),(1,7,8)))
+piecepositions=(
+  ((6,1,5,0),(2,1,1,0),(3,1,2,0),(4,1,3,0),(5,1,4,0),(4,1,6,0),(3,1,7,0),(2,1,8,0),(1,2,1,0),(1,2,2,0),(1,2,3,0),(1,2,4,0),(1,2,5,0),(1,2,6,0),(1,2,7,0),(1,2,8,0)),
+  ((6,8,5,0),(2,8,1,0),(3,8,2,0),(4,8,3,0),(5,8,4,0),(4,8,6,0),(3,8,7,0),(2,8,8,0),(1,7,1,0),(1,7,2,0),(1,7,3,0),(1,7,4,0),(1,7,5,0),(1,7,6,0),(1,7,7,0),(1,7,8,0))
+  )
 ; put the pieces on the board
 for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1))))
 ; initialize check pieces (the positions on the board from where pieces can give check)
@@ -28,12 +30,12 @@ incheckinfo=? ; initialize
 updateCheckPieces() ; collect (in) check information
 ; show chess board in the orientation of the current player
 showBoard()
-; let's determine all the theoretic positions the pieces of the current player can move to when I'm not in check, otherwise checkMate() would've determined them
-if(playerincheck!=playerindex,candidateEndPositions=getCandidateEndPositions())
+; determine all valid moves the current player can do
+validmoves=getValidPlayerMoves(playerindex)
 ; ask the user for his/her move
 ; determine the list of pieces the current player still has
 (ppts='',ppps=piecepositions(playerindex))
-for(ppi,1..len(ppps),ppt=piecetypes(ppps(ppi,1)),if(find(ppt,ppts)==0,ppts+=ppt))
+for(ppi,1..len(ppps),ppt=piecetypes(ppps(ppi,1)),if(find(ppt,ppts)==0&&len(validmoves(ppi))>0,ppts+=ppt))
 out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+ppts+']? ')
 piecetype=inch(ppts) ; get one of the player pieces characters
 out(if(defined(piecetype),piecetype,'?'),lf)

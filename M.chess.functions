@@ -6,3 +6,4 @@ updateInCheck
 checkMate
 updateCheckPieces
 updatePlayerCheckPieces	pl
+getValidPlayerMoves	pl
