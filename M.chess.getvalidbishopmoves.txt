@@ -1,0 +1,27 @@
+; getValidRookMoves() returns the valid rook moves starting at #prow,#pcol
+$=? ; initialize result
+psign=sign(board(prow,pcol)) ; the player
+; 1. left and down
+(nrow=prow-1,ncol=pcol-1)
+while(nrow>0&&ncol>0&&board(nrow,ncol)==0
+     ,if(isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),))
+     ,nrow-=1,ncol-=1)
+if(nrow>0&&ncol>0&&board(nrow,ncol)+psign==0&&isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),)) # capture move
+; 2. right and up
+(nrow=prow+1,ncol=pcol+1)
+while(nrow<9&&ncol<9&&board(nrow,ncol)==0
+     ,if(isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),))
+     ,nrow+=1,ncol+=1)
+if(nrow<9&&ncol<9&&board(nrow,ncol)+psign==0&&isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),)) # capture move
+; 3. left and up
+(nrow=prow+1,ncol=pcol-1)
+while(nrow<9&&ncol>0&&board(nrow,ncol)==0
+     ,if(isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),))
+     ,nrow+=1,ncol-=1)
+if(nrow<9&&ncol>0&&board(nrow,ncol)+psign==0&&isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),)) # capture move
+; 4. right and down
+(nrow=prow-1,ncol=pcol+1)
+while(nrow>0&&ncol<9&&board(nrow,ncol)==0
+     ,if(isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),))
+     ,nrow-=1,ncol+=1)
+if(nrow>0&&ncol<9&&board(nrow,ncol)+psign==0&&isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),)) # capture move
