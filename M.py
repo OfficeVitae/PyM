@@ -577,14 +577,16 @@ class Function:
 								return len(value)
 							return -1 # not a list
 						elif self.functionindex==33: # MDH@26SEP2017: isalist function
-							return (0,1)[isinstance(value,list)]
+							return (falsevalue,truevalue)[isinstance(value,list)]
+						elif self.functionindex==34: # MDH@27SEP2017: not function
+							return (falsevalue,truevalue)[value==falsevalue]
 						# if the single argument is still list-like, we again have to use map on it!!!!
 						if isIterable(value):
 							return [self.apply([x]) for x in value] # map(self.apply,map(listify,arguments[0])) didn't work
 						if self.functionindex==7:
 							return ~value
 						elif self.functionindex==8: # NOT unary operator (which is !)
-							return (0,1)[value==0]
+							return (falsevalue,truevalue)[value==falsevalue]
 						elif self.functionindex==9: # = which means evaluate the expression behind it, which we already did!!!
 							return value
 						elif self.functionindex==10: # minus unary operator
@@ -684,9 +686,9 @@ class Function:
 								textfile.close()
 								return valuelines
 						elif self.functionindex==31: # defined
-							return (1,0)[value==undefined.getValue()]
+							return (truevalue,falsevalue)[value==undefined.getValue()]
 						elif self.functionindex==32: # undefined
-							return (0,1)[value==undefined.getValue()]
+							return (falsevalue,truevalue)[value==undefined.getValue()]
 						elif self.functionindex==45: # MDH@21SEP2017: sign function
 							return ((-1,1)[value>0],0)[value==0]
 						elif self.functionindex==46: # MDH@18SEP2017: int function
@@ -1573,9 +1575,9 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'function':150,'join':199})
-Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'function':211})
+Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'and':211,'or':212,'function':211})
 
 environment=None # MDH@03SEP2017: wait for the user name to be known!!!
 
@@ -3105,6 +3107,25 @@ class Expression(Token):
 					else:
 						note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
 				return result
+			# MDH@27SEP2017: do NOT evaluate AND any further if result is known!!!!
+			def getAndResult(_arglist):
+				# any argument that does not evaluate to the false value (0) is considered 'true'
+				for arg in _arglist:
+					if len(arg.tokens)==0:
+						continue
+					argvalue=arg.evaluatesTo(evaluationenvironment)
+					if argvalue==falsevalue:
+						return falsevalue
+				return truevalue
+			def getOrResult(_arglist):
+				# any argument that does not evaluate to the false value (0) makes the result of or true
+				for arg in _arglist:
+					if len(arg.tokens)==0:
+						continue
+					argvalue=arg.evaluatesTo(evaluationenvironment)
+					if argvalue!=falsevalue:
+						return truevalue
+				return falsevalue
 			def getIfResult(_arglist):
 				# NOTE we might expand if a bit but making it a multiselector
 				#			 i.e. the output value (typically 0 or 1) in a comparison selects the expression to evaluate and return
@@ -3195,6 +3216,10 @@ class Expression(Token):
 								arguments=getWhileResult(arguments)
 							elif function.getIndex()==210: # for
 								arguments=getForResult(arguments)
+							elif function.getIndex()==211: # and
+								arguments=getAndResult(arguments)
+							elif function.getIndex()==212: # or
+								arguments=getOrResult(arguments)
 							elif function.getIndex()==200: # if
 								arguments=getIfResult(arguments)
 							elif function.getIndex() in (201,202,203): # select/case/switch
