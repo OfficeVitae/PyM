@@ -1,14 +1,14 @@
 ; getValidKnightMoves() returns all valid moves originating at #krow,#kcol
 $=?
 ; left and down
-if(krow>1&&kcol>2&&isValidMove(krow,kcol,krow-1,kcol-2),$.=(krow-1,kcol-2))
-if(krow>2&&kcol>1&&isValidMove(krow,kcol,krow-2,kcol-1),$.=(krow-2,kcol-1))
+if(and(krow>1,kcol>2,isAValidMove(krow,kcol,krow-1,kcol-2)),$.=(krow-1,kcol-2))
+if(and(krow>2,kcol>1,isAValidMove(krow,kcol,krow-2,kcol-1)),$.=(krow-2,kcol-1))
 ; left and up
-if(krow<8&&kcol>2&&isValidMove(krow,kcol,krow+1,kcol-2),$.=(krow+1,kcol-2))
-if(krow<7&&kcol>1&&isValidMove(krow,kcol,krow+2,kcol-1),$.=(krow+2,kcol-1))
+if(and(krow<8,kcol>2,isAValidMove(krow,kcol,krow+1,kcol-2)),$.=(krow+1,kcol-2))
+if(and(krow<7,kcol>1,isAValidMove(krow,kcol,krow+2,kcol-1)),$.=(krow+2,kcol-1))
 ; right and up
-if(krow<8&&kcol<7&&isValidMove(krow,kcol,krow+1,kcol+2),$.=(krow+1,kcol+2))
-if(krow<7&&kcol<8&&isValidMove(krow,kcol,krow+2,kcol+1),$.=(krow+2,kcol+1))
+if(and(krow<8,kcol<7,isAValidMove(krow,kcol,krow+1,kcol+2)),$.=(krow+1,kcol+2))
+if(and(krow<7,kcol<8,isAValidMove(krow,kcol,krow+2,kcol+1)),$.=(krow+2,kcol+1))
 ; right and down
-if(krow>1&&kcol<7&&isValidMove(krow,kcol,krow-1,kcol+2),$.=(krow-1,kcol+2))
-if(krow>2&&kcol<8&&isValidMove(krow,kcol,krow-2,kcol+1),$.=(krow-2,kcol+1))
+if(and(krow>1,kcol<7,isAValidMove(krow,kcol,krow-1,kcol+2)),$.=(krow-1,kcol+2))
+if(and(krow>2,kcol<8,isAValidMove(krow,kcol,krow-2,kcol+1)),$.=(krow-2,kcol+1))

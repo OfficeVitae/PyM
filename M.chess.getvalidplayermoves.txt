@@ -1,16 +1,17 @@
 ; getValidPlayerMoves() determines all valid moves for each piece of player #pl
+; NOTE passing whether or not the king moved before, or is in check as castling flag
+;      to getValidKingMoves()
 $=?
 pps=piecepositions(pl)
-for(ppi,1..len(pps),pieceposition=pps(ppi),
-  piecetype=pieceposition(1),piecerow=pieceposition(2),piececol=pieceposition(3),
-  piecemoves=piecepositions(4)
+for(ppi,1..len(pps),pieceinfo=pps(ppi),
+  piecetype=pieceinfo(1),piecerow=pieceinfo(2),piececol=pieceinfo(3),out(ppi,'=',piecetype,lf)
   select(piecetype
-    ,?
-    ,$.=getValidPawnMoves(piecerow,piececol,piecemoves,enpassantcols(3-pl))
-    ,$.=getValidRookMoves(piecerow,piececol,piecemoves)
-    ,$.=getValidKnightMoves(piecerow,piececol,piecemoves)
-    ,$.=getValidBishopMoves(piecerow,piececol,piecemoves)
-    ,$.=getValidQueenMoves(piecerow,piececol,piecemoves)
-    ,$.=getValidKingMoves(piecerow,piececol,piecemoves)
+    ,$.=?
+    ,$.=join(getValidPawnMoves(piecerow,piececol,pieceinfo(4),enpassantcols(3-pl)),2)
+    ,$.=join(getValidRookMoves(piecerow,piececol),2)
+    ,$.=join(getValidKnightMoves(piecerow,piececol),2)
+    ,$.=join(getValidBishopMoves(piecerow,piececol),2)
+    ,$.=join(getValidQueenMoves(piecerow,piececol),2)
+    ,$.=join(getValidKingMoves(pl,piecerow,piececol,and(pieceinfo(4)==0,len(incheckinfo(pl))==0)),2)
     )
   )

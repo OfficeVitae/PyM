@@ -1,27 +1,19 @@
-; getValidBishopMoves() returns the valid bishop moves starting at #prow,#pcol
+; getValidBishopMoves() returns the valid bishop moves starting at #brow,#bcol
 $=? ; initialize result
-psign=sign(board(prow,pcol)) ; the player
+bsign=-sign(board(brow,bcol)) ; the opponent
 ; 1. left and down
-(nrow=prow-1,ncol=pcol-1)
-while(nrow>0&&ncol>0&&board(nrow,ncol)==0
-     ,if(isAValidMove(prow,pcol,nrow,ncol),$.=(nrow,ncol))
-     ,nrow-=1,ncol-=1)
-if(nrow>0&&ncol>0&&board(nrow,ncol)+psign==0&&isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),)) # capture move
+(nrow=brow-1,ncol=bcol-1)
+while(and(nrow>0,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=(nrow,ncol)),nrow-=1,ncol-=1)
+if(and(nrow>0,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=(nrow,ncol)) ; capture move
 ; 2. right and up
-(nrow=prow+1,ncol=pcol+1)
-while(nrow<9&&ncol<9&&board(nrow,ncol)==0
-     ,if(isAValidMove(prow,pcol,nrow,ncol),$.=(nrow,ncol))
-     ,nrow+=1,ncol+=1)
-if(nrow<9&&ncol<9&&board(nrow,ncol)+psign==0&&isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),)) # capture move
+(nrow=brow+1,ncol=bcol+1)
+while(and(nrow<9,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=(nrow,ncol)),nrow+=1,ncol+=1)
+if(and(nrow<9,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=(nrow,ncol)) ; capture move
 ; 3. left and up
-(nrow=prow+1,ncol=pcol-1)
-while(nrow<9&&ncol>0&&board(nrow,ncol)==0
-     ,if(isAValidMove(prow,pcol,nrow,ncol),$.=(nrow,ncol))
-     ,nrow+=1,ncol-=1)
-if(nrow<9&&ncol>0&&board(nrow,ncol)+psign==0&&isAValidMove(prow,pcol,nrow,ncol),$.=((nrow,ncol),)) # capture move
+(nrow=brow+1,ncol=bcol-1)
+while(and(nrow<9,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=(nrow,ncol)),nrow+=1,ncol-=1)
+if(and(nrow<9,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=(nrow,ncol)) ; capture move
 ; 4. right and down
-(nrow=prow-1,ncol=pcol+1)
-while(nrow>0&&ncol<9&&board(nrow,ncol)==0
-     ,if(isAValidMove(prow,pcol,nrow,ncol),$.=(nrow,ncol))
-     ,nrow-=1,ncol+=1)
-if(nrow>0&&ncol<9&&board(nrow,ncol)+psign==0&&isAValidMove(prow,pcol,nrow,ncol),$.=(nrow,ncol)) # capture move
+(nrow=brow-1,ncol=bcol+1)
+while(and(nrow>0,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=(nrow,ncol)),nrow-=1,ncol+=1)
+if(and(nrow>0,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=(nrow,ncol)) ; capture move

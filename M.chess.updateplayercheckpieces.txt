@@ -10,8 +10,8 @@ plsign=if(pl==1,-1,1) ; the sign of the opponent's pieces
 out(if(pl==1,"White","Black")+" king checks by pawns assessment.",lf)
 krow=kingrow-plsign
 if(krow>0&&krow<9
-  ,(if(kingcol>1,(checkpieces(pl,krow,kingcol-1)=if(plsign>0,'\','/'),if(board(krow,kingcol-1)==plsign,$.=((krow,kingcol-1),)))),
-    if(kingcol<8,(checkpieces(pl,krow,kingcol+1)=if(plsign>0,'/','\'),if(board(krow,kingcol+1)==plsign,$.=((krow,kingcol+1),))))
+  ,(if(kingcol>1,(checkpieces(pl,krow,kingcol-1)=if(plsign>0,'\','/'),if(board(krow,kingcol-1)==plsign,$.=(krow,kingcol-1)))),
+    if(kingcol<8,(checkpieces(pl,krow,kingcol+1)=if(plsign>0,'/','\'),if(board(krow,kingcol+1)==plsign,$.=(krow,kingcol+1))))
    )
   )
 
@@ -19,7 +19,7 @@ if(krow>0&&krow<9
 out(if(pl==1,"White","Black")," king checks by knights assessment.",lf)
 kps=((kingrow-1,kingcol-2),(kingrow-2,kingcol-1),(kingrow+1,kingcol-2),(kingrow+2,kingcol-1),(kingrow-1,kingcol+2),(kingrow-2,kingcol+1),(kingrow+1,kingcol+2),(kingrow+2,kingcol+1)) ; the knight positions
 for(kpi,1..len(kps),kp=kps(kpi),if(kp(1)>0&&kp(1)<9&&kp(2)>0&&kp(2)<9,
-  (checkpieces(pl,kp(1),kp(2))=';',if(board(kp(1),kp(2))==plsign*3,$.=((kp(1),kp(2)),)))))
+  (checkpieces(pl,kp(1),kp(2))=';',if(board(kp(1),kp(2))==plsign*3,$.=(kp(1),kp(2))))))
 
 ; from what positions can rooks capture the king?
 ; we have to move in 4 directions until we bump into the border or a piece
@@ -27,35 +27,35 @@ for(kpi,1..len(kps),kp=kps(kpi),if(kp(1)>0&&kp(1)<9&&kp(2)>0&&kp(2)<9,
 out(if(pl==1,"White","Black")," king checks by rooks (and horizontally or vertically by queens) assessment.",lf)
 krow=kingrow-1
 while(krow>0&&board(krow,kingcol)==0,checkpieces(pl,krow,kingcol)='^',krow-=1)
-if(krow>0,(checkpieces(pl,krow,kingcol)='^',if(board(krow,kingcol)==plsign*2||board(krow,kingcol)==plsign*5,$.=((krow,kingcol),))))
+if(krow>0,(checkpieces(pl,krow,kingcol)='^',if(board(krow,kingcol)==plsign*2||board(krow,kingcol)==plsign*5,$.=(krow,kingcol))))
 ; 'up'
 krow=kingrow+1
 while(krow<8&&board(krow,kingcol)==0,checkpieces(pl,krow,kingcol)='v',krow+=1)
-if(krow<9,(checkpieces(pl,krow,kingcol)='v',if(board(krow,kingcol)==plsign*2||board(krow,kingcol)==plsign*5,$.=((krow,kingcol),))))
+if(krow<9,(checkpieces(pl,krow,kingcol)='v',if(board(krow,kingcol)==plsign*2||board(krow,kingcol)==plsign*5,$.=(krow,kingcol))))
 ' left'
 kcol=kingcol-1
 while(kcol>0&&board(kingrow,kcol)==0,checkpieces(pl,kingrow,kcol)='>',kcol-=1)
-if(kcol>0,(checkpieces(pl,kingrow,kcol)='>',if(board(krow,kingcol)==plsign*2||board(krow,kingcol)==plsign*5,$.=((krow,kingcol),))))
+if(kcol>0,(checkpieces(pl,kingrow,kcol)='>',if(board(krow,kingcol)==plsign*2||board(krow,kingcol)==plsign*5,$.=(krow,kingcol))))
 ; 'right'
 kcol=kingcol+1
 while(kcol<8&&board(kingrow,kcol)==0,checkpieces(pl,kingrow,kcol)='<',kcol+=1)
-if(kcol<9,(checkpieces(pl,kingrow,kcol)='<',if(board(krow,kingcol)==plsign*2||board(krow,kingcol)==plsign*5,$.=((krow,kingcol),))))
+if(kcol<9,(checkpieces(pl,kingrow,kcol)='<',if(board(krow,kingcol)==plsign*2||board(krow,kingcol)==plsign*5,$.=(krow,kingcol))))
 
-; from what positions can bishops capture the king?
+; from what positions can bishops (or queens) capture the king?
 out(if(pl==1,"White","Black")," king checks by bishops (and diagonally by queens) assessment.",lf)
 ; 'down' and 'left'
 (krow=kingrow-1,kcol=kingcol-1)
 while(krow>0&&kcol>0&&board(krow,kcol)==0,checkpieces(pl,krow,kcol)+='/',krow-=1,kcol-=1)
-if(krow>0&&kcol>0,(checkpieces(pl,krow,kcol)='/',if(board(krow,kingcol)==plsign*4||board(krow,kingcol)==plsign*5,$.=((krow,kingcol),))))
+if(krow>0&&kcol>0,(checkpieces(pl,krow,kcol)='/',if(board(krow,kingcol)==plsign*4||board(krow,kingcol)==plsign*5,$.=(krow,kingcol))))
 ; 'up' and 'right'
 (krow=kingrow+1,kcol=kingcol+1)
 while(krow<9&&kcol<9&&board(krow,kcol)==0,checkpieces(pl,krow,kcol)+='/',krow+=1,kcol+=1)
-if(krow<9&&kcol<9,(checkpieces(pl,krow,kcol)='/',if(board(krow,kingcol)==plsign*4||board(krow,kingcol)==plsign*5,$.=((krow,kingcol),))))
+if(krow<9&&kcol<9,(checkpieces(pl,krow,kcol)='/',if(board(krow,kingcol)==plsign*4||board(krow,kingcol)==plsign*5,$.=(krow,kingcol))))
 ; 'down' and 'right'
 (krow=kingrow-1,kcol=kingcol+1)
 while(krow>0&&kcol<9&&board(krow,kcol)==0,checkpieces(pl,krow,kcol)+='\',krow-=1,kcol+=1)
-if(krow>0&&kcol<9,(checkpieces(pl,krow,kcol)='\',if(board(krow,kingcol)==plsign*4||board(krow,kingcol)==plsign*5,$.=((krow,kingcol),))))
+if(krow>0&&kcol<9,(checkpieces(pl,krow,kcol)='\',if(board(krow,kingcol)==plsign*4||board(krow,kingcol)==plsign*5,$.=(krow,kingcol))))
 ; 'up' and 'left'
 (krow=kingrow+1,kcol=kingcol-1)
 while(krow<9&&kcol>0&&board(krow,kcol)==0,checkpieces(pl,krow,kcol)+='\',krow+=1,kcol-=1)
-if(krow<9&&kcol>0,(checkpieces(pl,krow,kcol)='\',if(board(krow,kingcol)==plsign*4||board(krow,kingcol)==plsign*5,$.=((krow,kingcol),))))
+if(krow<9&&kcol>0,(checkpieces(pl,krow,kcol)='\',if(board(krow,kingcol)==plsign*4||board(krow,kingcol)==plsign*5,$.=(krow,kingcol))))

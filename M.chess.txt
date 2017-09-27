@@ -33,6 +33,7 @@ updateCheckPieces() ; collect (in) check information
 showBoard()
 ; determine all valid moves the current player can do
 validmoves=getValidPlayerMoves(playerindex)
+out(validmoves)
 ; ask the user for his/her move
 ; determine the list of pieces the current player still has
 (ppts='',ppps=piecepositions(playerindex))
@@ -45,9 +46,12 @@ if(undefined(piecetype),if(givingUp(),debug=debugnow,return(3-playerindex),jump(
 piecetypeindex=find(piecetype,piecetypes) ; the piece index is the position of the piece (type)
 pieceindex=getPieceToMove(piecetypeindex) ; returns the index of the piece to move (so piecepositions(pieceindex,piecetomove) is the start position)
 ; ask for the destination position
+(out("What column to move to? "),tocol=inch(cols),out(lf))
+(out("What row to move to? "),torow=inch(rows),out(lf))
+; is this a registered move?
 ;;; execute the move
 movecount+=1
 updateInCheck() ; check whether the opponent is now in check
 if(playerincheck>0&&checkMate(),debug=debugnow,return(playerindex)) ; if opponent in check, check for checkmate
 playerindex=3-playerindex
-jump(-22)
+jump(-23)

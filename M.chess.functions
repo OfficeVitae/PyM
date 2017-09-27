@@ -1,12 +1,18 @@
+; in order of appearance
+updateCheckPieces
 showBoard
+getValidPlayerMoves	pl
 getPieceToMove	piecetypeindex
 givingUp
 updateInCheck
 checkMate
 ; functions for acquiring all valid moves for each of the piece types
-getValidPawnMoves	prow	pcol	pmoves
+getValidPawnMoves	prow	pcol	pmoves	enpassantcol
 getValidRookMoves	rrow	rcol
-getValidKnightMoves	krow	kcol
+getValidKnightMoves	pl	krow	kcol
 getValidBishopMoves	brow	bcol
 getValidQueenMoves	qrow	qcol
-getValidKingMoves	krow	kcol
+getValidKingMoves	pl	krow	kcol	kcastling
+isAValidMove	fromrow	fromcol	torow	tocol
+attacks	pl	prow	pcol
+

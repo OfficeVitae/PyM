@@ -1,27 +1,19 @@
-; getValidRookMoves() returns the valid rook moves starting at #prow,#pcol
+; getValidRookMoves() returns the valid rook moves starting at #rrow,#rcol
 $=? ; initialize result
-psign=sign(board(prow,pcol)) ; the player
+rsign=-sign(board(rrow,rcol)) ; the opponent
 ; 1. left
-ncol=pcol-1
-while(ncol>0&&board(prow,ncol)==0
-     ,if(isAValidMove(prow,pcol,prow,ncol),$.=((prow,ncol),))
-     ,ncol-=1)
-if(ncol>0&&board(prow,ncol)+psign==0&&isAValidMove(prow,pcol,prow,ncol),$.=((prow,ncol),)) # capture move
+ncol=rcol-1
+while(and(ncol>0,board(rrow,ncol)==0),if(isAValidMove(rrow,rcol,rrow,ncol),$.=(rrow,ncol)),ncol-=1)
+if(and(ncol>0,sign(board(rrow,ncol))==rsign,isAValidMove(rrow,rcol,rrow,ncol)),$.=(rrow,ncol)) ; capture move
 ; 2. right
-ncol=pcol+1
-while(ncol<9&&board(prow,ncol)==0
-     ,if(isAValidMove(prow,pcol,prow,ncol),$.=((prow,ncol),))
-     ,ncol+=1)
-if(ncol<9&&board(prow,ncol)+psign==0&&isAValidMove(prow,pcol,prow,ncol),$.=((prow,ncol),)) # capture move
+ncol=rcol+1
+while(and(ncol<9,board(rrow,ncol)==0),if(isAValidMove(rrow,rcol,rrow,ncol),$.=(rrow,ncol)),ncol+=1)
+if(and(ncol<9,sign(board(rrow,ncol))==rsign,isAValidMove(rrow,rcol,rrow,ncol)),$.=(rrow,ncol)) ; capture move
 ; 3. up
-nrow=prow+1
-while(nrow<9&&board(nrow,pcol)==0
-     ,if(isAValidMove(prow,pcol,nrow,pcol),$.=((nrow,pcol),))
-     ,nrow+=1)
-if(nrow<9&&board(nrow,pcol)+psign==0&&isAValidMove(prow,pcol,nrow,pcol),$.=((nrow,pcol),)) # capture move
+nrow=rrow+1
+while(and(nrow<9,board(nrow,rcol)==0),if(isAValidMove(rrow,rcol,nrow,rcol),$.=(nrow,rcol)),nrow+=1)
+if(and(nrow<9,sign(board(nrow,rcol))==rsign,isAValidMove(rrow,rcol,nrow,rcol)),$.=(nrow,rcol)) ; capture move
 ; 4. down
-nrow=prow-1
-while(nrow>0&&board(nrow,pcol)==0
-     ,if(isAValidMove(prow,pcol,nrow,pcol),$.=((nrow,pcol),))
-     ,nrow-=1)
-if(nrow>0&&board(nrow,pcol)+psign==0&&isAValidMove(prow,pcol,nrow,pcol),$.=((nrow,pcol),)) # capture move
+nrow=rrow-1
+while(and(nrow>0,board(nrow,rcol)==0),if(isAValidMove(rrow,rcol,nrow,rcol),$.=(nrow,rcol)),nrow-=1)
+if(and(nrow>0,sign(board(nrow,rcol))==rsign,isAValidMove(rrow,rcol,nrow,rcol)),$.=(nrow,rcol)) ; capture move

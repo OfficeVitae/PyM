@@ -777,6 +777,8 @@ class Function:
 						return map(enquote,glob.glob(opsyspath.join(directory,filter)))
 					elif self.functionindex==199: # join
 						if len(arguments)==2:
+							if isinstance(arguments[1],list) and len(arguments[1])==1:
+								arguments[1]=arguments[1][0]
 							if isIterable(arguments[0]) and isinstance(arguments[1],(int,long)) and arguments[1]>0:
 								listl=arguments[1]
 								########note("Will join "+str(listl)+" successive elements of the input list.")
@@ -794,9 +796,10 @@ class Function:
 											outputelement.append(undefined.getValue())
 										outputlist.append(outputelement)
 									return outputlist
-								note("ERROR: Invalid second input argument ("+str(arguments[1])+") to the join() function!")
+								####note("WARNING: Too large second input argument ("+str(arguments[1])+") in applying the join() function to "+getText(arguments[0])+"!")
 								return arguments[0] # no change to the list
-							note("ERROR: The arguments supplied to the join() function are not a list and a positive integer!")
+							if arguments[0]!=undefined.getValue():
+								note("ERROR: The arguments supplied to the join() function ("+str(arguments[0])+" and "+str(arguments[1])+") are not a list and a positive integer!")
 				elif self.functionindex<300: # the three-argument functions
 					if self.functionindex==211: # function
 						if len(arguments)==3:
@@ -951,6 +954,7 @@ class UserFunction(Function):
 			self.expressions=None
 	# exposes a method to return a (sub)environment to use in entering function body expressions
 	def getExecutionEnvironment(self,_arglist=None):
+		#####note("Argument list: "+str(_arglist)+".")
 		# create a subenvironment below the definition environment, which contains the expressions and inner functions
 		result=Environment(self.name,self.definitionenvironment) # when standalone NO access to the root environment
 		# add the result identifier name immediately as local variable!!
@@ -963,24 +967,28 @@ class UserFunction(Function):
 				####note("Value of argument #"+str(parameterindex)+": "+str(argumentvalue)+".")
 				result.addIdentifier(Identifier(parametername).setValue(argumentvalue))
 			else:
-				###note("Using default "+str(parameterdefault)+" of parameter "+parametername+".")
+				#####note("Using default "+str(parameterdefault)+" of parameter "+parametername+".")
 				# MDH@20SEP2017: essential to evaluate the default AS expression, otherwise it would be stored as string
 				#								 and fuck up stuff (like using it in certain binary operations like .. that expect numbers)
 				#								 as you can see this JIT evaluation of the parameter default is BEST
-				parameterdefaultvalue=getExpressionValue(parameterdefault,self.definitionenvironment)
-				result.addIdentifier(Identifier(parametername).setValue(parameterdefaultvalue))
+				if parameterdefault is not None: # hmmm, a quick fix to the possibility of no parameter default!!!!
+					parameterdefaultvalue=getExpressionValue(parameterdefault,self.definitionenvironment)
+					result.addIdentifier(Identifier(parametername).setValue(parameterdefaultvalue))
+				else:
+					result.addIdentifier(Identifier(parametername))
 		return result
 	def getName(self):
 		return self.name
 	# a user function executes its expressions (but note that an Environment's getValue() returns one of the expressions
-	def getValue(self,_arglist): # already knows it's environment (the one it was created in plus the argument list)
+	def getValue(self,_arglist,_cleanup=True): # already knows it's environment (the one it was created in plus the argument list)
 		# execute the expressions present in the definition environment
+		#####note("Executing "+self.name+"...")
 		result=None
 		expressions=self.definitionenvironment.getExpressions()
 		if expressions is not None:
 			l=len(expressions)
 			if l>0:
-				######note("Number of expressions to evaluate "+str(l)+"...")
+				#####note("Number of expressions in "+self.name+" to evaluate: "+str(l)+"...")
 				executionenvironment=self.getExecutionEnvironment(_arglist)
 				expressionindex=0
 				while expressionindex<len(expressions):
@@ -991,7 +999,7 @@ class UserFunction(Function):
 						try:
 							#####note("Evaluating '"+expression.getText()+"'...")
 							expressionvalue=expression.evaluatesTo(executionenvironment) # evaluate the expression in the execution environment
-							#####note("Value of "+str(expression)+": "+str(expressionvalue)+".")
+							######note("Value of "+str(expression)+": "+str(expressionvalue)+".")
 						except JumpException,jumpException:
 							deltaexpressionindex=jumpException.getValue()
 							if isinstance(deltaexpressionindex,(int,long)):
@@ -1004,6 +1012,8 @@ class UserFunction(Function):
 							result=returnException.getValue()
 							#######note("Return result of function: "+str(result)+".")
 							break
+					else:
+						pass #####note("WARNING: Expression #"+str(expressionindex+1)+" undefined or empty!")
 					expressionindex+=1 # normal continuation i.e. next expression to execute next
 				# what have we got in this execution environment???
 				if result is None: # no explicitly returned value using the return function
@@ -1012,11 +1022,12 @@ class UserFunction(Function):
 				if isIterable(result) and len(result)==1:
 					result=result[0]
 				# MDH@26SEP2017: execute any cleanup() function, but mostly will not exist!!!
-				try:
-					self.definitionenvironment.getFunction("cleanup").getValue([result])
-					note("Cleanup function executed!")
-				except Exception,ex:
-					pass
+				if _cleanup:
+					try:
+						self.definitionenvironment.getFunction("cleanup").getValue([result],False) # do NOT cleanup!!!
+						######note("Cleanup function executed!")
+					except Exception,ex:
+						pass
 		else:
 			note("ERROR: No expressions to evaluate!")
 		return (undefined.getValue(),result)[result is not None]
@@ -1078,7 +1089,7 @@ class Environment:
 		self.M.value=list() # initialize the list of expressions (this is a bit of cheating as we cannot use setValue() on a constant like M)
 		expressionsfilename=self.getExpressionsFilename()
 		if opsyspath.exists(expressionsfilename):
-			#######note("Reading expressions from "+expressionsfilename+"...")
+			######note("Reading expressions from "+expressionsfilename+"...")
 			expressionsfile=open(expressionsfilename,'r')
 			if expressionsfile:
 				expression=None # the current top-level expression
@@ -1146,12 +1157,20 @@ class Environment:
 		if host is not None:
 			return host.getName()
 		return ''
+	def getHostFilename(self):
+		host=self.getHost()
+		if host is not None:
+			return host.getFilename()
+		return ''
 	def getName(self):
 		# MDH@12SEP2017: the name comes first
 		return join('.',(self.name,self.getHostName()))
 	def getFilename(self): # reverses the parent and own name
 		# MDH@22SEP2017: let's only use lowercase in filenames (except for the leading M of course), thus allowing functions to use uppercase characters in the name
-		return join('.',(self.getHostName().lower(),self.name.lower()))
+		####hostfilename=self.getHostFilename().lower()
+		####envname=self.name.lower()
+		####note("Host of "+self.name+": "+hostfilename+".")
+		return join('.',(self.getHostFilename().lower(),self.name.lower()))
 	def getFunctionFilename(self,_functionname):
 		return join('.',("M",self.getFilename(),_functionname.lower(),'txt'))
 	def getExpressionsFilename(self):
@@ -1560,6 +1579,9 @@ class Environment:
 		#######note("Operation result: "+str(result)+".")
 		return result
 
+# let's define two constants representing the value to use for true and the one for false
+falsevalue=0
+truevalue=1
 # create the main M environment
 import math
 # create the root environment
@@ -1567,8 +1589,8 @@ Menvironment=Environment() # MDH@03SEP2017: the root M environment containing th
 # populate the M environment with the predefined constants/variables
 Menvironment.addIdentifier(DEBUG) # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(undefined,'?') # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
-Menvironment.addIdentifier(Identifier(_value=0),'false')
-Menvironment.addIdentifier(Identifier(_value=1),'true')
+Menvironment.addIdentifier(Identifier(_value=falsevalue),'false')
+Menvironment.addIdentifier(Identifier(_value=truevalue),'true')
 Menvironment.addIdentifier(Identifier(_value="'\n'"),'lf') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value="'\r'"),'cr') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
@@ -1768,9 +1790,6 @@ def getItem(_list,_index):
 	if hasattr(_list,'__getitem__') and len(_list)>0:
 		return _list[_index%len(_list)]
 	return _list
-# let's define two constants representing the value to use for true and the one for false
-truevalue=1
-falsevalue=0
 # MDH@05SEP2017: by moving getOperationResult into Environment, it always knows the environment it is operating in
 import random
 # list of token types:
