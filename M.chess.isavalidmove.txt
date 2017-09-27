@@ -1,15 +1,17 @@
 ; determines whether or not the move from #fromrow,#fromcol to #torow,#tocol is valid
 ; assumes that the piece at (fromrow,fromcol) can actually be moved to (torow,tocol)
 ; but might result in being in check
-
+$=0
+out("isAValidMove(",fromrow,",",fromcol,",",torow,",",tocol,")=") ; cleanup to write the result
 ; 1. remember current pieces
 piece=board(fromrow,fromcol)
 captured=board(torow,tocol)
+if(sign(piece)==sign(captured),return()) ; you cannot move to where your own pieces are
 ; 2. move piece
 board(torow,tocol)=piece
 board(fromrow,fromcol)=0
 ; 3. determine result
-$=len(updatePlayerCheckPieces(if(piece>0,1,2)))>0
+if(len(updatePlayerCheckPieces(if(piece>0,1,2)))<=0,$=1)
 ; 4. undo move
 board(fromrow,fromcol)=piece
 board(torow,tocol)=captured

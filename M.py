@@ -982,7 +982,8 @@ class UserFunction(Function):
 	# a user function executes its expressions (but note that an Environment's getValue() returns one of the expressions
 	def getValue(self,_arglist,_cleanup=True): # already knows it's environment (the one it was created in plus the argument list)
 		# execute the expressions present in the definition environment
-		note("Executing "+self.name+" with arguments "+getText(_arglist)+"...")
+		if getDebug()&8:
+			note("Executing "+self.name+getText(_arglist)+"...")
 		result=None
 		expressions=self.definitionenvironment.getExpressions()
 		if expressions is not None:

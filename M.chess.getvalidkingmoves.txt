@@ -2,7 +2,7 @@
 ; third parameter #kcastling indicates whether or not the king could castle now (when it is not in check and hasn't moved yet, and no pieces in between)
 ; but still need to check whether or not the king would be attacked on one of the intermediate positions
 $=?
-ksign=3-2*pl ; -1 for black king and +1 for white king
+ksign=3-2*kpl ; -1 for black king and +1 for white king
 ; 1. all straight moves
 if(and(krow>1,sign(board(krow-1,kcol))!=ksign,isAValidMove(krow,kcol,krow-1,kcol)),$.=(krow-1,kcol))
 if(and(krow<8,sign(board(krow+1,kcol))!=ksign,isAValidMove(krow,kcol,krow+1,kcol)),$.=(krow+1,kcol))
@@ -16,8 +16,9 @@ if(and(krow<8,kcol>1,sign(board(krow+1,kcol-1))!=ksign,isAValidMove(krow,kcol,kr
 ; castling
 ; short castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
 ; long castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
+; AND all intermediate positions should NOT be occupied (pretty essential bro')
 if(kcastling
-  ,(if(and(piecepositions(pl,2,4)==0,attacks(3-pl,krow,6)==0,attacks(3-pl,krow,7)==0),$.=(krow,7))
-   ,if(and(piecepositions(pl,3,4)==0,attacks(3-pl,krow,4)==0,attacks(3-pl,krow,3)==0),$.=(krow,3))
+  ,(if(and(!piecepositions(kpl,2,4),!board(krow,6),!board(krow,7),!attacks(3-kpl,krow,6),!attacks(3-kpl,krow,7)),$.=(krow,7))
+   ,if(and(!piecepositions(kpl,3,4),!board(krow,2),!board(krow,3),!board(krow,4),!attacks(3-kpl,krow,4),!attacks(3-kpl,krow,3)),$.=(krow,3))
    )
   )

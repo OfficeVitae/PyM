@@ -1,0 +1,1 @@
+out("Valid king moves: ",result,lf)

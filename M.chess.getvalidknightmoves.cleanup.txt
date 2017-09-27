@@ -1,0 +1,1 @@
+out("Valid knight moves: ",result,lf)

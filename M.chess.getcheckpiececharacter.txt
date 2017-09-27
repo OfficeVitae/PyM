@@ -1,5 +1,7 @@
 ; getCheckPieceCharacter return the check piece character at row #row and col #col of player #pl
 ; unless this is a position where player pl is actually in check
-;$=if(len(checkpieces(pl,row,col))>0,'!',' ')
-$=if(find((row,col),incheckinfo(pl)),'+',' ') ; the check giver(s)
-;if(len(checkpieces(pl,row,col))>0,return(checkpieces(pl,row,col)))
+$=' '
+if(and(row==piecepositions(pl,1,2),col==piecepositions(pl,1,3),len(incheckinfo(pl))>0)
+  ,$='+'
+  ,if(find((row,col),incheckinfo(pl))>0,$='*')
+  )
