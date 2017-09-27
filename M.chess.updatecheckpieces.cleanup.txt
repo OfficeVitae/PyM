@@ -1,0 +1,5 @@
+; cleanup() outputs the result of updateCheckPieces()
+out("possible check positions player 1: ",checkpieces(1),lf)
+out("possible check positions player 2: "+checkpieces(2),lf)
+out("in check positions player 1: ",incheckinfo(1),lf)
+out("in check positions player 2: ",incheckinfo(2),lf)

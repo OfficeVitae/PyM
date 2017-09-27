@@ -1,0 +1,30 @@
+; getValidPawnMoves() returns all moves the pawn at #prow,#pcol that moved #pmoves times can do
+;                     #enpassantcol contains the enpassant column of the opponent
+$=? ; initialize result
+direction=sign(board(prow,pcol)) ; white pawns can only move up, the black ones down
+
+; unlikely that a pawn has reached the final row, and remained a pawn but ok
+if(prow==if(direction>0,8,1),return())
+; if we get here, there's a row the pawn can move to
+
+; non-capture moves
+; 1. one step ahead
+if(board(prow+direction,pcol)==0&&isAValidMove(prow,pcol,prow+direction,pcol)
+  ,$.=((prow+direction,pcol),))
+; 2. two steps ahead
+if(pmoves==0&&board(prow+direction,pcol)==0&&board(prow+2*direction,pcol)==0&&isAValidMove(prow,pcol,prow+2*direction,pcol)
+  ,$.=((prow+2*direction,pcol),))
+
+; capture moves
+; 3. to the 'left'
+if(pcol>1&&sign(board(prow+direction,pcol-1))+direction==0&&isAValidMove(prow,pcol,prow+direction,pcol-1)
+  ,$.=((prow+direction,pcol-1),))
+; 4. to the 'right'
+if(pcol<8&&sign(board(prow+direction,pcol+1))+direction==0&&isAValidMove(prow,pcol,prow+direction,pcol+1)
+  ,$.=((prow+direction,pcol+1,))
+; 5. en passant capture
+if(defined(enpassantcol)&&prow==if(direction>0,5,4)
+  ,if(pcol-1==enpassantcol
+     ,$.=((prow+direction,pcol-1),)
+     ,if(pcol+1==enpassantcol
+        ,$.=((prow+direction,pcol+1),))))

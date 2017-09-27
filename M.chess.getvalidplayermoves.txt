@@ -1,0 +1,16 @@
+; getValidPlayerMoves() determines all valid moves for each piece of player #pl
+$=?
+pps=piecepositions(pl)
+for(ppi,1..len(pps),pieceposition=pps(ppi),
+  piecetype=pieceposition(1),piecerow=pieceposition(2),piececol=pieceposition(3),
+  piecemoves=piecepositions(4)
+  select(piecetype
+    ,?
+    ,$.=getValidPawnMoves(piecerow,piececol,piecemoves,enpassantcols(3-pl))
+    ,$.=getValidRookMoves(piecerow,piececol,piecemoves)
+    ,$.=getValidKnightMoves(piecerow,piececol,piecemoves)
+    ,$.=getValidBishopMoves(piecerow,piececol,piecemoves)
+    ,$.=getValidQueenMoves(piecerow,piececol,piecemoves)
+    ,$.=getValidKingMoves(piecerow,piececol,piecemoves)
+    )
+  )
