@@ -1,0 +1,21 @@
+; getValidKingMoves() returns the valid moves the king at #krow,#kcol can make (including castling)
+; third parameter #kcastling indicates whether or not the king could castle now (when it is not in check and hasn't moved yet, and no pieces in between)
+; but still need to check whether or not the king would be attacked on one of the intermediate positions
+$=?
+ksign=3-2*pl ; -1 for black king and +1 for white king
+; 1. all straight moves
+if(krow>1&&sign(board(krow-1,kcol))!=psign&&isValidMove(krow,kcol,krow-1,kcol),$.=(krow-1,kcol))
+if(krow<8&&sign(board(krow+1,kcol))!=psign&&isValidMove(krow,kcol,krow+1,kcol),$.=(krow+1,kcol))
+if(kcol>1&&sign(board(krow,kcol-1))!=psign&&isValidMove(krow,kcol,krow,kcol-1),$.=(krow,kcol-1))
+if(kcol<8&&sign(board(krow,kcol+1))!=psign&&isValidMove(krow,kcol,krow,kcol+1),$.=(krow,kcol+1))
+; 2. all diagonal moves
+if(krow>1&&kcol>1&&sign(board(krow-1,kcol-1))!=psign&&isValidMove(krow,kcol,krow-1,kcol-1),$.=(krow-1,kcol-1))
+if(krow>1&&kcol<8&&sign(board(krow-1,kcol+1))!=psign&&isValidMove(krow,kcol,krow-1,kcol+1),$.=(krow-1,kcol+1))
+if(krow<8&&kcol<8&&sign(board(krow+1,kcol+1))!=psign&&isValidMove(krow,kcol,krow+1,kcol+1),$.=(krow+1,kcol+1))
+if(krow<8&&kcol>1&&sign(board(krow+1,kcol-1))!=psign&&isValidMove(krow,kcol,krow+1,kcol-1),$.=(krow+1,kcol-1))
+; castling
+if(kcastling==0,return()) ; unable to castle
+; short castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
+if(piecepositions(pl,2,4)==0&&attacks(3-pl,krow,6)==0&&attacks(3-pl,krow,7)==0,$.=(krow,7))
+; long castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
+if(piecepositions(pl,3,4)==0&&attacks(3-pl,krow,4)==0&&attacks(3-pl,krow,3)==0,$.=(krow,3))

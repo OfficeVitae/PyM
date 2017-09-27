@@ -1,9 +1,12 @@
 showBoard
-getCheckPieceCharacter	pl	row	col
-getPieceToMove
+getPieceToMove	piecetypeindex
 givingUp
 updateInCheck
 checkMate
-updateCheckPieces
-updatePlayerCheckPieces	pl
-getValidPlayerMoves	pl
+; functions for acquiring all valid moves for each of the piece types
+getValidPawnMoves	prow	pcol	pmoves
+getValidRookMoves	rrow	rcol
+getValidKnightMoves	krow	kcol
+getValidBishopMoves	brow	bcol
+getValidQueenMoves	qrow	qcol
+getValidKingMoves	krow	kcol

@@ -1,4 +1,4 @@
-; getCandidateEndPositions() returns all theoretical end positions of all pieces of the current player
+; getPlayerEndPositions() returns all theoretical end positions of all pieces of the current player
 playerpiecepositions=piecepositions(playerindex) ; the current set of piece positions
 $=list()
-for(piecetypeindex,1..len(playerpiecepositions),endpositions.=getPieceTypeEndPositions(playerpiecepositions(piecetypeindex)))
+for(piecetypeindex,1..len(playerpiecepositions),$.=getPieceTypeEndPositions(piecetypeindex,playerpiecepositions(piecetypeindex)))

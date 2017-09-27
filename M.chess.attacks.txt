@@ -1,0 +1,26 @@
+; attacks() determines whether a piece of player #pl attacks position #prow,#pcol
+; this functions is called e.g. by getValidKingMoves() to determine if the king can castle which requires all positions the king passes or occupies are not attacked
+$=0 ; assume not being attacked
+psign=3-2*pl ; the sign on the board of the player's pieces
+; attacked by a pawn?
+if(prow+psign>0&&prow+psign<9&&pcol<8&&board(prow+psign,pcol+1)==psign,return(1))
+if(prow+psign>0&&prow+psign<9&&pcol>1&&board(prow+psign,pcol-1)==psign,return(1))
+; attacked (horizontally) by a rook or queen?
+(arow=prow-1,while(arow>0&&board(arow,pcol)==0,arow-=1),if(arow>0&&(board(arow,pcol)==psign*2||board(arow,pcol)==psign*5),return(1)))
+(arow=prow+1,while(arow<9&&board(arow,pcol)==0,arow+=1),if(arow<9&&(board(arow,pcol)==psign*2||board(arow,pcol)==psign*5),return(1)))
+(acol=pcol-1,while(acol>0&&board(prow,acol)==0,acol-=1),if(acol>0&&(board(prow,acol)==psign*2||board(prow,acol)==psign*5),return(1)))
+(acol=pcol+1,while(acol<9&&board(prow,acol)==0,acol+=1),if(acol<9&&(board(prow,acol)==psign*2||board(prow,acol)==psign*5),return(1)))
+; attacked (diagonally) by a bishop or queen?
+(arow=prow-1,acol=pcol-1,while(arow>0&&acol>0&&board(arow,acol)==0,arow-=1,acol-=1),if(arow>0&&acol>0&&(board(arow,acol)==psign*4||board(arow,acol)==psign*5),return(1)))
+(arow=prow+1,acol=pcol+1,while(arow<9&&acol<9&&board(arow,acol)==0,arow+=1,acol+=1),if(arow<9&&acol<9&&(board(arow,acol)==psign*4||board(arow,acol)==psign*5),return(1)))
+(arow=prow+1,acol=pcol-1,while(arow<9&&acol>0&&board(arow,acol)==0,arow+=1,acol-=1),if(arow<9&&acol>0&&(board(arow,acol)==psign*4||board(arow,acol)==psign*5),return(1)))
+(arow=prow-1,acol=pcol+1,while(arow>0&&acol<9&&board(arow,acol)==0,arow-=1,acol+=1),if(arow>0&&acol<9&&(board(arow,acol)==psign*4||board(arow,acol)==psign*5),return(1)))
+; attacked by a knight?
+if(prow>1&&pcol>2&&board(prow-1,pcol-2)==psign*3,return(1))
+if(prow>2&&pcol>1&&board(prow-2,pcol-1)==psign*3,return(1))
+if(prow<8&&pcol>2&&board(prow+1,pcol-2)==psign*3,return(1))
+if(prow<7&&pcol>1&&board(prow+2,pcol-1)==psign*3,return(1))
+if(prow>1&&pcol<7&&board(prow-1,pcol+2)==psign*3,return(1))
+if(prow>2&&pcol<8&&board(prow-2,pcol+1)==psign*3,return(1))
+if(prow<8&&pcol<7&&board(prow+1,pcol+2)==psign*3,return(1))
+if(prow<7&&pcol<8&&board(prow+2,pcol+1)==psign*3,return(1))
