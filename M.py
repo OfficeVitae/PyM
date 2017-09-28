@@ -2,6 +2,8 @@
 Marc's expression tokenizer and evaluator
 """
 """ History of development:
+28SEP2017:
+- explicit List class for storing lists created with the list() function to replace implicit list (like arguments)
 24SEP2017:
 - BUG FIX: allowing shortcut assignment operators for 'array' elements
 23SEP2017:
@@ -1485,17 +1487,17 @@ class Environment:
 						result=self.getOperationResult([operand2],operator,operand1)
 				elif operator=="..": # MDH@27AUG2017: replaced : because : is now the operator to defined a block of (unevaluated) expressions
 					if isinstance(operand1,(int,long,float)) and isinstance(operand2,(int,long,float)):
-						range=[operand1]
+						values=[operand1]
 						if operand1<operand2:
 							while operand1+1<=operand2:
 								operand1+=1
-								range.append(operand1)
+								values.append(operand1)
 						elif operand1>operand2:
 							while operand1-1>=operand2:
 								operand1-=1
-								range.append(operand1)
+								values.append(operand1)
 						#####note("Range result: "+str(result)+".")
-						result=List(range)
+						result=List(values)
 				elif operator=="-":
 					result=operand1-operand2
 				elif operator=="+":
@@ -1750,6 +1752,8 @@ class List: # wraps a list, to prevent de-listing
 			self.list.extend(listtoappend)
 	def getValue(self):
 		return self
+	def __setitem__(self,_index,_value):
+	  self.list[_index]=_value
 	def __getitem__(self,_index):
 		return self.list[_index]
 	def __len__(self):
