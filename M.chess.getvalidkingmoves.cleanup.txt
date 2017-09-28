@@ -1,1 +1,1 @@
-out("Valid king moves: ",result,lf)
+;out("Valid king moves: ",result,lf)

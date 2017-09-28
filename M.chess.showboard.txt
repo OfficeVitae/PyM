@@ -1,24 +1,33 @@
 ; displays the #board fields, showing the pieces and whether or not it is a check piece
 ; appends a + to the King of the current player if currently in check
 ; to the left we show where the current player can check the opponent (!) or whether it checks the opponent(+)
-out("Chess board after ",movecount+" moves.",lf)
+; pass in a number of positions in #showpositions to mark with the index in the right-top corner of a field in the presented color in #showcolor
 (out('   '),for(col,1..7,out(cols(col),'    ')),out(cols(8),lf))
-for(row,ranges(playerindex),
-  out(' '),for(col,1..8,bgindex=1+((row%2)^(col%2)),outc((shadowcolors(bgindex),bgcolors(bgindex)),'  ',cols(col),'  ')),out(lf),
-  out(row),
-  for(col,1..8,
-    p=board(row,col),pl=(3-sign(p))\2,bgindex=1+((row%2)^(col%2)),bg=bgcolors(bgindex),
-    outc((shadowcolors(bgindex),bg),rows(row)),
-    if(abs(p)==6&&pl!=playerindex&&len(incheckinfo(playerindex))>0,
-      outc((9,bg),'+'),
-      outc((colors(playerindex),bg),getCheckPieceCharacter(3-playerindex,row,col))),
-    outc((colors(pl),bg),if(p!=0,piecetypes(abs(p)),' ')),
-    if(abs(p)==6&&pl==playerindex&&len(incheckinfo(3-playerindex))>0,
-      outc((9,bg),'+'),
-      outc((colors(3-playerindex),bg),getCheckPieceCharacter(playerindex,row,col))),
-    outc((shadowcolors(bgindex),bg),rows(row)),
-  ),out(row,lf),
-  out(' '),for(col,1..8,bgindex=1+((row%2)^(col%2)),outc((shadowcolors(bgindex),bgcolors(bgindex)),'  ',cols(col),'  ')),out(lf)
+for(row,ranges(playerindex)
+   ,out(' ')
+   ,for(col,1..8
+       ,showpositionindex=len(showpositions)\2
+       ,while(and(showpositionindex>0,or(showpositions(2*showpositionindex)!=col,showpositions(2*showpositionindex-1)!=row)),showpositionindex-=1)
+       ,bgindex=1+((row%2)^(col%2))
+       ,outc((shadowcolors(bgindex),bgcolors(bgindex)),'  ',cols(col),' ')
+       ,outc((showcolor,bgcolors(bgindex)),if(showpositionindex>0,showpositionindex,' '))
+       )
+   ,out(lf)
+   ,out(row)
+   ,for(col,1..8
+       ,p=board(row,col)
+       ,pl=(3-sign(p))\2
+       ,bgindex=1+((row%2)^(col%2))
+       ,bg=bgcolors(bgindex)
+       ,outc((shadowcolors(bgindex),bg),rows(row))
+       ,if(abs(p)==6&&pl!=playerindex&&len(incheckinfo(playerindex))>0,outc((9,bg),'+'),outc((colors(playerindex),bg),getCheckPieceCharacter(3-playerindex,row,col)))
+       ,outc((colors(pl),bg),if(p!=0,piecetypes(abs(p)),' '))
+       ,if(abs(p)==6&&pl==playerindex&&len(incheckinfo(3-playerindex))>0,outc((9,bg),'+'),outc((colors(3-playerindex),bg),getCheckPieceCharacter(playerindex,row,col)))
+       ,outc((shadowcolors(bgindex),bg),rows(row)),
+       )
+   ,out(row,lf)
+   ,out(' ')
+   ,for(col,1..8,bgindex=1+((row%2)^(col%2)),outc((shadowcolors(bgindex),bgcolors(bgindex)),'  ',cols(col),'  '))
+   ,out(lf)
   )
 (out('   '),for(col,1..7,out(cols(col),'    ')),out(cols(8),lf))
-

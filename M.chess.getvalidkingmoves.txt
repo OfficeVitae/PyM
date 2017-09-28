@@ -18,7 +18,7 @@ if(and(krow<8,kcol>1,sign(board(krow+1,kcol-1))!=ksign,isAValidMove(krow,kcol,kr
 ; long castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
 ; AND all intermediate positions should NOT be occupied (pretty essential bro')
 if(kcastling
-  ,(if(and(!piecepositions(kpl,2,4),!board(krow,6),!board(krow,7),!attacks(3-kpl,krow,6),!attacks(3-kpl,krow,7)),$.=(krow,7))
-   ,if(and(!piecepositions(kpl,3,4),!board(krow,2),!board(krow,3),!board(krow,4),!attacks(3-kpl,krow,4),!attacks(3-kpl,krow,3)),$.=(krow,3))
+  ,(if(and(!piecepositions(kpl,2,4),!board(krow,6),!board(krow,7),!attacks(-ksign,krow,6),!attacks(-ksign,krow,7)),$.=(krow,7))
+   ,if(and(!piecepositions(kpl,3,4),!board(krow,2),!board(krow,3),!board(krow,4),!attacks(-ksign,krow,4),!attacks(-ksign,krow,3)),$.=(krow,3))
    )
   )

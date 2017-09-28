@@ -1,0 +1,17 @@
+; getMoveTo() return the row and column where to move piece #pieceindex of type #piecetypeindex to
+; NOTE does not need to know the current player as it uses #validmoves
+$=?
+piecemoves=validmoves(pieceindex) ; NOTE the row and column of the moves appear in successive elements
+out("Possible moves: ",piecemoves) ; testing
+numberofpiecemoves=len(piecemoves)\2
+if(numberofpiecemoves==1,return((piecemoves(1),piecemoves(2)))) ; if only a single move possible, that's it!!
+; let user choose any of the possible destinations by index
+piecemoveindices='' ; collecting the indices to pass to inch()
+; count over the even indices (which are the columns)
+for(piecemoveindex,(1..numberofpiecemoves)*2,piecemoveindices+=(piecemoveindex\2),out('  ',piecemoveindex\2,'=',cols(piecemoves(piecemoveindex)),rows(piecemoves(piecemoveindex-1))))
+out(lf)
+showBoard(piecemoves,piececolor) ; show the board with the possible end positions marked
+out("Enter the new position number of your ",piecetypenames(piecetypeindex)," [",piecemoveindices,"]? ")
+piecemoveindex=int(inch(piecemoveindices),0)
+out(lf)
+if(piecemoveindex>0,$=(piecemoves(2*piecemoveindex-1),piecemoves(2*piecemoveindex)))

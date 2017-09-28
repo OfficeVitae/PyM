@@ -7,11 +7,11 @@ for(ppi,1..len(pps),pieceinfo=pps(ppi),
   piecetype=pieceinfo(1),piecerow=pieceinfo(2),piececol=pieceinfo(3),
   select(piecetype
     ,
-    ,$(ppi)=join(getValidPawnMoves(piecerow,piececol,pieceinfo(4),enpassantcols(3-pl)),2)
-    ,$(ppi)=join(getValidRookMoves(piecerow,piececol),2)
-    ,$(ppi)=join(getValidKnightMoves(piecerow,piececol),2)
-    ,$(ppi)=join(getValidBishopMoves(piecerow,piececol),2)
-    ,$(ppi)=join(getValidQueenMoves(piecerow,piececol),2)
-    ,$(ppi)=join(getValidKingMoves(pl,piecerow,piececol,and(pieceinfo(4)==0,len(incheckinfo(pl))<=0)),2)
+    ,$(ppi)=getValidPawnMoves(piecerow,piececol,pieceinfo(4),enpassantcols(3-pl))
+    ,$(ppi)=getValidRookMoves(piecerow,piececol)
+    ,$(ppi)=getValidKnightMoves(piecerow,piececol)
+    ,$(ppi)=getValidBishopMoves(piecerow,piececol)
+    ,$(ppi)=getValidQueenMoves(piecerow,piececol)
+    ,$(ppi)=getValidKingMoves(pl,piecerow,piececol,and(pieceinfo(4)==0,len(incheckinfo(pl))<=0))
     )
   )

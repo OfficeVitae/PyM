@@ -1,2 +1,4 @@
 ; getValidQueenMoves() returns the possible moves of a queen starting at #qrow,#qcol
-$=getValidBishopMoves(qrow,qcol).getValidRookMoves(qrow,qcol)
+; which are all the bishop and rook moves
+$=getValidBishopMoves(qrow,qcol)
+if(len($)>0,$.=getValidRookMoves(qrow,qcol),$=getValidRookMoves(qrow,qcol))

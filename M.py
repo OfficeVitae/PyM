@@ -355,7 +355,13 @@ def group(_by,_list):
 					result.append(l)
 			return result
 	return None
-# helper classes Function, Identifier and Token
+# helper classes Value, Function, Identifier and Token
+# wraps a value so it won't be recognized as a list
+class Value:
+	def __init__(self,_value):
+		self.value=_value
+	def getValue(self):
+		return self.value
 class Identifier:
 	def setValue(self,_value=None):
 		if self.name is None:
@@ -428,10 +434,13 @@ def concatenate(_texts,_enquoted=True):
 	#######note("Concatenating '"+str(_texts)+"'.")
 	for text in _texts:
 		######note("To show: '"+text+"'.")
-		(dqtext,dqchar)=dequote(text)
-		if quotechar is None and dqchar is not None:
-			quotechar=dqchar
-		result+=dqtext
+		if isinstance(text,list):
+			result+=getText(text)
+		else: # probably an str thing
+			(dqtext,dqchar)=dequote(text)
+			if quotechar is None and dqchar is not None:
+				quotechar=dqchar
+			result+=dqtext
 	if not _enquoted:
 		return result
 	return enquote(result,(quotechar,ts[0])[quotechar is None])
@@ -691,14 +700,6 @@ class Function:
 							return (falsevalue,truevalue)[value==undefined.getValue()]
 						elif self.functionindex==45: # MDH@21SEP2017: sign function
 							return ((-1,1)[value>0],0)[value==0]
-						elif self.functionindex==46: # MDH@18SEP2017: int function
-							try:
-								return int(dequote(value)[0])
-							except:
-								try:
-									return long(dequote(value)[0])
-								except:
-									pass
 						elif self.functionindex==47: # MDH@18SEP2017: jump only allowed in a function
 							raise JumpException(value)
 						elif self.functionindex==48: # MDH@18SEP2017: get input from the user
@@ -718,11 +719,20 @@ class Function:
 					elif len(arguments)>1: # shouldn't happen though
 						return [self.apply([x]) for x in arguments] # we have to listify the arguments because self.apply expects an argument list (even a single one)
 				elif self.functionindex<200: # the two-argument functions
-					if self.functionindex==105: # MDH@21SEP2017: find text in string
+					if self.functionindex==106: # MDH@28SEP2017: the int function takes a string and something that's integer as default
+						inttext=dequote(arguments[0])[0]
+						try:
+							return int(inttext)
+						except: # if anything goes wrong
+							try:
+								return long(inttext)
+							except:
+								return arguments[1]
+					elif self.functionindex==105: # MDH@21SEP2017: find text in string
 						if len(arguments)>1:
 							# we can find text in text, or anything in a list
 							if isinstance(arguments[1],str): # seach argument text
-								(searchtext,searchqc)=dquote(arguments[1])
+								(searchtext,searchqc)=dequote(arguments[1])
 								if searchqc is not None:
 									if isinstance(arguments[0],str): # TODO perhaps we might stringify arguments[0]?????
 										findtext=dequote(arguments[0])[0]
@@ -782,7 +792,7 @@ class Function:
 							if isIterable(arguments[0]) and isinstance(arguments[1],(int,long)) and arguments[1]>0:
 								listl=arguments[1]
 								########note("Will join "+str(listl)+" successive elements of the input list.")
-								if listl<len(arguments[0]):
+								if listl<=len(arguments[0]):
 									inputlist=arguments[0]
 									outputlist=list()
 									outputelement=list()
@@ -998,7 +1008,7 @@ class UserFunction(Function):
 					expression=expressions[expressionindex]
 					if expression is not None and not expression.isEmpty(): # MDH@19SEP2017: skip 'comment' lines
 						try:
-							#####note("Evaluating '"+expression.getText()+"'...")
+							######note("Evaluating '"+expression.getText()+"'...")
 							expressionvalue=expression.evaluatesTo(executionenvironment) # evaluate the expression in the execution environment
 							######note("Value of "+str(expression)+": "+str(expressionvalue)+".")
 						except JumpException,jumpException:
@@ -1007,6 +1017,7 @@ class UserFunction(Function):
 								expressionindex+=deltaexpressionindex
 								if expressionindex<0:
 									break
+								note("Will jump to expression #"+str(expressionindex)+" ("+str(expressions[expressionindex])+")")
 								continue
 							note("Invalid jump result: '"+str(deltaexpressionindex)+"'.")
 						except ReturnException,returnException:
@@ -1598,8 +1609,8 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'sign':45,'int':46,'jump':47,'in':48,'inch':49})
-Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'function':150,'join':199})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'sign':45,'jump':47,'in':48,'inch':49})
+Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'int':106,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'and':211,'or':212,'function':211})
 
 environment=None # MDH@03SEP2017: wait for the user name to be known!!!
@@ -1737,7 +1748,7 @@ def getValue(_value):
 def listify(t):
 	if isinstance(t,list):
 		return t
-	return list(t)
+	return [t]
 def stringify(t):
 	if isinstance(t,str):
 		return t

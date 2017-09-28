@@ -1,1 +1,1 @@
-out("Valid pawn moves: ",result,lf)
+;out("Valid pawn moves: ",result,lf)

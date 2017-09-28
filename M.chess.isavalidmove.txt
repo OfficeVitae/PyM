@@ -2,16 +2,17 @@
 ; assumes that the piece at (fromrow,fromcol) can actually be moved to (torow,tocol)
 ; but might result in being in check
 $=0
-out("isAValidMove(",fromrow,",",fromcol,",",torow,",",tocol,")=") ; cleanup to write the result
+;;out("isAValidMove(",fromrow,",",fromcol,",",torow,",",tocol,")=") ; cleanup to write the result
 ; 1. remember current pieces
-piece=board(fromrow,fromcol)
+(piece=board(fromrow,fromcol),psign=sign(piece)) ; the sign of the player (1 for player 1, and -1 for player 2)
 captured=board(torow,tocol)
-if(sign(piece)==sign(captured),return()) ; you cannot move to where your own pieces are
+if(psign==sign(captured),return()) ; you cannot move to where your own pieces are
 ; 2. move piece
-board(torow,tocol)=piece
-board(fromrow,fromcol)=0
+(board(torow,tocol)=piece,board(fromrow,fromcol)=0)
+; 3. determine the position of the king to pass to inCheck()
+(player=if(psign>0,1,2),krow=piecepositions(player,1,2),kcol=piecepositions(player,1,3)) ; the 'before' move king position
+if(and(krow==fromrow,kcol==fromcol),(krow=torow,kcol=tocol)) ; if this move moves the king pass along the new king position
 ; 3. determine result
-if(len(updatePlayerCheckPieces(if(piece>0,1,2)))<=0,$=1)
+if(!attacks(-psign,krow,kcol),$=1) ; if the opponent does not attack the (new) position of the player's King the move is valid
 ; 4. undo move
-board(fromrow,fromcol)=piece
-board(torow,tocol)=captured
+(board(fromrow,fromcol)=piece,board(torow,tocol)=captured)

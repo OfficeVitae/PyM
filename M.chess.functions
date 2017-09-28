@@ -2,9 +2,10 @@
 updateCheckPieces
 updatePlayerCheckPieces	pl
 getCheckPieceCharacter	pl	row	col
-showBoard
+showBoard	showpositions	showcolor
 getValidPlayerMoves	pl
-getPieceToMove	piecetypeindex
+getPieceToMove	piecetype
+getMoveTo	pieceindex	piececolor
 givingUp
 updateInCheck
 checkMate
@@ -16,5 +17,5 @@ getValidBishopMoves	brow	bcol
 getValidQueenMoves	qrow	qcol
 getValidKingMoves	kpl	krow	kcol	kcastling
 isAValidMove	fromrow	fromcol	torow	tocol
-attacks	pl	prow	pcol
+attacks	psign	prow	pcol
 
