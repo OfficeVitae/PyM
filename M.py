@@ -338,7 +338,7 @@ def getText(_obj):
 			return "("+",".join(map(getText,_obj))+")"
 		if isinstance(_obj,str):
 			return _obj
-		return str(_obj)
+		return getText(str(_obj))
 	return ""
 def group(_by,_list):
 	if isinstance(_by,int) and isIterable(_list):
@@ -381,6 +381,7 @@ class Identifier:
 		return self.name
 	def __str__(self):
 		return self.name
+VERSION=Identifier('version','2017-09-28 19:18:06') # MDH@28SEP2017: the current version
 DEBUG=Identifier('debug',1) # MDH@22SEP2017: let's make debug accessible to the expressions
 def getDebug():
 	return DEBUG.getValue()
@@ -495,7 +496,8 @@ class Function:
 				if isIterable(arguments): # as it should be
 					########note("Applying list function #"+str(self.functionindex)+" to "+str(arguments)+".")
 					if self.functionindex==-1: # list
-						return list(arguments) # wrap the list of arguments in a List, to prevent it from being recognized as a single-item list that might be devaluated!
+						note("Wrapping "+str(arguments)+" in a List.")
+						return List(arguments[0]) # you can see we've wrapped the arguments in a list, now we unwrap it
 					if self.functionindex==-2: # sum
 						i=len(arguments)-1
 						if i>=0:
@@ -575,18 +577,20 @@ class Function:
 								(valuetext,valueqc)=dequote(value) # MDH@26SEP2017: have to do this, as ? is also stored as string but then without the quotes!!!
 								if valueqc is not None:
 									return len(valuetext)
-							if isinstance(value,list):
+							elif isinstance(value,List):
 								i=len(value)
+								"""
 								while i>0 and value[-1]==undefined.getValue():
 									i-=1
+								"""
 								return i
 							return -1
 						elif self.functionindex==30: # MDH@22SEP2017: size function
-							if isinstance(value,list):
+							if isinstance(value,List):
 								return len(value)
 							return -1 # not a list
 						elif self.functionindex==33: # MDH@26SEP2017: isalist function
-							return (falsevalue,truevalue)[isinstance(value,list)]
+							return (falsevalue,truevalue)[isinstance(value,List)]
 						elif self.functionindex==34: # MDH@27SEP2017: not function
 							return (falsevalue,truevalue)[value==falsevalue]
 						# if the single argument is still list-like, we again have to use map on it!!!!
@@ -871,6 +875,7 @@ class Function:
 		if self.functionindex==0: # the return function
 			raise ReturnException(_arglist)
 		if self.functionindex==-1:
+			note("Wrapping "+str(_arglist)+" in a List.")
 			return List(_arglist)
 		if self.functionindex<-1: # assumed list function TODO can we somehow process these as any other 'normal' function??????
 			return self.apply(_arglist) # but we want to apply the list function to each of the arguments
@@ -1437,10 +1442,12 @@ class Environment:
 				if operator==periodchar: # the list concatenation operator
 					# MDH@22SEP2017: ah, we have to be careful here because the original list might be empty
 					######note("Concatenating lists '"+str(operand1)+"' and '"+str(operand2)+"'.")
-					result=list()
+					result=List()
 					# MDH@26SEP2017: theoretically operand1 (the value of argument1) should be a list
 					#								 we should start out with an empty list if operand1 is the undefined value
-					if isinstance(operand1,list):
+					result.extend(operand1)
+					"""
+					if isinstance(operand1,List):
 						# ignore all None values at the end of the list
 						i=len(operand1)
 						while i>0 and i>operand1[i-1] is None:
@@ -1449,8 +1456,9 @@ class Environment:
 							result.extend(operand1[:i])
 					elif operand1!=undefined.getValue():
 						result.extend([operand1])
+					"""
 					if operand2!=undefined.getValue(): # something to append
-						result.extend(listify(operand2))
+						result.extend(operand2)
 					elif shortcutting: # nothing to append, no change to the assignment destination
 						shortcutting=False
 					######note("Result list: '"+str(result)+"'.")
@@ -1477,16 +1485,17 @@ class Environment:
 						result=self.getOperationResult([operand2],operator,operand1)
 				elif operator=="..": # MDH@27AUG2017: replaced : because : is now the operator to defined a block of (unevaluated) expressions
 					if isinstance(operand1,(int,long,float)) and isinstance(operand2,(int,long,float)):
-						result=[operand1]
+						range=[operand1]
 						if operand1<operand2:
 							while operand1+1<=operand2:
 								operand1+=1
-								result.append(operand1)
+								range.append(operand1)
 						elif operand1>operand2:
 							while operand1-1>=operand2:
 								operand1-=1
-								result.append(operand1)
+								range.append(operand1)
 						#####note("Range result: "+str(result)+".")
+						result=List(range)
 				elif operator=="-":
 					result=operand1-operand2
 				elif operator=="+":
@@ -1599,6 +1608,7 @@ import math
 # create the root environment
 Menvironment=Environment() # MDH@03SEP2017: the root M environment containing the M identifiers and functions always accessible
 # populate the M environment with the predefined constants/variables
+Menvironment.addIdentifier(VERSION) # MDH@28SEP2017: the current version timestamp
 Menvironment.addIdentifier(DEBUG) # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(undefined,'?') # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(Identifier(_value=falsevalue),'false')
@@ -1718,11 +1728,36 @@ te="'"+'"' # ends a string literal
 # we have some predefined identifiers which are all functions of a fixed number of arguments
 # and here's the dictionary in which the identifiers themselves are stored
 # we allow using M as variable, referring to the previously executed commands, given that the value is a list you can change elements (not recommended though)
-class List(tuple): # wraps a list, to prevent de-listing
-	def __init__(self,_list):
-		tuple.__init__(self,_list)
+class List: # wraps a list, to prevent de-listing
+	def __init__(self,_list=None):
+		if isinstance(_list,list) and (len(_list)>1 or len(_list)==0 or _list[0] is not None):
+			self.list=_list
+		else:
+			self.list=[]
+	def insert(self,_index,_value):
+		self.list.insert(_index,_value)
+	def append(self,_value):
+		self.list.append(_value)
+	def extend(self,_list):
+		listtoappend=None
+		if isinstance(_list,List):
+			listtoappend=_list.list
+		elif isinstance(_list,list):
+			listtoappend=list
+		elif _list is not None:
+			listtoappend=[_list]
+		if isinstance(listtoappend,list) and len(listtoappend)>0:
+			self.list.extend(listtoappend)
 	def getValue(self):
 		return self
+	def __getitem__(self,_index):
+		return self.list[_index]
+	def __len__(self):
+		return len(self.list)
+	def __repr__(self):
+		return getText(self.list)
+	def __str__(self):
+		return "<"+getText(self.list)+">"
 def getInteger(_value):
 	if isinstance(_value,(int,long)):
 		return _value
@@ -2677,7 +2712,7 @@ class Expression(Token):
 										identifier=self.getIdentifier(tokentext)
 									if not self.immediatelyexecutable or identifier is not None: # an existing variable # MDH@30AUG2017: allow for 'locally' defined identifiers as well
 										# MDH@19SEP2017: if not supposed to be immediately executable, don't check whether the current value is a list because it should be (when the expression is executed)
-										if not self.immediatelyexecutable or isinstance(identifier.getValue(),list) or isinstance(identifier.getValue(),str): # can be indexed
+										if not self.immediatelyexecutable or isinstance(identifier.getValue(),List) or isinstance(identifier.getValue(),str): # can be indexed
 											# we're going to replace the identifier by an IdentifierElementExpression
 											self.tokens.pop() # popping off the identifier token (so we can replace it with the IdentifierElementExpression
 											# MDH@19SEP2017: the IdentifierElementExpression has to set it's text to the text of the identifier token
@@ -2687,8 +2722,8 @@ class Expression(Token):
 											result=self.newToken(IdentifierElementExpression(tokentext,self.environment,(None,self.debug)[],self,_tokenchar)) # have it use the same debug level!!!
 											"""
 											# MDH@18SEP2017: we DO want to start a subexpression!!!! _tokenchar=None # prevents creation of an expression below
-										else:
-											self.error="Cannot index a variable which value (of type "+str(type(identifiervalue))+") is not a list."
+										elif self.immediatelyexecutable:
+											self.error="Cannot index a variable which value (of type "+str(type(identifier.getValue()))+") is not a list."
 									else:
 										self.error=_tokenchar+" not allowed behind a non-existing variable."
 							else:
@@ -3095,7 +3130,7 @@ class Expression(Token):
 							result.append(bodyvalues)
 					else:
 						note("Please report the following bug: The condition in the while loop is not an expression, but of type "+str(type(_arglist[0]))+"!")
-				return result
+				return List(result)
 			def getForResult(_arglist):
 				result=list()
 				if len(_arglist)>2:
@@ -3105,6 +3140,9 @@ class Expression(Token):
 					if isinstance(forindexexpression,Expression): # which it should be
 						#######note("Evaluating for loop range '"+str(_arglist[1])+"'.")
 						forindexvalues=_arglist[1].evaluatesTo(evaluationenvironment)
+						# MDH@28SEP2017: quick fix to resolve the list of for index values to iterate over
+						while isinstance(forindexvalues,List):
+							forindexvalues=forindexvalues.list
 						if isIterable(forindexvalues):
 							# it's MORE convenient to ALWAYS create a new environment, with the for index identifier as identifier
 							if len(forindexexpression.tokens)==1 and forindexexpression.tokens[-1].getType() in (IDENTIFIER_TOKENTYPE,VARIABLE_TOKENTYPE):
@@ -3137,7 +3175,7 @@ class Expression(Token):
 							note("Second for loop argument ("+str(forindexvalues)+") not a list.")
 					else:
 						note("Please report the following bug: The first for loop argument is not an expression, but of type "+str(type(_arglist[0]))+"!")
-				return result
+				return List(result)
 			# MDH@27SEP2017: do NOT evaluate AND any further if result is known!!!!
 			def getAndResult(_arglist):
 				# any argument that does not evaluate to the false value (0) is considered 'true'
@@ -3515,20 +3553,20 @@ class IdentifierElementExpression(Expression):
 			raise Exception("Identifier "+self.getIdentifier()+" vanished.")
 		# help function to return the value at a given index (even when a list of indices)
 		def getValueAtIndex(_value,_index):
-			if not isinstance(_value,list):
+			if not isinstance(_value,List):
 				return undefined.getValue()
 			if isinstance(_index,list):
 				newvalue=list()
 				for index in _index:
 					newvalue.append(getValueAtIndex(_value,index))
-				return newvalue
+				return List(newvalue)
 			if _index<0:
 				_index+=(len(_value)+1)
 			if _index<=0 or _index>len(_value):
 				return undefined.getValue()
 			return _value[_index-1]
 		value=identifier.getValue() # which should be a list or string
-		if not isinstance(value,list) and not isinstance(value,str):
+		if not isinstance(value,List) and not isinstance(value,str):
 			raise Exception("Value of variable "+self.getIdentifier()+" not cannot be indexed.")
 		# convert any string into a list of string characters
 		if isinstance(value,str):
@@ -3548,12 +3586,12 @@ class IdentifierElementExpression(Expression):
 			raise Exception("Identifier "+self.getIdentifier()+" vanished.")
 		value=identifier.getValue() # the list of which elements are to be set
 		def setValueAtIndex(_index):
-			if isinstance(value,list) or isinstance(value,str): # we should be assigning to a list element
+			if isinstance(value,List) or isinstance(value,str): # we should be assigning to a list element
 				if isinstance(_index,list):
 					result=list()
 					for index in _index:
 						result.append(setValueAtIndex(index))
-					return result
+					return List(result)
 				if isinstance(_index,(int,long)): # index supposed to be an integer
 					if _index==0: # prepend the given value
 						value.insert(0,undefined)
@@ -3568,12 +3606,12 @@ class IdentifierElementExpression(Expression):
 						return result
 			return undefined
 		def getValueAtIndex(_index):
-			if isinstance(value,list) or isinstance(value,str):
+			if isinstance(value,List) or isinstance(value,str):
 				if isinstance(_index,list):
 					newvalue=list()
 					for index in _index:
 						newvalue.append(getValueAtIndex(index))
-					return newvalue
+					return List(newvalue)
 				if isinstance(_index,(int,long)):
 					if _index<0:
 						_index+=(len(value)+1)
@@ -4460,6 +4498,7 @@ def main():
 						if mexpression.ends() is None: # expression is considered complete
 							try:
 								expressionvalue=mexpression.evaluatesTo(environment)
+								#######note("Expression value type "+str(type(expressionvalue))+".")
 								newresulttext=" = "+getText(expressionvalue)
 							except ReturnException,returnException:
 								newresulttext=str(returnException)
