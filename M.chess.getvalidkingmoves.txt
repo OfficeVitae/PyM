@@ -1,24 +1,24 @@
 ; getValidKingMoves() returns the valid moves the king at #krow,#kcol can make (including castling)
 ; third parameter #kcastling indicates whether or not the king could castle now (when it is not in check and hasn't moved yet, and no pieces in between)
 ; but still need to check whether or not the king would be attacked on one of the intermediate positions
-$=?
+$=l()
 ksign=3-2*kpl ; -1 for black king and +1 for white king
 ; 1. all straight moves
-if(and(krow>1,sign(board(krow-1,kcol))!=ksign,isAValidMove(krow,kcol,krow-1,kcol)),$.=(krow-1,kcol))
-if(and(krow<8,sign(board(krow+1,kcol))!=ksign,isAValidMove(krow,kcol,krow+1,kcol)),$.=(krow+1,kcol))
-if(and(kcol>1,sign(board(krow,kcol-1))!=ksign,isAValidMove(krow,kcol,krow,kcol-1)),$.=(krow,kcol-1))
-if(and(kcol<8,sign(board(krow,kcol+1))!=ksign,isAValidMove(krow,kcol,krow,kcol+1)),$.=(krow,kcol+1))
+if(and(krow>1,sign(board(krow-1,kcol))!=ksign,isAValidMove(krow,kcol,krow-1,kcol)),$.=l(l(krow-1,kcol,0)))
+if(and(krow<8,sign(board(krow+1,kcol))!=ksign,isAValidMove(krow,kcol,krow+1,kcol)),$.=l(l(krow+1,kcol,0)))
+if(and(kcol>1,sign(board(krow,kcol-1))!=ksign,isAValidMove(krow,kcol,krow,kcol-1)),$.=l(l(krow,kcol-1,0)))
+if(and(kcol<8,sign(board(krow,kcol+1))!=ksign,isAValidMove(krow,kcol,krow,kcol+1)),$.=l(l(krow,kcol+1,0)))
 ; 2. all diagonal moves
-if(and(krow>1,kcol>1,sign(board(krow-1,kcol-1))!=ksign,isAValidMove(krow,kcol,krow-1,kcol-1)),$.=(krow-1,kcol-1))
-if(and(krow>1,kcol<8,sign(board(krow-1,kcol+1))!=ksign,isAValidMove(krow,kcol,krow-1,kcol+1)),$.=(krow-1,kcol+1))
-if(and(krow<8,kcol<8,sign(board(krow+1,kcol+1))!=ksign,isAValidMove(krow,kcol,krow+1,kcol+1)),$.=(krow+1,kcol+1))
-if(and(krow<8,kcol>1,sign(board(krow+1,kcol-1))!=ksign,isAValidMove(krow,kcol,krow+1,kcol-1)),$.=(krow+1,kcol-1))
+if(and(krow>1,kcol>1,sign(board(krow-1,kcol-1))!=ksign,isAValidMove(krow,kcol,krow-1,kcol-1)),$.=l(l(krow-1,kcol-1,0)))
+if(and(krow>1,kcol<8,sign(board(krow-1,kcol+1))!=ksign,isAValidMove(krow,kcol,krow-1,kcol+1)),$.=l(l(krow-1,kcol+1,0)))
+if(and(krow<8,kcol<8,sign(board(krow+1,kcol+1))!=ksign,isAValidMove(krow,kcol,krow+1,kcol+1)),$.=l(l(krow+1,kcol+1,0)))
+if(and(krow<8,kcol>1,sign(board(krow+1,kcol-1))!=ksign,isAValidMove(krow,kcol,krow+1,kcol-1)),$.=l(l(krow+1,kcol-1,0)))
 ; castling
 ; short castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
 ; long castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
 ; AND all intermediate positions should NOT be occupied (pretty essential bro')
 if(kcastling
-  ,(if(and(!piecepositions(kpl,2,4),!board(krow,6),!board(krow,7),!attacks(-ksign,krow,6),!attacks(-ksign,krow,7)),$.=(krow,7))
-   ,if(and(!piecepositions(kpl,3,4),!board(krow,2),!board(krow,3),!board(krow,4),!attacks(-ksign,krow,4),!attacks(-ksign,krow,3)),$.=(krow,3))
+  ,(if(and(!piecepositions(kpl,2,4),!board(krow,6),!board(krow,7),!attacks(-ksign,krow,6),!attacks(-ksign,krow,7)),$.=l(l(krow,7,1)))
+   ,if(and(!piecepositions(kpl,3,4),!board(krow,2),!board(krow,3),!board(krow,4),!attacks(-ksign,krow,4),!attacks(-ksign,krow,3)),$.=l(l(krow,3,2)))
    )
   )

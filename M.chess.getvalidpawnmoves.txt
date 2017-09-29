@@ -1,6 +1,6 @@
 ; getValidPawnMoves() returns all moves the pawn at #prow,#pcol that moved #pmoves times can do
 ;                     #enpassantcol contains the enpassant column of the opponent
-$=? ; initialize result
+$=l() ; initialize result
 psign=sign(board(prow,pcol)) ; white pawns can only move up, the black ones down
 
 ; unlikely that a pawn has reached the final row, and remained a pawn but ok
@@ -9,14 +9,14 @@ if(prow==if(psign>0,8,1),return())
 
 ; non-capture moves
 ; 1. one step ahead
-if(and(!board(prow+psign,pcol),isAValidMove(prow,pcol,prow+psign,pcol)),$.=(prow+psign,pcol))
+if(and(!board(prow+psign,pcol),isAValidMove(prow,pcol,prow+psign,pcol)),$.=l(l(prow+psign,pcol,0)))
 ; 2. two steps ahead
-if(and(!pmoves,!board(prow+psign,pcol),!board(prow+2*psign,pcol),isAValidMove(prow,pcol,prow+2*psign,pcol)),$.=(prow+2*psign,pcol))
+if(and(!pmoves,!board(prow+psign,pcol),!board(prow+2*psign,pcol),isAValidMove(prow,pcol,prow+2*psign,pcol)),$.=l(l(prow+2*psign,pcol,3)))
 
 ; capture moves
 ; 3. to the 'left'
-if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol-1)),$.=(prow+psign,pcol-1))
+if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol-1)),$.=l(l(prow+psign,pcol-1,0)))
 ; 4. to the 'right'
-if(and(pcol<8,sign(board(prow+psign,pcol+1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol+1)),$.=(prow+psign,pcol+1))
+if(and(pcol<8,sign(board(prow+psign,pcol+1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol+1)),$.=l(l(prow+psign,pcol+1,0)))
 ; 5. en passant capture
-if(and(defined(penpassantcol),prow==if(psign>0,5,4)),if(pcol-1==penpassantcol,$.=(prow+psign,pcol-1),if(pcol+1==penpassantcol,$.=(prow+psign,pcol+1))))
+if(and(defined(penpassantcol),prow==if(psign>0,5,4)),if(pcol-1==penpassantcol,$.=l(prow+psign,pcol-1),if(pcol+1==penpassantcol,$.=l(l(prow+psign,pcol+1,4)))))

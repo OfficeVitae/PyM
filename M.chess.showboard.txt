@@ -2,15 +2,16 @@
 ; appends a + to the King of the current player if currently in check
 ; to the left we show where the current player can check the opponent (!) or whether it checks the opponent(+)
 ; pass in a number of positions in #showpositions to mark with the index in the right-top corner of a field in the presented color in #showcolor
+out("Show positions: ",showpositions,lf) ; debugging
 (out('   '),for(col,1..7,out(cols(col),'    ')),out(cols(8),lf))
 for(row,ranges(playerindex)
    ,out(' ')
    ,for(col,1..8
-       ,showpositionindex=len(showpositions)\2
-       ,while(and(showpositionindex>0,or(showpositions(2*showpositionindex)!=col,showpositions(2*showpositionindex-1)!=row)),showpositionindex-=1)
+       ,showpositionindex=len(showpositions)
+       ,while(and(showpositionindex>0,or(showpositions(showpositionindex,2)!=col,showpositions(showpositionindex,1)!=row)),showpositionindex-=1)
        ,bgindex=1+((row%2)^(col%2))
        ,outc((shadowcolors(bgindex),bgcolors(bgindex)),'  ',cols(col),' ')
-       ,outc((showcolor,bgcolors(bgindex)),if(showpositionindex>0,showpositionindex,' '))
+       ,outc((showcolor,bgcolors(bgindex)),if(showpositionindex>0,showpositions(showpositionindex,3),' '))
        )
    ,out(lf)
    ,out(row)
