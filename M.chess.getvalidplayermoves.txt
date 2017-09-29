@@ -3,15 +3,20 @@
 ;      to getValidKingMoves()
 pps=piecepositions(pl)
 $=replicate(?,len(pps))
-for(ppi,1..len(pps),pieceinfo=pps(ppi),
-  piecetype=pieceinfo(1),piecerow=pieceinfo(2),piececol=pieceinfo(3),
-  select(piecetype
-    ,
-    ,$(ppi)=getValidPawnMoves(piecerow,piececol,pieceinfo(4),enpassantcols(3-pl))
-    ,$(ppi)=getValidRookMoves(piecerow,piececol)
-    ,$(ppi)=getValidKnightMoves(piecerow,piececol)
-    ,$(ppi)=getValidBishopMoves(piecerow,piececol)
-    ,$(ppi)=getValidQueenMoves(piecerow,piececol)
-    ,$(ppi)=getValidKingMoves(pl,piecerow,piececol,and(pieceinfo(4)==0,len(incheckinfo(pl))<=0))
-    )
+for(ppi,1..len(pps)
+   ,pieceinfo=pps(ppi)
+   ,piecetype=pieceinfo(1)
+   ,if(piecetype>0
+      ,(piecerow=pieceinfo(2),piececol=pieceinfo(3)
+       ,select(piecetype
+              ,
+              ,$(ppi)=getValidPawnMoves(piecerow,piececol,pieceinfo(4),enpassantcols(3-pl))
+              ,$(ppi)=getValidRookMoves(piecerow,piececol)
+              ,$(ppi)=getValidKnightMoves(piecerow,piececol)
+              ,$(ppi)=getValidBishopMoves(piecerow,piececol)
+              ,$(ppi)=getValidQueenMoves(piecerow,piececol)
+              ,$(ppi)=getValidKingMoves(pl,piecerow,piececol,and(pieceinfo(4)==0,len(incheckinfo(pl))==0))
+              )
+       )
+      )
   )

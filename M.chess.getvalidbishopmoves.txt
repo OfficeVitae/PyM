@@ -3,17 +3,17 @@ $=l() ; initialize result
 bsign=-sign(board(brow,bcol)) ; the opponent
 ; 1. left and down
 (nrow=brow-1,ncol=bcol-1)
-while(and(nrow>0,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=l(nrow,ncol)),nrow-=1,ncol-=1)
-if(and(nrow>0,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(nrow,ncol)) ; capture move
+while(and(nrow>0,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=l(l(nrow,ncol,0))),nrow-=1,ncol-=1)
+if(and(nrow>0,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(l(nrow,ncol,0))) ; capture move
 ; 2. right and up
 (nrow=brow+1,ncol=bcol+1)
-while(and(nrow<9,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=l(nrow,ncol)),nrow+=1,ncol+=1)
-if(and(nrow<9,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(nrow,ncol)) ; capture move
+while(and(nrow<9,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=l(l(nrow,ncol,0))),nrow+=1,ncol+=1)
+if(and(nrow<9,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(l(nrow,ncol,0))) ; capture move
 ; 3. left and up
 (nrow=brow+1,ncol=bcol-1)
 while(and(nrow<9,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=l(nrow,ncol)),nrow+=1,ncol-=1)
-if(and(nrow<9,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(nrow,ncol)) ; capture move
+if(and(nrow<9,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(l(nrow,ncol,0))) ; capture move
 ; 4. right and down
 (nrow=brow-1,ncol=bcol+1)
 while(and(nrow>0,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=l(nrow,ncol)),nrow-=1,ncol+=1)
-if(and(nrow>0,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(nrow,ncol)) ; capture move
+if(and(nrow>0,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(l(nrow,ncol,0))) ; capture move

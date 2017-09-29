@@ -328,20 +328,16 @@ def isIndexable(_obj):
 		return hasattr(_obj,'__getitem__')
 	except Exception,ex:
 		note("ERROR: '"+str(ex)+"' checking on the indexability of "+str(_obj)+".")
+def getListItemsText(_list):
+	return ",".join(map(getText,_list))
 def getText(_obj):
-	if _obj is not None:
-		###print "To print: "+str(_obj)+"."
-		# NOTE a list is a list is a list, even if it has a single element!!!!
-		if isinstance(_obj,list): # get rid of the blanks behind the comma's
-			"""
-			if len(_obj)==1:
-				return getText(_obj[0])
-			"""
-			return "("+",".join(map(getText,_obj))+")"
-		if isinstance(_obj,str):
-			return _obj
-		return getText(str(_obj))
-	return ""
+	if _obj is None:
+		return ""
+	if isinstance(_obj,str):
+		return _obj
+	if isinstance(_obj,list): # get rid of the blanks behind the comma's
+		return "("+getListItemsText(_obj)+")"
+	return getText(str(_obj)) # in case str returns None, we call getText() on it just in case
 def group(_by,_list):
 	if isinstance(_by,int) and isIterable(_list):
 		if _by>0:
@@ -713,15 +709,22 @@ class Function:
 							return enquote(intext)
 						elif self.functionindex==49: # inch
 							# how about letting the argument represent the characters getch() should return??????
+							# best to return the index of the character instead of the character itself, because we want to recognize lower and upper case equivalents as well
 							possiblechars=dequote(value)[0]
 							if len(possiblechars)>0:
 								while 1:
 									ch=getch()
 									if ord(ch) in (3,4,9,10,13): # break anyway on Ctrl-C, Ctrl-D, Enter or Tab
-										return undefined.getValue()
-									if possiblechars.find(ch)>=0:
-										output(ch) # echo the character input
-										return enquote(ch)
+										return 0
+									output(ch)
+									findindex=possiblechars.find(ch)
+									if findindex<0:
+										findindex=possiblechars.find(ch.toupper())
+										if findindex<0:
+											findindex=possiblechars.find(ch.tolower())
+									if findindex>=0:
+										return findindex+1
+							return -1
 					elif len(arguments)>1: # shouldn't happen though
 						return [self.apply([x]) for x in arguments] # we have to listify the arguments because self.apply expects an argument list (even a single one)
 				elif self.functionindex<200: # the two-argument functions
@@ -1769,7 +1772,7 @@ class List: # wraps a list, to prevent de-listing
 	def __repr__(self):
 		return getText(self.list)
 	def __str__(self):
-		return "<"+getText(self.list)+">"
+		return "["+getListItemsText(self.list)+"]"
 def getInteger(_value):
 	if isinstance(_value,(int,long)):
 		return _value

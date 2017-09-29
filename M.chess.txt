@@ -3,10 +3,11 @@ $=0 ; assume no winner
 (debugnow=debug,debug=0) ; disable debugging
 piecetypes='PRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and king)
 piecetypenames=('pawn','rook','knight','bishop','queen','king') ; the names of the piece (types)
-ranges=(8..1,1..8) ; display ranges
-colors=(231,16) ; the (foreground) color of the pieces
-bgcolors=(247,251) ; the field colors
-shadowcolors=(249,249) ; the gray next to the field colors
+movecharacters='abcdefghijklmnopqrstuvwxyz.,' ; the characters to use for marking the piece positions on the board that can be moved
+ranges=l(8..1,1..8) ; display ranges
+colors=l(231,16) ; the (foreground) color of the pieces
+bgcolors=l(247,251) ; the field colors
+shadowcolors=l(249,249) ; the gray next to the field colors
 ; initialize the game
 rows='12345678' ; the row names
 cols='abcdefgh' ; the column names
@@ -23,43 +24,49 @@ piecepositions=l(
 ; put the pieces on the board
 board=replicate(replicate(0,8),8) ; create empty board
 for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),out("pps#",ppi,":",pps,".",lf),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1)),out("board(",pps(2),",",pps(3),")=",board(pps(2),pps(3)),".",lf)))
-out("Board now: ",board,".",lf)
+;;out("Board now: ",board,".",lf)
 ; initialize check pieces (the positions on the board from where pieces can give check)
 ; NOTE that at the start of the game there are no check fields
-checkpieces=l() ; initialize
-incheckinfo=l() ; initialize
+(checkpieces,incheckinfo) ; declare
 if(debug&1,out(lf))
 ; PREPARE FOR ACCEPTING A MOVE
 playerindex=3-playerindex
 out(if(playerindex==1,player1,player2),", it's your turn.",lf)
 updateCheckPieces() ; collect (in) check information
-; show chess board in the orientation of the current player
-out("Chess board after ",movecount," moves.",lf)
-showBoard(?,?)
 ; determine all valid moves the current player can do
 validmoves=getValidPlayerMoves(playerindex)
-out("Valid moves: ",validmoves,lf)
+;;out("Valid moves: ",validmoves,lf)
+; determine the positions of the pieces that can be moved, and count the number of possible moves
+(validmovecount=0,piecemovecharacters='',movablepieceindices=l(),movablepiecepositions=l(),
+  for(validmoveindex,1..len(validmoves)
+     ,lvm=len(validmoves(validmoveindex))
+     ,if(lvm>0
+        ,(validmovecount+=lvm
+         ,pmc=movecharacters(len(movablepiecepositions)+1)
+         ,piecemovecharacters+=pmc
+         ,movablepieceindices.=l(validmoveindex)
+         ,movablepiecepositions.=l(l(piecepositions(playerindex,validmoveindex,2),piecepositions(playerindex,validmoveindex,3),pmc))
+         )
+        )
+     )
+  )
+;;out("Movable piece indices: ",movablepieceindices,lf)
+; show chess board in the orientation of the current player
+out("Chess board after ",movecount," moves.",lf)
+showBoard(movablepiecepositions,colors(playerindex))
 
 ; CHECK FOR CHECK MATE
-; if there are no valid moves anymore, the opponent won!!!
-(validmovecount=0,validmoveindex=len(validmoves)
-  ,while(validmoveindex>0,lvm=len(validmoves(validmoveindex))\2,if(lvm>0,validmovecount+=lvm),validmoveindex-=1))
-out("Number of valid moves: ",validmovecount,".",lf)
-if(validmovecount==0,(debug=debugnow,return(3-playerindex)))
-
-; ASK THE CURRENT PLAYER FOR A MOVE
-; determine the list of non-pawn piece types the current player can still move, and the columns with pawns the user can move
-(ppts='',ppps=piecepositions(playerindex)
-  ,for(ppi,1..8,ppt=piecetypes(ppps(ppi,1)),if(and(find(ppt,ppts)==0,len(validmoves(ppi))>0),ppts+=ppt))
-  ,for(ppi,9..16,colname=cols(ppps(ppi,3)),if(and(find(colname,ppts)==0,len(validmoves(ppi))>0),ppts+=colname))
-  )
-(out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+ppts+']? '),piecetype=inch(ppts),out(lf)) ; get one of the player pieces characters
-if(undefined(piecetype),if(givingUp(),(debug=debugnow,return(3-playerindex)),jump(-1))) ; if no piece defined, ask the user if they want to give up
+; if there are no pieces that can move, the opponent won, otherwise show how many moves one can make!!!
+if(validmovecount==0,(debug=debugnow,return(3-playerindex)),out("Number of valid moves: ",validmovecount,".",lf))
+; ASK THE CURRENT PLAYER FOR THE PIECE TO MOVE
+(out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+piecemovecharacters+']? '),piececharacterindex=inch(piecemovecharacters),out(piececharacterindex,lf)) ; get one of the player pieces characters
+if(piececharacterindex<=0,if(givingUp(),(debug=debugnow,return(3-playerindex)),jump(-1))) ; if no piece defined, ask the user if they want to give up
 ; the piecetype is either a column name (a-h) or the type of one of the pieces
 ; get the position of this piece, if multiple positions exist, ask the user which one he means, there can be at most 8 of them (pawns), which we may number
-pieceindex=getPieceToMove(piecetype) ; returns the index of the piece to move (so piecepositions(playerindex,pieceindex,(2,3)) is the start position)
-piecemoveto=getMoveTo(pieceindex,colors(playerindex)) ; where to move the piece to (marking the options in the player color!!)
-out("Piece to move: index=",pieceindex," - move to position=",piecemoveto,lf)
+pieceindex=movablepieceindices(piececharacterindex) ; returns the index of the piece to move (so piecepositions(playerindex,pieceindex,(2,3)) is the start position)
+;;out("Piece index=",pieceindex,lf)
+piecemoveto=getMoveTo(pieceindex,piecepositions(playerindex,pieceindex,1),colors(playerindex)) ; where to move the piece to (marking the options in the player color!!)
+out("Position to move to=",piecemoveto,lf)
 ; EXECUTE THE MOVE
 (fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3),torow=piecemoveto(1),tocol=piecemoveto(2))
 out("Moving your ",piecetypenames(piecetypeindex)," at ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow),".",lf)
@@ -94,4 +101,4 @@ if(captured>0,(opponentindex=3-playerindex,pieceindex=16,notfound=1
               )
   )
 out("Piece positions: ",piecepositions,lf) ; for debugging purposes
-jump(-62+7+5+3) ; take all continuations into account!!!
+jump(-71+8+5+11) ; take all continuations into account!!!

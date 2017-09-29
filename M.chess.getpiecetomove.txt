@@ -1,4 +1,5 @@
 ; returns the position of a piece of type #piecetype of the player #playerindex selected by the player if there are multiple pieces
+$=?
 piecetypeindex=find(piecetype,piecetypes) ; the piece index is the position of the piece (type)
 ppps=piecepositions(playerindex) ; the current set of positions of the given piece (type)
 ; collect all positions of the given piece type with at least one valid move!!!!
@@ -14,5 +15,5 @@ if(numberofpositions<=1,return(ppis)) ; if only a single position, no need to as
 (positions=?,positionindices='',for(positionindex,1..numberofpositions,positionindices+=positionindex,positions.=(ppps(ppis(positionindex),2),ppps(ppis(positionindex),3))))
 showBoard(positions,colors(playerindex)) ; show the positions to select from on the board (most convenient)
 out("Enter the number of the position of your ",if(piecetypeindex>0,piecetypenames(piecetypeindex),"pawn")," [",positionindices,"]? ")
-piecepositionindex=int(inch(positionindices))
-$=ppis(piecepositionindex)
+piecepositionindex=int(inch(positionindices),0)
+if(piecepositionindex>0,$=ppis(piecepositionindex))
