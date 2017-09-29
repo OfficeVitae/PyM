@@ -4,7 +4,7 @@ updatePlayerCheckPieces	pl
 getCheckPieceCharacter	pl	row	col
 showBoard	showpositions	showcolor
 getValidPlayerMoves	pl
-getMoveTo	playerindex	pieceindex
+getMoveTo	pieceindex	piecetypeindex	piececolor
 givingUp
 updateInCheck
 checkMate

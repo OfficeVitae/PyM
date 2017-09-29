@@ -1,6 +1,5 @@
-; getMoveTo() return the row and column where to move piece #pieceindex of player #playerindextype
-$=l()
-(piecetypeindex=piecepositions(playerindex,pieceindex,1),piececolor=colors(playerindex),validpiecemoves=validmoves(pieceindex)) 
+; getMoveTo() return the row and column where to move piece #pieceindex of type #piecetypeindex showing the piece move characters in color #piececolor
+validpiecemoves=validmoves(pieceindex)
 out("Possible moves: ",validpiecemoves) ; testing
 numberofpiecemoves=len(validpiecemoves)
 ;;if(numberofpiecemoves==1,return(validpiecemoves(1))) ; to allow the user to renounce, we'll let him choose even a single move
@@ -8,7 +7,7 @@ numberofpiecemoves=len(validpiecemoves)
 piecemoveindices='' ; collecting the indices to pass to inch()
 ; count over the even indices (which are the columns)
 (piecemoves=l(),piecemovecharacters='',for(piecemoveindex,1..numberofpiecemoves
-   ,pmc=movecharacters(piecemoveindex),piecemovecharacters+=pmc,piecemoves.=l(l(validpiecemoves(piecemoveindex,1),validpiecemoves(piecemoveindex,2),pmc))))
+   ,pmc=movecharacters(piecemoveindex),piecemovecharacters+=pmc,piecemoves.=l(l(validpiecemoves(piecemoveindex,1),validpiecemoves(piecemoveindex,2),pmc,validpiecemoves(piecemoveindex,3)))))
 showBoard(piecemoves,piececolor) ; show the board with the possible end positions marked
 (out("Enter the new position number of your ",piecetypenames(piecetypeindex)," [",piecemovecharacters,"]? "),piecemoveindex=inch(piecemovecharacters),out(lf))
-if(piecemoveindex>0,$=validpiecemoves(piecemoveindex))
+$=if(piecemoveindex>0,validpiecemoves(piecemoveindex),l())

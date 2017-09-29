@@ -4,6 +4,7 @@ $=0 ; assume no winner
 piecetypes='PRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and king)
 piecetypenames=('pawn','rook','knight','bishop','queen','king') ; the names of the piece (types)
 movecharacters='abcdefghijklmnopqrstuvwxyz.,' ; the characters to use for marking the piece positions on the board that can be moved
+movetypecolors=l(20,200,201,33,226) ; the move type colors used by showBoard() 1=normal, 2=short castling, 3=long castling, 4=two step pawn, 5=en passant capture
 ranges=l(8..1,1..8) ; display ranges
 colors=l(231,16) ; the (foreground) color of the pieces
 bgcolors=l(247,251) ; the field colors
@@ -23,7 +24,7 @@ piecepositions=l(
   )
 ; put the pieces on the board
 board=replicate(replicate(0,8),8) ; create empty board
-for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),out("pps#",ppi,":",pps,".",lf),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1)),out("board(",pps(2),",",pps(3),")=",board(pps(2),pps(3)),".",lf)))
+for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1))))
 ;;out("Board now: ",board,".",lf)
 ; initialize check pieces (the positions on the board from where pieces can give check)
 ; NOTE that at the start of the game there are no check fields
@@ -64,16 +65,17 @@ if(piececharacterindex<=0,if(givingUp(),(debug=debugnow,return(3-playerindex)),j
 ; the piecetype is either a column name (a-h) or the type of one of the pieces
 ; get the position of this piece, if multiple positions exist, ask the user which one he means, there can be at most 8 of them (pawns), which we may number
 pieceindex=movablepieceindices(piececharacterindex) ; returns the index of the piece to move (so piecepositions(playerindex,pieceindex,(2,3)) is the start position)
-;;out("Piece index=",pieceindex,lf)
-piecemoveto=getMoveTo(playerindex,pieceindex) ; where to move the piece to (marking the options in the player color!!)
+piecetypeindex=piecepositions(playerindex,pieceindex,1) ; the type of the piece being moved
+out("Piece index=",pieceindex," - type=",piecetypeindex,lf)
+piecemoveto=getMoveTo(pieceindex,piecetypeindex,colors(playerindex)) ; where to move the piece to (marking the options in the player color!!)
 if(len(piecemoveto)==0,jump(-13)) ; if undefined, allow another selection
 out("Position to move to=",piecemoveto,lf)
 ; EXECUTE THE MOVE
-(piecetypeindex=piecepositions(playerindex,pieceindex,1),fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3),torow=piecemoveto(1),tocol=piecemoveto(2))
+(fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3),torow=piecemoveto(1),tocol=piecemoveto(2))
 out("Moving your ",piecetypenames(piecetypeindex)," at ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow),".",lf)
 plsign=3-2*playerindex
 movecount+=1
-(captured=abs(board(torow,tocol)),board(torow,tocol)=plsign*piecepositions(playerindex,pieceindex,1),board(fromrow,fromcol)=0) ; perform the move on the board
+(captured=abs(board(torow,tocol)),board(torow,tocol)=plsign*piecetypeindex,board(fromrow,fromcol)=0) ; perform the move on the board
 ; register the new position and increment the number of moves made by the moved piece
 (piecepositions(playerindex,pieceindex,2)=torow,piecepositions(playerindex,pieceindex,3)=tocol,piecepositions(playerindex,pieceindex,4)+=1)
 out("Moved piece: player=",playerindex," piece=",pieceindex," info=",piecepositions(playerindex,pieceindex),".",lf)
@@ -84,6 +86,7 @@ out("Moved piece: player=",playerindex," piece=",pieceindex," info=",piecepositi
 ; 3. if a pawn moves two rows the first time (as indicated by the move type), we have to make it en passant capturable
 ; 4. en passant capture
 select(piecemoveto(3)
+      ,out("Invalid move.",lf)
       ,out("An ordinary move.",lf)
       ,(out("Short castling.",lf),board(torow,8)=0,board(torow,6)=plsign*2,piecepositions(playerindex,2,3)=6)
       ,(out("Long castling.",lf),board(torow,1)=0,board(torow,4)=plsign*2,piecepositions(playerindex,3,3)=4)
@@ -104,4 +107,4 @@ if(captured>0,(out("Captured at ",cols(tocol),rows(torow),":",captured,".",lf)
               )
   )
 out("Piece positions: ",piecepositions,lf) ; for debugging purposes
-jump(-69+8+6+11) ; take all continuations into account!!!
+jump(-75+11+6+12) ; take all continuations into account!!!

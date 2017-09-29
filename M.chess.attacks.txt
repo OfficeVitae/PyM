@@ -3,6 +3,7 @@
 ; and by isAValidMove() to determine if the King will be attacked as a result of the move
 ; NOTE attacks() does not check for the en passant capture option, although this would be a valid attacked position
 $=0 ; assume not being attacked
+out("Result of checking attack on ",cols(pcol),rows(prow),": ")
 ; attacked by a pawn?
 if(and(prow+psign>0,prow+psign<9,pcol<8,board(prow+psign,pcol+1)==psign),return(1))
 if(and(prow+psign>0,prow+psign<9,pcol>1,board(prow+psign,pcol-1)==psign),return(1))

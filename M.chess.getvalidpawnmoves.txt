@@ -9,9 +9,9 @@ if(prow==if(psign>0,8,1),return())
 
 ; non-capture moves
 ; 1. one step ahead
-if(and(!board(prow+psign,pcol),isAValidMove(prow,pcol,prow+psign,pcol)),$.=l(l(prow+psign,pcol,0)))
+if(and(!board(prow+psign,pcol),isAValidMove(prow,pcol,prow+psign,pcol)),$.=l(l(prow+psign,pcol,1)))
 ; 2. two steps ahead
-if(and(!pmoves,!board(prow+psign,pcol),!board(prow+2*psign,pcol),isAValidMove(prow,pcol,prow+2*psign,pcol)),$.=l(l(prow+2*psign,pcol,3)))
+if(and(!pmoves,!board(prow+psign,pcol),!board(prow+2*psign,pcol),isAValidMove(prow,pcol,prow+2*psign,pcol)),$.=l(l(prow+2*psign,pcol,4)))
 
 ; capture moves
 ; 3. to the 'left'
@@ -19,4 +19,4 @@ if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0,isAValidMove(prow,pcol,pro
 ; 4. to the 'right'
 if(and(pcol<8,sign(board(prow+psign,pcol+1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol+1)),$.=l(l(prow+psign,pcol+1,0)))
 ; 5. en passant capture
-if(and(defined(penpassantcol),prow==if(psign>0,5,4)),if(pcol-1==penpassantcol,$.=l(prow+psign,pcol-1),if(pcol+1==penpassantcol,$.=l(l(prow+psign,pcol+1,4)))))
+if(and(defined(penpassantcol),prow==if(psign>0,5,4)),if(pcol-1==penpassantcol,$.=l(prow+psign,pcol-1),if(pcol+1==penpassantcol,$.=l(l(prow+psign,pcol+1,5)))))

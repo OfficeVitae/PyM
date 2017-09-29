@@ -9,9 +9,16 @@ for(row,ranges(playerindex)
    ,for(col,1..8
        ,showpositionindex=len(showpositions)
        ,while(and(showpositionindex>0,or(showpositions(showpositionindex,2)!=col,showpositions(showpositionindex,1)!=row)),showpositionindex-=1)
-       ,bgindex=1+((row%2)^(col%2))
-       ,outc((shadowcolors(bgindex),bgcolors(bgindex)),'  ',cols(col),' ')
-       ,outc((showcolor,bgcolors(bgindex)),if(showpositionindex>0,showpositions(showpositionindex,3),' '))
+       ,bgindex=1+((row%2)^(col%2)),bgc=bgcolors(bgindex),
+       ,outc((shadowcolors(bgindex),bgc),'  ',cols(col),' ')
+       ,if(showpositionindex>0
+          ,outc((if(len(showpositions(showpositionindex))>3
+                   ,movetypecolors(showpositions(showpositionindex,4))
+                   ,showcolor)
+                ,bgc)
+               ,showpositions(showpositionindex,3))
+          ,outc((showcolor,bgc),' ')
+          )
        )
    ,out(lf)
    ,out(row)
