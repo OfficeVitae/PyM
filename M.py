@@ -328,20 +328,16 @@ def isIndexable(_obj):
 		return hasattr(_obj,'__getitem__')
 	except Exception,ex:
 		note("ERROR: '"+str(ex)+"' checking on the indexability of "+str(_obj)+".")
+def getListItemsText(_list):
+	return ",".join(map(getText,_list))
 def getText(_obj):
-	if _obj is not None:
-		###print "To print: "+str(_obj)+"."
-		# NOTE a list is a list is a list, even if it has a single element!!!!
-		if isinstance(_obj,list): # get rid of the blanks behind the comma's
-			"""
-			if len(_obj)==1:
-				return getText(_obj[0])
-			"""
-			return "("+",".join(map(getText,_obj))+")"
-		if isinstance(_obj,str):
-			return _obj
-		return getText(str(_obj))
-	return ""
+	if _obj is None:
+		return ""
+	if isinstance(_obj,str):
+		return _obj
+	if isinstance(_obj,list): # get rid of the blanks behind the comma's
+		return "("+getListItemsText(_obj)+")"
+	return getText(str(_obj)) # in case str returns None, we call getText() on it just in case
 def group(_by,_list):
 	if isinstance(_by,int) and isIterable(_list):
 		if _by>0:
@@ -498,7 +494,7 @@ class Function:
 				if isIterable(arguments): # as it should be
 					########note("Applying list function #"+str(self.functionindex)+" to "+str(arguments)+".")
 					if self.functionindex==-1: # list
-						note("Wrapping "+str(arguments)+" in a List.")
+						#######note("Wrapping "+str(arguments)+" in a List.")
 						return List(arguments[0]) # you can see we've wrapped the arguments in a list, now we unwrap it
 					if self.functionindex==-2: # sum
 						i=len(arguments)-1
@@ -713,15 +709,22 @@ class Function:
 							return enquote(intext)
 						elif self.functionindex==49: # inch
 							# how about letting the argument represent the characters getch() should return??????
+							# best to return the index of the character instead of the character itself, because we want to recognize lower and upper case equivalents as well
 							possiblechars=dequote(value)[0]
 							if len(possiblechars)>0:
 								while 1:
 									ch=getch()
 									if ord(ch) in (3,4,9,10,13): # break anyway on Ctrl-C, Ctrl-D, Enter or Tab
-										return undefined.getValue()
-									if possiblechars.find(ch)>=0:
-										output(ch) # echo the character input
-										return enquote(ch)
+										return 0
+									output(ch)
+									findindex=possiblechars.find(ch)
+									if findindex<0:
+										findindex=possiblechars.find(ch.toupper())
+										if findindex<0:
+											findindex=possiblechars.find(ch.tolower())
+									if findindex>=0:
+										return findindex+1
+							return -1
 					elif len(arguments)>1: # shouldn't happen though
 						return [self.apply([x]) for x in arguments] # we have to listify the arguments because self.apply expects an argument list (even a single one)
 				elif self.functionindex<200: # the two-argument functions
@@ -743,7 +746,7 @@ class Function:
 									if isinstance(arguments[0],str): # TODO perhaps we might stringify arguments[0]?????
 										findtext=dequote(arguments[0])[0]
 										return 1+searchtext.find(findtext)
-							elif isinstance(arguments[1],list): # search argument a list
+							elif isinstance(arguments[1],List): # search argument a list
 								try:
 									return 1+arguments[1].index(arguments[0])
 								except:
@@ -768,12 +771,14 @@ class Function:
 							replicatecount=arguments[1]
 							replicates=list()
 							while replicatecount>0:
-								if isinstance(arguments[0],list):
+								if isinstance(arguments[0],List):
+									replicates.append(arguments[0].clone()) # MDH@29SEP2017: clone the source list
+								elif isinstance(arguments[0],list):
 									replicates.append(list(arguments[0])) # wrap the list so we use a copy
 								else:
 									replicates.append(arguments[0])
 								replicatecount-=1
-							return replicates
+							return List(replicates)
 					elif self.functionindex==101 or self.functionindex==102: # ls/dir
 						if len(arguments)>0:
 							directory=dequote(arguments[0])[0] # the name of the directory requested
@@ -793,13 +798,13 @@ class Function:
 						return map(enquote,glob.glob(opsyspath.join(directory,filter)))
 					elif self.functionindex==199: # join
 						if len(arguments)==2:
-							if isinstance(arguments[1],list) and len(arguments[1])==1:
+							if isinstance(arguments[1],List) and len(arguments[1])==1:
 								arguments[1]=arguments[1][0]
 							if isIterable(arguments[0]) and isinstance(arguments[1],(int,long)) and arguments[1]>0:
 								listl=arguments[1]
 								########note("Will join "+str(listl)+" successive elements of the input list.")
 								if listl<=len(arguments[0]):
-									inputlist=arguments[0]
+									inputlist=arguments[0].list
 									outputlist=list()
 									outputelement=list()
 									while len(inputlist)>0:
@@ -810,8 +815,8 @@ class Function:
 									if len(outputelement)>0:
 										while len(outputelement)<listl:
 											outputelement.append(undefined.getValue())
-										outputlist.append(outputelement)
-									return outputlist
+										outputlist.append(List(outputelement))
+									return List(outputlist)
 								####note("WARNING: Too large second input argument ("+str(arguments[1])+") in applying the join() function to "+getText(arguments[0])+"!")
 								return arguments[0] # no change to the list
 							if arguments[0]!=undefined.getValue():
@@ -877,7 +882,7 @@ class Function:
 		if self.functionindex==0: # the return function
 			raise ReturnException(_arglist)
 		if self.functionindex==-1:
-			note("Wrapping "+str(_arglist)+" in a List.")
+			#######note("Wrapping "+str(_arglist)+" in a List.")
 			return List(_arglist)
 		if self.functionindex<-1: # assumed list function TODO can we somehow process these as any other 'normal' function??????
 			return self.apply(_arglist) # but we want to apply the list function to each of the arguments
@@ -1443,7 +1448,7 @@ class Environment:
 				# with the period also defined as list concatenation operand we should simply extend operand1 with (listified) operand2
 				if operator==periodchar: # the list concatenation operator
 					# MDH@22SEP2017: ah, we have to be careful here because the original list might be empty
-					######note("Concatenating lists '"+str(operand1)+"' and '"+str(operand2)+"'.")
+					########note("Concatenating lists '"+str(operand1)+"' and '"+str(operand2)+"'.")
 					result=List()
 					# MDH@26SEP2017: theoretically operand1 (the value of argument1) should be a list
 					#								 we should start out with an empty list if operand1 is the undefined value
@@ -1459,7 +1464,7 @@ class Environment:
 					elif operand1!=undefined.getValue():
 						result.extend([operand1])
 					"""
-					if operand2!=undefined.getValue(): # something to append
+					if isinstance(operand2,(list,List)) and len(operand2)>0: # something to append
 						result.extend(operand2)
 					elif shortcutting: # nothing to append, no change to the assignment destination
 						shortcutting=False
@@ -1620,7 +1625,7 @@ Menvironment.addIdentifier(Identifier(_value="'\r'"),'cr') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
-Menvironment.addFunctions({'return':0,'list':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
+Menvironment.addFunctions({'return':0,'l':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
 Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'sign':45,'jump':47,'in':48,'inch':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'int':106,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'and':211,'or':212,'function':211})
@@ -1736,6 +1741,11 @@ class List: # wraps a list, to prevent de-listing
 			self.list=_list
 		else:
 			self.list=[]
+	# convenience method to clone a List TODO should this be a deep copy????
+	def clone(self):
+		return List(list(self.list))
+	def index(self,_searchfor):
+		return self.list.index(_searchfor)
 	def insert(self,_index,_value):
 		self.list.insert(_index,_value)
 	def append(self,_value):
@@ -1753,7 +1763,8 @@ class List: # wraps a list, to prevent de-listing
 	def getValue(self):
 		return self
 	def __setitem__(self,_index,_value):
-	  self.list[_index]=_value
+		######note("Setting the value in "+str(self.list)+" at index "+str(_index)+" to "+str(_value)+".")
+		self.list[_index]=_value
 	def __getitem__(self,_index):
 		return self.list[_index]
 	def __len__(self):
@@ -1761,7 +1772,7 @@ class List: # wraps a list, to prevent de-listing
 	def __repr__(self):
 		return getText(self.list)
 	def __str__(self):
-		return "<"+getText(self.list)+">"
+		return "["+getListItemsText(self.list)+"]"
 def getInteger(_value):
 	if isinstance(_value,(int,long)):
 		return _value
@@ -3575,7 +3586,7 @@ class IdentifierElementExpression(Expression):
 		# convert any string into a list of string characters
 		if isinstance(value,str):
 			(text,quotechar)=dequote(value)
-			value=[enquote(c,quotechar) for c in text]
+			value=List([enquote(c,quotechar) for c in text])
 		indexvalues=Expression.evaluatesTo(self,_environment) ##self.getIndexValue(_environment)
 		if isinstance(indexvalues,list):
 			for indexvalue in indexvalues:
@@ -3590,6 +3601,7 @@ class IdentifierElementExpression(Expression):
 			raise Exception("Identifier "+self.getIdentifier()+" vanished.")
 		value=identifier.getValue() # the list of which elements are to be set
 		def setValueAtIndex(_index):
+			#########note("Assigning "+str(_value)+" to index "+str(_index)+" of "+str(value)+".")
 			if isinstance(value,List) or isinstance(value,str): # we should be assigning to a list element
 				if isinstance(_index,list):
 					result=list()
@@ -3608,7 +3620,9 @@ class IdentifierElementExpression(Expression):
 						result=_index
 						value[result-1]=_value
 						return result
-			return undefined
+			else:
+				note("Current value of wrong type.")
+			return undefined.getValue()
 		def getValueAtIndex(_index):
 			if isinstance(value,List) or isinstance(value,str):
 				if isinstance(_index,list):
@@ -3621,7 +3635,7 @@ class IdentifierElementExpression(Expression):
 						_index+=(len(value)+1)
 					if _index>0 and _index<=len(value):
 						return value[_index-1]
-			return undefined
+			return undefined.getValue()
 		#######note("Identifier: "+str(identifier)+".")
 		if not isIndexable(value):
 			raise Exception("Variable "+self.getIdentifier()+" cannot be indexed: its value is not a list.")
