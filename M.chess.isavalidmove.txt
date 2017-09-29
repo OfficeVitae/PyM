@@ -8,6 +8,7 @@ $=0
 captured=board(torow,tocol)
 if(psign==sign(captured),return()) ; you cannot move to where your own pieces are
 ; 2. move piece
+; TODO get en passant captures right as well
 (board(torow,tocol)=piece,board(fromrow,fromcol)=0)
 ; 3. determine the position of the king to pass to inCheck()
 (player=if(psign>0,1,2),krow=piecepositions(player,1,2),kcol=piecepositions(player,1,3)) ; the 'before' move king position

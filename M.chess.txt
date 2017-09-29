@@ -11,22 +11,23 @@ shadowcolors=(249,249) ; the gray next to the field colors
 rows='12345678' ; the row names
 cols='abcdefgh' ; the column names
 movecount=0
-enpassantcols=(?,?) ; keep track of the en passant capture positions (which is always the position behind a two-step pawn movement)
+enpassantcols=l(?,?) ; keep track of the en passant capture positions (which is always the position behind a two-step pawn movement)
 playerindex=2 ; current player
 ; keep track of the positions of all pieces (by player, by type)
 ; if we always store the position of the king in the first element, it's easy to find
 ; and the nearest rook in the second position, and the farthest rook in the third position to make it easy to check whether they moved
-piecepositions=(
-  ((6,1,5,0),(2,1,8,0),(2,1,1,0),(3,1,2,0),(4,1,3,0),(5,1,4,0),(4,1,6,0),(3,1,7,0),(1,2,1,0),(1,2,2,0),(1,2,3,0),(1,2,4,0),(1,2,5,0),(1,2,6,0),(1,2,7,0),(1,2,8,0)),
-  ((6,8,5,0),(2,8,8,0),(2,8,1,0),(3,8,2,0),(4,8,3,0),(5,8,4,0),(4,8,6,0),(3,8,7,0),(1,7,1,0),(1,7,2,0),(1,7,3,0),(1,7,4,0),(1,7,5,0),(1,7,6,0),(1,7,7,0),(1,7,8,0))
+piecepositions=l(
+  l(l(6,1,5,0),l(2,1,8,0),l(2,1,1,0),l(3,1,2,0),l(4,1,3,0),l(5,1,4,0),l(4,1,6,0),l(3,1,7,0),l(1,2,1,0),l(1,2,2,0),l(1,2,3,0),l(1,2,4,0),l(1,2,5,0),l(1,2,6,0),l(1,2,7,0),l(1,2,8,0)),
+  l(l(6,8,5,0),l(2,8,8,0),l(2,8,1,0),l(3,8,2,0),l(4,8,3,0),l(5,8,4,0),l(4,8,6,0),l(3,8,7,0),l(1,7,1,0),l(1,7,2,0),l(1,7,3,0),l(1,7,4,0),l(1,7,5,0),l(1,7,6,0),l(1,7,7,0),l(1,7,8,0))
   )
 ; put the pieces on the board
 board=replicate(replicate(0,8),8) ; create empty board
-for(pi,(1,2),ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1))))
+for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),out("pps#",ppi,":",pps,".",lf),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1)),out("board(",pps(2),",",pps(3),")=",board(pps(2),pps(3)),".",lf)))
+out("Board now: ",board,".",lf)
 ; initialize check pieces (the positions on the board from where pieces can give check)
 ; NOTE that at the start of the game there are no check fields
-checkpieces=? ; initialize
-incheckinfo=? ; initialize
+checkpieces=l() ; initialize
+incheckinfo=l() ; initialize
 if(debug&1,out(lf))
 ; PREPARE FOR ACCEPTING A MOVE
 playerindex=3-playerindex
@@ -41,7 +42,8 @@ out("Valid moves: ",validmoves,lf)
 
 ; CHECK FOR CHECK MATE
 ; if there are no valid moves anymore, the opponent won!!!
-(validmovecount=0,validmoveindex=len(validmoves),while(validmoveindex>0,l=len(validmoves(validmoveindex)),if(l>0,validmovecount+=(l>>1)),validmoveindex-=1))
+(validmovecount=0,validmoveindex=len(validmoves)
+  ,while(validmoveindex>0,lvm=len(validmoves(validmoveindex))\2,if(lvm>0,validmovecount+=lvm),validmoveindex-=1))
 out("Number of valid moves: ",validmovecount,".",lf)
 if(validmovecount==0,(debug=debugnow,return(3-playerindex)))
 
@@ -80,7 +82,7 @@ if(and(piecetypeindex==6,abs(fromcol-tocol)==2)
 ; SPECIAL CASE 3. pawn promotion (let's promote to a queen for now automatically)
 if(and(piecetypeindex==1,torow==if(playerindex==1,8,1)),(board(torow,tocol)=plsign*5,piecepositions(playerindex,pieceindex,1)=5))
 ; SPECIAL CASE 4. in the case of an en passant capture move, the pawn that was on the from row needs to be removed!!!
-if(and(captured==0,piecetypeindex==1,fromcol!=tocol),(captured=1,torow=fromrow,board(torow,tocol)==0)) 
+if(and(captured==0,piecetypeindex==1,fromcol!=tocol),(captured=1,torow=fromrow,board(torow,tocol)==0))
 enpassantcols(3-playerindex)=? ; no matter what move was done there won't be a enpassant col of the opponent any more
 if(captured>0,(opponentindex=3-playerindex,pieceindex=16,notfound=1
               ,while(and(pieceindex>0,notfound)
