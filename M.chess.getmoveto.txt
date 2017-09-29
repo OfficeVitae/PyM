@@ -1,10 +1,9 @@
-; getMoveTo() return the row and column where to move piece #pieceindex of type #piecetypeindex to
-; NOTE does not need to know the current player as it uses #validmoves
-$=?
-validpiecemoves=validmoves(pieceindex) ; NOTE the row and column of the moves appear in successive elements
+; getMoveTo() return the row and column where to move piece #pieceindex of player #playerindextype
+$=l()
+(piecetypeindex=piecepositions(playerindex,pieceindex,1),piececolor=colors(playerindex),validpiecemoves=validmoves(pieceindex)) 
 out("Possible moves: ",validpiecemoves) ; testing
 numberofpiecemoves=len(validpiecemoves)
-if(numberofpiecemoves==1,return(validpiecemoves(1))) ; if only a single move possible, that's it!!
+;;if(numberofpiecemoves==1,return(validpiecemoves(1))) ; to allow the user to renounce, we'll let him choose even a single move
 ; let user choose any of the possible destinations by index
 piecemoveindices='' ; collecting the indices to pass to inch()
 ; count over the even indices (which are the columns)

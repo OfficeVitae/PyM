@@ -35,7 +35,7 @@ out(if(playerindex==1,player1,player2),", it's your turn.",lf)
 updateCheckPieces() ; collect (in) check information
 ; determine all valid moves the current player can do
 validmoves=getValidPlayerMoves(playerindex)
-;;out("Valid moves: ",validmoves,lf)
+out("Valid moves: ",validmoves,lf)
 ; determine the positions of the pieces that can be moved, and count the number of possible moves
 (validmovecount=0,piecemovecharacters='',movablepieceindices=l(),movablepiecepositions=l(),
   for(validmoveindex,1..len(validmoves)
@@ -52,53 +52,56 @@ validmoves=getValidPlayerMoves(playerindex)
   )
 ;;out("Movable piece indices: ",movablepieceindices,lf)
 ; show chess board in the orientation of the current player
-out("Chess board after ",movecount," moves.",lf)
+out("Chess board after ",movecount," moves: ",board,lf,"Piece positions: ",piecepositions(playerindex),lf)
 showBoard(movablepiecepositions,colors(playerindex))
 
 ; CHECK FOR CHECK MATE
 ; if there are no pieces that can move, the opponent won, otherwise show how many moves one can make!!!
 if(validmovecount==0,(debug=debugnow,return(3-playerindex)),out("Number of valid moves: ",validmovecount,".",lf))
 ; ASK THE CURRENT PLAYER FOR THE PIECE TO MOVE
-(out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+piecemovecharacters+']? '),piececharacterindex=inch(piecemovecharacters),out(piececharacterindex,lf)) ; get one of the player pieces characters
+(out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+piecemovecharacters+']? '),piececharacterindex=inch(piecemovecharacters),out(lf)) ; get one of the player pieces characters
 if(piececharacterindex<=0,if(givingUp(),(debug=debugnow,return(3-playerindex)),jump(-1))) ; if no piece defined, ask the user if they want to give up
 ; the piecetype is either a column name (a-h) or the type of one of the pieces
 ; get the position of this piece, if multiple positions exist, ask the user which one he means, there can be at most 8 of them (pawns), which we may number
 pieceindex=movablepieceindices(piececharacterindex) ; returns the index of the piece to move (so piecepositions(playerindex,pieceindex,(2,3)) is the start position)
 ;;out("Piece index=",pieceindex,lf)
-piecemoveto=getMoveTo(pieceindex,piecepositions(playerindex,pieceindex,1),colors(playerindex)) ; where to move the piece to (marking the options in the player color!!)
+piecemoveto=getMoveTo(playerindex,pieceindex) ; where to move the piece to (marking the options in the player color!!)
+if(len(piecemoveto)==0,jump(-13)) ; if undefined, allow another selection
 out("Position to move to=",piecemoveto,lf)
 ; EXECUTE THE MOVE
-(fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3),torow=piecemoveto(1),tocol=piecemoveto(2))
+(piecetypeindex=piecepositions(playerindex,pieceindex,1),fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3),torow=piecemoveto(1),tocol=piecemoveto(2))
 out("Moving your ",piecetypenames(piecetypeindex)," at ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow),".",lf)
 plsign=3-2*playerindex
 movecount+=1
 (captured=abs(board(torow,tocol)),board(torow,tocol)=plsign*piecepositions(playerindex,pieceindex,1),board(fromrow,fromcol)=0) ; perform the move on the board
 ; register the new position and increment the number of moves made by the moved piece
 (piecepositions(playerindex,pieceindex,2)=torow,piecepositions(playerindex,pieceindex,3)=tocol,piecepositions(playerindex,pieceindex,4)+=1)
+out("Moved piece: player=",playerindex," piece=",pieceindex," info=",piecepositions(playerindex,pieceindex),".",lf)
 ; don't forget to remove the piece of the opponent that was captured by negating it's type, but first we need to find it
-; SPECIAL CASE 1. if a pawn moves two rows the first time, we have to make it en passant capturable
-if(and(piecetypeindex==1,abs(fromrow-torow)==2),enpassantcols(playerindex)=fromcol)
-; SPECIAL CASE 2. castling (short: torow will equal 7, long: torow will equal 3)
-; NOTE we're moving the rook but not counting that as a move (because the king also moved, castling won't be possible anymore anyway)
-if(and(piecetypeindex==6,abs(fromcol-tocol)==2)
-  ,if(tocol==7
-     ,(board(torow,8)=0,board(torow,6)=plsign*2,piecepositions(playerindex,2,3)=6)
-     ,(board(torow,1)=0,board(torow,4)=plsign*2,piecepositions(playerindex,3,3)=4)
-     )
-  )
-; SPECIAL CASE 3. pawn promotion (let's promote to a queen for now automatically)
-if(and(piecetypeindex==1,torow==if(playerindex==1,8,1)),(board(torow,tocol)=plsign*5,piecepositions(playerindex,pieceindex,1)=5))
-; SPECIAL CASE 4. in the case of an en passant capture move, the pawn that was on the from row needs to be removed!!!
-if(and(captured==0,piecetypeindex==1,fromcol!=tocol),(captured=1,torow=fromrow,board(torow,tocol)==0))
+; SPECIAL MOVE TYPES
+; 1. short castling
+; 2. long castling
+; 3. if a pawn moves two rows the first time (as indicated by the move type), we have to make it en passant capturable
+; 4. en passant capture
+select(piecemoveto(3)
+      ,out("An ordinary move.",lf)
+      ,(out("Short castling.",lf),board(torow,8)=0,board(torow,6)=plsign*2,piecepositions(playerindex,2,3)=6)
+      ,(out("Long castling.",lf),board(torow,1)=0,board(torow,4)=plsign*2,piecepositions(playerindex,3,3)=4)
+      ,(out("Double step.",lf),enpassantcols(playerindex)=fromcol)
+      ,(out("En passant capture.",lf),captured=1,torow=fromrow,board(torow,tocol)==0)
+      )
 enpassantcols(3-playerindex)=? ; no matter what move was done there won't be a enpassant col of the opponent any more
-if(captured>0,(opponentindex=3-playerindex,pieceindex=16,notfound=1
+if(captured>0,(out("Captured at ",cols(tocol),rows(torow),":",captured,".",lf)
+              ,opponentindex=3-playerindex,pieceindex=16,notfound=1
               ,while(and(pieceindex>0,notfound)
                     ,if(and(piecepositions(opponentindex,pieceindex,1)==captured,piecepositions(opponentindex,pieceindex,2)==torow,piecepositions(opponentindex,pieceindex,3)==tocol)
-                       ,(piecepositions(opponentindex,pieceindex,1)=-captured,notfound=0)
+                       ,(piecepositions(opponentindex,pieceindex)=l(-captured,torow,tocol)
+                        ,out("Captured piece #",pieceindex," found: ",piecepositions(opponentindex,pieceindex),'.',lf)
+                        ,notfound=0)
                        ,pieceindex-=1
                        )
                     )
               )
   )
 out("Piece positions: ",piecepositions,lf) ; for debugging purposes
-jump(-71+8+5+11) ; take all continuations into account!!!
+jump(-69+8+6+11) ; take all continuations into account!!!
