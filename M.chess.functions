@@ -7,14 +7,17 @@ getValidPlayerMoves	pl
 getMoveTo	pieceindex	piecetypeindex	piececolor
 givingUp
 updateInCheck
-checkMate
 ; functions for acquiring all valid moves for each of the piece types
-getValidPawnMoves	prow	pcol	pmoves	penpassantcol
+getValidPawnMoves	prow	pcol	pmoved	penpassantcol
 getValidRookMoves	rrow	rcol
 getValidKnightMoves	krow	kcol
 getValidBishopMoves	brow	bcol
 getValidQueenMoves	qrow	qcol
-getValidKingMoves	kpl	krow	kcol	kcastling
+getValidKingMoves	krow	kcol	kcastling
 isAValidMove	fromrow	fromcol	torow	tocol
 attacks	psign	prow	pcol
+knightAttacks	nrow	ncol	krow	kcol
+rookAttacks	rrow	rcol	krow	kcol
+bishopAttacks	brow	bcol	krow	kcol
+queenAttacks	qrow	qcol	krow	kcol
 

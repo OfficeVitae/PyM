@@ -38,6 +38,7 @@ updateCheckPieces() ; collect (in) check information
 validmoves=getValidPlayerMoves(playerindex)
 out("Valid moves: ",validmoves,lf)
 ; determine the positions of the pieces that can be moved, and count the number of possible moves
+; we also determine if a certain piece can check the opponent with one of its moves
 (validmovecount=0,piecemovecharacters='',movablepieceindices=l(),movablepiecepositions=l(),
   for(validmoveindex,1..len(validmoves)
      ,lvm=len(validmoves(validmoveindex))
@@ -46,7 +47,8 @@ out("Valid moves: ",validmoves,lf)
          ,pmc=movecharacters(len(movablepiecepositions)+1)
          ,piecemovecharacters+=pmc
          ,movablepieceindices.=l(validmoveindex)
-         ,movablepiecepositions.=l(l(piecepositions(playerindex,validmoveindex,2),piecepositions(playerindex,validmoveindex,3),pmc))
+         ,cancheck=0,piecemoveindex=lvm,while(and(cancheck==0,piecemoveindex>0),if(validmoves(validmoveindex,piecemoveindex,4)>0,cancheck=1,piecemoveindex-=1))
+         ,movablepiecepositions.=l(l(piecepositions(playerindex,validmoveindex,2),piecepositions(playerindex,validmoveindex,3),cancheck,pmc))
          )
         )
      )

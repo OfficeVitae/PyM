@@ -1,5 +1,6 @@
 ; displays the #board fields, showing the pieces and whether or not it is a check piece
-; appends a + to the King of the current player if currently in check
+; appends a + to the king of the current player if currently in check
+; and a * to the piece if it checks the other king
 ; to the left we show where the current player can check the opponent (!) or whether it checks the opponent(+)
 ; pass in a number of positions in #showpositions to mark with the index in the right-top corner of a field in the presented color in #showcolor
 out("Show positions: ",showpositions,lf) ; debugging
@@ -12,17 +13,19 @@ for(row,ranges(playerindex)
        ,bgindex=1+((row%2)^(col%2)),bgc=bgcolors(bgindex),
        ,outc((shadowcolors(bgindex),bgc),'  ',cols(col),' ')
        ,if(showpositionindex>0
-          ,outc((if(len(showpositions(showpositionindex))>3
-                   ,movetypecolors(showpositions(showpositionindex,4))
+          ,outc((if(len(showpositions(showpositionindex))>4
+                   ,movetypecolors(showpositions(showpositionindex,5))
                    ,showcolor)
                 ,bgc)
-               ,showpositions(showpositionindex,3))
+               ,showpositions(showpositionindex,4))
           ,outc((showcolor,bgc),' ')
           )
        )
    ,out(lf)
    ,out(row)
    ,for(col,1..8
+       ,showpositionindex=len(showpositions)
+       ,while(and(showpositionindex>0,or(showpositions(showpositionindex,2)!=col,showpositions(showpositionindex,1)!=row)),showpositionindex-=1)
        ,p=board(row,col)
        ,pl=(3-sign(p))\2
        ,bgindex=1+((row%2)^(col%2))
@@ -30,8 +33,13 @@ for(row,ranges(playerindex)
        ,outc((shadowcolors(bgindex),bg),rows(row))
        ,if(abs(p)==6&&pl!=playerindex&&len(incheckinfo(playerindex))>0,outc((9,bg),'+'),outc((colors(playerindex),bg),getCheckPieceCharacter(3-playerindex,row,col)))
        ,outc((colors(pl),bg),if(p!=0,piecetypes(abs(p)),' '))
-       ,if(abs(p)==6&&pl==playerindex&&len(incheckinfo(3-playerindex))>0,outc((9,bg),'+'),outc((colors(3-playerindex),bg),getCheckPieceCharacter(playerindex,row,col)))
-       ,outc((shadowcolors(bgindex),bg),rows(row)),
+       ,if(abs(p)==6&&pl==playerindex&&len(incheckinfo(3-playerindex))>0
+          ,outc((9,bg),'+')
+          ,if(and(showpositionindex>0,showpositions(showpositionindex,3)>0)
+             ,outc((color(playerindex),bg),'*')
+             ,outc((colors(3-playerindex),bg),getCheckPieceCharacter(playerindex,row,col)))
+          )
+       ,outc((shadowcolors(bgindex),bg),rows(row))
        )
    ,out(row,lf)
    ,out(' ')

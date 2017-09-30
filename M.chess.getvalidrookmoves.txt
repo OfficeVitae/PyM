@@ -1,19 +1,22 @@
 ; getValidRookMoves() returns the valid rook moves starting at #rrow,#rcol
 $=l() ; initialize result
 rsign=-sign(board(rrow,rcol)) ; the opponent
+; we want to determine whether the move of this pawn checks the opponent, so we need the position of the opponent's king
+; whether this is a checking move is stored in the 4th element of the move and is easy to determine for a pawn
+(opl=if(rsign>0,1,2),okrow=piecepositions(opl,1,2),okcol=piecepositions(opl,1,3))
 ; 1. left
 ncol=rcol-1
-while(and(ncol>0,board(rrow,ncol)==0),if(isAValidMove(rrow,rcol,rrow,ncol),$.=l(l(rrow,ncol,1))),ncol-=1)
-if(and(ncol>0,sign(board(rrow,ncol))==rsign,isAValidMove(rrow,rcol,rrow,ncol)),$.=l(l(rrow,ncol,1))) ; capture move
+while(and(ncol>0,board(rrow,ncol)==0),if(isAValidMove(rrow,rcol,rrow,ncol),$.=l(l(rrow,ncol,1,rookAttacks(rrow,ncol,okrow,okcol)))),ncol-=1)
+if(and(ncol>0,sign(board(rrow,ncol))==rsign,isAValidMove(rrow,rcol,rrow,ncol)),$.=l(l(rrow,ncol,1,rookAttacks(rrow,ncol,okrow,okcol)))) ; capture move
 ; 2. right
 ncol=rcol+1
-while(and(ncol<9,board(rrow,ncol)==0),if(isAValidMove(rrow,rcol,rrow,ncol),$.=l(l(rrow,ncol,1))),ncol+=1)
-if(and(ncol<9,sign(board(rrow,ncol))==rsign,isAValidMove(rrow,rcol,rrow,ncol)),$.=l(l(rrow,ncol,1))) ; capture move
+while(and(ncol<9,board(rrow,ncol)==0),if(isAValidMove(rrow,rcol,rrow,ncol),$.=l(l(rrow,ncol,1,rookAttacks(rrow,ncol,okrow,okcol)))),ncol+=1)
+if(and(ncol<9,sign(board(rrow,ncol))==rsign,isAValidMove(rrow,rcol,rrow,ncol)),$.=l(l(rrow,ncol,1,rookAttacks(rrow,ncol,okrow,okcol)))) ; capture move
 ; 3. up
 nrow=rrow+1
-while(and(nrow<9,board(nrow,rcol)==0),if(isAValidMove(rrow,rcol,nrow,rcol),$.=l(l(nrow,rcol,1))),nrow+=1)
-if(and(nrow<9,sign(board(nrow,rcol))==rsign,isAValidMove(rrow,rcol,nrow,rcol)),$.=l(l(nrow,rcol,1))) ; capture move
+while(and(nrow<9,board(nrow,rcol)==0),if(isAValidMove(rrow,rcol,nrow,rcol),$.=l(l(nrow,rcol,1,rookAttacks(nrow,rcol,okrow,okcol)))),nrow+=1)
+if(and(nrow<9,sign(board(nrow,rcol))==rsign,isAValidMove(rrow,rcol,nrow,rcol)),$.=l(l(nrow,rcol,1,rookAttacks(nrow,rcol,okrow,okcol)))) ; capture move
 ; 4. down
 nrow=rrow-1
-while(and(nrow>0,board(nrow,rcol)==0),if(isAValidMove(rrow,rcol,nrow,rcol),$.=l(l(nrow,rcol,1))),nrow-=1)
-if(and(nrow>0,sign(board(nrow,rcol))==rsign,isAValidMove(rrow,rcol,nrow,rcol)),$.=l(l(nrow,rcol,1))) ; capture move
+while(and(nrow>0,board(nrow,rcol)==0),if(isAValidMove(rrow,rcol,nrow,rcol),$.=l(l(nrow,rcol,1,rookAttacks(nrow,rcol,okrow,okcol)))),nrow-=1)
+if(and(nrow>0,sign(board(nrow,rcol))==rsign,isAValidMove(rrow,rcol,nrow,rcol)),$.=l(l(nrow,rcol,1,rookAttacks(nrow,rcol,okrow,okcol)))) ; capture move

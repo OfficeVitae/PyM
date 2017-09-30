@@ -1,0 +1,4 @@
+; knightAttacks() determines whether the knight at #nrow,#ncol attacks the king at #krow,#kcol
+drow=abs(nrow-krow)
+; if the difference between the rows is 1 or 2, the sum with the other difference must be 3
+$=and(or(drow==1,drow==2),abs(ncol-kcol)+drow==3)

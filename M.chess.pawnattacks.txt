@@ -1,0 +1,2 @@
+; pawnAttacks() determines whether the pawn at #prow,#pcol that moves in direction #psign attacks the king at #krow,#kcol
+$=and(prow+psign==krow,or(pcol+1==kcol,pcol-1==kcol))

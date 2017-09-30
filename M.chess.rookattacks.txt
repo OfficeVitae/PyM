@@ -1,0 +1,11 @@
+; rookAttacks() determines if the rook at #rrow,#rcol attacks the king at #krow,#kcol
+$=0
+; either the row or column needs to be the same
+(drow=krow-rrow,dcol=kcol-rcol) ; the difference between the rows and columns
+; if the rook can reach the king (i.e. nothing in between), the result will be 1
+if(drow==0
+  ,(dcolsign=sign(dcol),rcol+=dcolsign,while(and(rcol!=kcol,board(krow,rcol)==0),rcol+=dcolsign),if(rcol==kcol,$=1))
+  ,if(dcol==0
+     ,(drowsign=sign(drow),rrow+=drowsign,while(and(rrow!=krow,board(rrow,kcol)==0),rrow+=drowsign),if(rrow==krow,$=1))
+     )
+  )

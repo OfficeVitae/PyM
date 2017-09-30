@@ -1,0 +1,1 @@
+$=or(rookAttacks(qrow,qcol,krow,kcol),bishopAttacks(qrow,qcol,krow,kcol))

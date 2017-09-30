@@ -14,6 +14,6 @@ if(psign==sign(captured),return()) ; you cannot move to where your own pieces ar
 (player=if(psign>0,1,2),krow=piecepositions(player,1,2),kcol=piecepositions(player,1,3)) ; the 'before' move king position
 if(and(krow==fromrow,kcol==fromcol),(krow=torow,kcol=tocol)) ; if this move moves the king pass along the new king position
 ; 3. determine result
-if(!attacks(-psign,krow,kcol),$=1) ; if the opponent does not attack the (new) position of the player's King the move is valid
+if(attacks(-psign,krow,kcol)==0,$=1) ; if the opponent does not attack the (new) position of the player's King the move is valid
 ; 4. undo move
 (board(fromrow,fromcol)=piece,board(torow,tocol)=captured)
