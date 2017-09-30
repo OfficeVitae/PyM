@@ -13,18 +13,18 @@ if(prow==if(psign>0,8,1),return())
 
 ; non-capture moves
 ; 1. one step ahead
-if(and(!board(prow+psign,pcol),isAValidMove(prow,pcol,prow+psign,pcol)),$.=l(l(prow+psign,pcol,1,and(abs(pcol-okcol)==1,prow+2*psign==okrow))))
+if(and(!board(prow+psign,pcol),isAValidMove(prow,pcol,prow+psign,pcol,0)),$.=l(l(prow+psign,pcol,1,and(abs(pcol-okcol)==1,prow+2*psign==okrow))))
 ; 2. two steps ahead
-if(and(!pmoved,!board(prow+psign,pcol),!board(prow+2*psign,pcol),isAValidMove(prow,pcol,prow+2*psign,pcol)),$.=l(l(prow+2*psign,pcol,4,and(abs(pcol-okcol)==1,prow+3*psign==okrow))))
+if(and(!pmoved,!board(prow+psign,pcol),!board(prow+2*psign,pcol),isAValidMove(prow,pcol,prow+2*psign,pcol,0)),$.=l(l(prow+2*psign,pcol,4,and(abs(pcol-okcol)==1,prow+3*psign==okrow))))
 
 ; capture moves
 ; 3. to the 'left'
-if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol-1)),$.=l(l(prow+psign,pcol-1,1,and(abs(pcol-1-okcol)==1,prow+2*psign==okrow))))
+if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol-1,0)),$.=l(l(prow+psign,pcol-1,1,and(abs(pcol-1-okcol)==1,prow+2*psign==okrow))))
 ; 4. to the 'right'
-if(and(pcol<8,sign(board(prow+psign,pcol+1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol+1)),$.=l(l(prow+psign,pcol+1,1,and(abs(pcol+1-okcol)==1,prow+2*psign==okrow))))
+if(and(pcol<8,sign(board(prow+psign,pcol+1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol+1,0)),$.=l(l(prow+psign,pcol+1,1,and(abs(pcol+1-okcol)==1,prow+2*psign==okrow))))
 ; 5. en passant capture
 ; required conditions: 1. there's an enpassant column (#penpassantcol) 2. the pawn's row is either 4 (player 2) or 5 (player 3) 3. the pawn's column is next to #penpassantcol
 ;                      of course it still needs to be a valid move (i.e. one that does not check itself)
 if(and(penpassantcol>0,prow==if(psign>0,5,4),abs(penpassantcol-pcol)==1)
-  ,(penpassantrow=if(psign>0,6,3),if(isAValidMove(prow,pcol,penpassantrow,penpassantcol),$.=l(l(penpassantrow,penpassantcol,5,and(abs(penpassantcol-okcol)==1,penpassantrow+psign==okrow)))))
+  ,(penpassantrow=if(psign>0,6,3),if(isAValidMove(prow,pcol,penpassantrow,penpassantcol,-psign),$.=l(l(penpassantrow,penpassantcol,5,and(abs(penpassantcol-okcol)==1,penpassantrow+psign==okrow)))))
   )

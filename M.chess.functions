@@ -14,7 +14,7 @@ getValidKnightMoves	krow	kcol
 getValidBishopMoves	brow	bcol
 getValidQueenMoves	qrow	qcol
 getValidKingMoves	krow	kcol	kcastling
-isAValidMove	fromrow	fromcol	torow	tocol
+isAValidMove	fromrow	fromcol	torow	tocol	enpassantsign
 attacks	psign	prow	pcol
 knightAttacks	nrow	ncol	krow	kcol
 rookAttacks	rrow	rcol	krow	kcol

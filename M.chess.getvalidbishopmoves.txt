@@ -5,17 +5,17 @@ bsign=-sign(board(brow,bcol)) ; the opponent
 out("Will check whether the bishop at ",cols(bcol),rows(brow)," can check the king at ",cols(okcol),rows(okrow),".",lf)
 ; 1. left and down
 (nrow=brow-1,ncol=bcol-1)
-while(and(nrow>0,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))),nrow-=1,ncol-=1)
-if(and(nrow>0,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))) ; capture move
+while(and(nrow>0,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol,0),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))),nrow-=1,ncol-=1)
+if(and(nrow>0,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol,0)),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))) ; capture move
 ; 2. right and up
 (nrow=brow+1,ncol=bcol+1)
-while(and(nrow<9,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))),nrow+=1,ncol+=1)
-if(and(nrow<9,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))) ; capture move
+while(and(nrow<9,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol,0),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))),nrow+=1,ncol+=1)
+if(and(nrow<9,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol,0)),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))) ; capture move
 ; 3. left and up
 (nrow=brow+1,ncol=bcol-1)
-while(and(nrow<9,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))),nrow+=1,ncol-=1)
-if(and(nrow<9,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))) ; capture move
+while(and(nrow<9,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol,0),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))),nrow+=1,ncol-=1)
+if(and(nrow<9,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol,0)),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))) ; capture move
 ; 4. right and down
 (nrow=brow-1,ncol=bcol+1)
-while(and(nrow>0,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))),nrow-=1,ncol+=1)
-if(and(nrow>0,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol)),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))) ; capture move
+while(and(nrow>0,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol,0),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))),nrow-=1,ncol+=1)
+if(and(nrow>0,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol,0)),$.=l(l(nrow,ncol,1,bishopAttacks(nrow,ncol,okrow,okcol)))) ; capture move

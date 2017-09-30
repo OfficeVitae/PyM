@@ -13,7 +13,7 @@ shadowcolors=l(249,249) ; the gray next to the field colors
 rows='12345678' ; the row names
 cols='abcdefgh' ; the column names
 movecount=0
-enpassantcols=l(?,?) ; keep track of the en passant capture positions (which is always the position behind a two-step pawn movement)
+enpassantcols=l(0,0) ; keep track of the en passant capture positions (which is always the position behind a two-step pawn movement)
 playerindex=2 ; current player
 ; keep track of the positions of all pieces (by player, by type)
 ; if we always store the position of the king in the first element, it's easy to find
@@ -93,20 +93,20 @@ select(piecemoveto(3)
       ,(out("Short castling.",lf),board(torow,8)=0,board(torow,6)=plsign*2,piecepositions(playerindex,2,3)=6)
       ,(out("Long castling.",lf),board(torow,1)=0,board(torow,4)=plsign*2,piecepositions(playerindex,3,3)=4)
       ,(out("Double step.",lf),enpassantcols(playerindex)=fromcol)
-      ,(out("En passant capture.",lf),captured=1,torow=fromrow,board(torow,tocol)==0)
+      ,(out("En passant capture.",lf),captured=1,torow=fromrow,board(torow,tocol)=0)
       )
-enpassantcols(3-playerindex)=? ; no matter what move was done there won't be a enpassant col of the opponent any more
+enpassantcols(3-playerindex)=0 ; no matter what move was done there won't be a enpassant col of the opponent any more
 if(captured>0,(out("Captured at ",cols(tocol),rows(torow),":",captured,".",lf)
               ,opponentindex=3-playerindex,pieceindex=16,notfound=1
-              ,while(and(pieceindex>0,notfound)
+              ,while(and(notfound!=0,pieceindex>0)
                     ,if(and(piecepositions(opponentindex,pieceindex,1)==captured,piecepositions(opponentindex,pieceindex,2)==torow,piecepositions(opponentindex,pieceindex,3)==tocol)
-                       ,(piecepositions(opponentindex,pieceindex)=l(-captured,torow,tocol)
+                       ,(notfound=0,piecepositions(opponentindex,pieceindex)=l(-captured,torow,tocol,piecepositions(opponentindex,pieceindex,4))
                         ,out("Captured piece #",pieceindex," found: ",piecepositions(opponentindex,pieceindex),'.',lf)
-                        ,notfound=0)
+                        )
                        ,pieceindex-=1
                        )
                     )
               )
   )
-out("Piece positions: ",piecepositions,lf) ; for debugging purposes
+out("Board: ",board,lf,"Piece positions: ",piecepositions,lf) ; for debugging purposes
 jump(-75+11+6+12) ; take all continuations into account!!!

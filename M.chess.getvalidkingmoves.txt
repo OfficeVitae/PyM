@@ -4,15 +4,15 @@
 $=l()
 (ksign=sign(board(krow,kcol)),kpl=if(ksign>0,1,2))
 ; 1. all straight moves
-if(and(krow>1,sign(board(krow-1,kcol))!=ksign,isAValidMove(krow,kcol,krow-1,kcol)),$.=l(l(krow-1,kcol,1,0)))
-if(and(krow<8,sign(board(krow+1,kcol))!=ksign,isAValidMove(krow,kcol,krow+1,kcol)),$.=l(l(krow+1,kcol,1,0)))
-if(and(kcol>1,sign(board(krow,kcol-1))!=ksign,isAValidMove(krow,kcol,krow,kcol-1)),$.=l(l(krow,kcol-1,1,0)))
-if(and(kcol<8,sign(board(krow,kcol+1))!=ksign,isAValidMove(krow,kcol,krow,kcol+1)),$.=l(l(krow,kcol+1,1,0)))
+if(and(krow>1,sign(board(krow-1,kcol))!=ksign,isAValidMove(krow,kcol,krow-1,kcol,0)),$.=l(l(krow-1,kcol,1,0)))
+if(and(krow<8,sign(board(krow+1,kcol))!=ksign,isAValidMove(krow,kcol,krow+1,kcol,0)),$.=l(l(krow+1,kcol,1,0)))
+if(and(kcol>1,sign(board(krow,kcol-1))!=ksign,isAValidMove(krow,kcol,krow,kcol-1,0)),$.=l(l(krow,kcol-1,1,0)))
+if(and(kcol<8,sign(board(krow,kcol+1))!=ksign,isAValidMove(krow,kcol,krow,kcol+1,0)),$.=l(l(krow,kcol+1,1,0)))
 ; 2. all diagonal moves
-if(and(krow>1,kcol>1,sign(board(krow-1,kcol-1))!=ksign,isAValidMove(krow,kcol,krow-1,kcol-1)),$.=l(l(krow-1,kcol-1,1,0)))
-if(and(krow>1,kcol<8,sign(board(krow-1,kcol+1))!=ksign,isAValidMove(krow,kcol,krow-1,kcol+1)),$.=l(l(krow-1,kcol+1,1,0)))
-if(and(krow<8,kcol<8,sign(board(krow+1,kcol+1))!=ksign,isAValidMove(krow,kcol,krow+1,kcol+1)),$.=l(l(krow+1,kcol+1,1,0)))
-if(and(krow<8,kcol>1,sign(board(krow+1,kcol-1))!=ksign,isAValidMove(krow,kcol,krow+1,kcol-1)),$.=l(l(krow+1,kcol-1,1,0)))
+if(and(krow>1,kcol>1,sign(board(krow-1,kcol-1))!=ksign,isAValidMove(krow,kcol,krow-1,kcol-1,0)),$.=l(l(krow-1,kcol-1,1,0)))
+if(and(krow>1,kcol<8,sign(board(krow-1,kcol+1))!=ksign,isAValidMove(krow,kcol,krow-1,kcol+1,0)),$.=l(l(krow-1,kcol+1,1,0)))
+if(and(krow<8,kcol<8,sign(board(krow+1,kcol+1))!=ksign,isAValidMove(krow,kcol,krow+1,kcol+1,0)),$.=l(l(krow+1,kcol+1,1,0)))
+if(and(krow<8,kcol>1,sign(board(krow+1,kcol-1))!=ksign,isAValidMove(krow,kcol,krow+1,kcol-1,0)),$.=l(l(krow+1,kcol-1,1,0)))
 ; castling
 ; short castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
 ; long castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked

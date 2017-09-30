@@ -3,14 +3,14 @@ $=l()
 ; in order to determine whether the move checks the opponent we need the opponent's king position
 (opl=if(board(krow,kcol)>0,2,1),okrow=piecepositions(opl,1,2),okcol=piecepositions(opl,1,3))
 ; left and down
-if(and(krow>1,kcol>2,isAValidMove(krow,kcol,krow-1,kcol-2)),$.=l(l(krow-1,kcol-2,1,knightAttacks(krow-1,kcol-2,okrow,okcol))))
-if(and(krow>2,kcol>1,isAValidMove(krow,kcol,krow-2,kcol-1)),$.=l(l(krow-2,kcol-1,1,knightAttacks(krow-2,kcol-1,okrow,okcol))))
+if(and(krow>1,kcol>2,isAValidMove(krow,kcol,krow-1,kcol-2,0)),$.=l(l(krow-1,kcol-2,1,knightAttacks(krow-1,kcol-2,okrow,okcol))))
+if(and(krow>2,kcol>1,isAValidMove(krow,kcol,krow-2,kcol-1,0)),$.=l(l(krow-2,kcol-1,1,knightAttacks(krow-2,kcol-1,okrow,okcol))))
 ; left and up
-if(and(krow<8,kcol>2,isAValidMove(krow,kcol,krow+1,kcol-2)),$.=l(l(krow+1,kcol-2,1,knightAttacks(krow+1,kcol-2,okrow,okcol))))
-if(and(krow<7,kcol>1,isAValidMove(krow,kcol,krow+2,kcol-1)),$.=l(l(krow+2,kcol-1,1,knightAttacks(krow+2,kcol-1,okrow,okcol))))
+if(and(krow<8,kcol>2,isAValidMove(krow,kcol,krow+1,kcol-2,0)),$.=l(l(krow+1,kcol-2,1,knightAttacks(krow+1,kcol-2,okrow,okcol))))
+if(and(krow<7,kcol>1,isAValidMove(krow,kcol,krow+2,kcol-1,0)),$.=l(l(krow+2,kcol-1,1,knightAttacks(krow+2,kcol-1,okrow,okcol))))
 ; right and up
-if(and(krow<8,kcol<7,isAValidMove(krow,kcol,krow+1,kcol+2)),$.=l(l(krow+1,kcol+2,1,knightAttacks(krow+1,kcol+2,okrow,okcol))))
-if(and(krow<7,kcol<8,isAValidMove(krow,kcol,krow+2,kcol+1)),$.=l(l(krow+2,kcol+1,1,knightAttacks(krow+2,kcol+1,okrow,okcol))))
+if(and(krow<8,kcol<7,isAValidMove(krow,kcol,krow+1,kcol+2,0)),$.=l(l(krow+1,kcol+2,1,knightAttacks(krow+1,kcol+2,okrow,okcol))))
+if(and(krow<7,kcol<8,isAValidMove(krow,kcol,krow+2,kcol+1,0)),$.=l(l(krow+2,kcol+1,1,knightAttacks(krow+2,kcol+1,okrow,okcol))))
 ; right and down
-if(and(krow>1,kcol<7,isAValidMove(krow,kcol,krow-1,kcol+2)),$.=l(l(krow-1,kcol+2,1,knightAttacks(krow-1,kcol+2,okrow,okcol))))
-if(and(krow>2,kcol<8,isAValidMove(krow,kcol,krow-2,kcol+1)),$.=l(l(krow-2,kcol+1,1,knightAttacks(krow-2,kcol+1,okrow,okcol))))
+if(and(krow>1,kcol<7,isAValidMove(krow,kcol,krow-1,kcol+2,0)),$.=l(l(krow-1,kcol+2,1,knightAttacks(krow-1,kcol+2,okrow,okcol))))
+if(and(krow>2,kcol<8,isAValidMove(krow,kcol,krow-2,kcol+1,0)),$.=l(l(krow-2,kcol+1,1,knightAttacks(krow-2,kcol+1,okrow,okcol))))
