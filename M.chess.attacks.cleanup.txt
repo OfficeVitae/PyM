@@ -1,1 +1,1 @@
-out(result,lf)
+;out(result,lf)

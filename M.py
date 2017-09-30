@@ -1020,9 +1020,9 @@ class UserFunction(Function):
 					expression=expressions[expressionindex]
 					if expression is not None and not expression.isEmpty(): # MDH@19SEP2017: skip 'comment' lines
 						try:
-							######note("Evaluating '"+expression.getText()+"'...")
+							##########note("Evaluating expression #"+str(expressionindex)+" of "+self.name+": '"+expression.getText()+"'...")
 							expressionvalue=expression.evaluatesTo(executionenvironment) # evaluate the expression in the execution environment
-							######note("Value of "+str(expression)+": "+str(expressionvalue)+".")
+							#######note("Value of expression #"+str(expressionindex)+"("+str(expression)+") of "+self.name+": "+str(expressionvalue)+".")
 						except JumpException,jumpException:
 							deltaexpressionindex=jumpException.getValue()
 							if isinstance(deltaexpressionindex,(int,long)):
@@ -1127,7 +1127,7 @@ class Environment:
 						if len(rstrippedexpressiontext)>0: # not an expression declaration (probably the value of the expression)
 							# remove any leading whitespace
 							expressiontext=rstrippedexpressiontext.lstrip()
-							#######note("\tParsing '"+expressiontext+"'...")
+							########note("\tParsing line #"+str(expressionlineindex)+" of "+self.name+": '"+expressiontext+"'...")
 							# MDH@10SEP2017: essential to pass 0 for the debug value!!!
 							# MDH@22SEP2017: we're going to allow expression continuation on the next line
 							if expression is None: # not an expression continuation

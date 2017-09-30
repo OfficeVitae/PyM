@@ -1,20 +1,12 @@
 ; bishopAttacks() returns whether the bishop at #brow,#bcol attacks the king at #krow,#kcol
 $=0
-out("Would the bishop at ",cols(bcol),rows(brow)," check the king at ",cols(kcol),rows(krow),"? ")
+;out("Would the bishop at ",cols(bcol),rows(brow)," check the king at ",cols(kcol),rows(krow),"? ")
 (drow=krow-brow,dcol=kcol-bcol)
-out("drow=",drow," dcol=",dcol)
+;out("drow=",drow," dcol=",dcol)
 ; the difference between the rows and columns need to be the same (in absolute sense)
 ; if so move in the direction of the king until we bump into something
 ; if we bump into the king the result will be 1
-if(and(drow!=dcol,drow+dcol!=0),return())
-out(" perhaps")
-drowsign=sign(drow)
-dcolsign=sign(dcol)
-out(" signs: ",drowsign," ",dcolsign)
-brow+=drowsign
-bcol+=dcolsign
-out(" brow=",brow," bcol=",bcol)
-while(board(brow,bcol)==0,out("X"),brow+=browsign,bcol+=bcolsign)
-out(" ",brow,"==",krow,"?")
-if(brow!=krow,return())
-$=1
+if(or(drow==dcol,drow+dcol==0)
+  ,drowsign=sign(drow),dcolsign=sign(dcol),brow+=drowsign,bcol+=dcolsign
+  ,while(board(brow,bcol)==0,brow+=drowsign,bcol+=dcolsign),if(brow==krow,$=1)
+  )
