@@ -4,24 +4,24 @@
 $=l()
 (ksign=sign(board(krow,kcol)),kpl=if(ksign>0,1,2))
 ; 1. all straight moves
-if(and(krow>1,sign(board(krow-1,kcol))!=ksign,isAValidMove(krow,kcol,krow-1,kcol,0)),$.=l(l(krow-1,kcol,1,0)))
-if(and(krow<8,sign(board(krow+1,kcol))!=ksign,isAValidMove(krow,kcol,krow+1,kcol,0)),$.=l(l(krow+1,kcol,1,0)))
-if(and(kcol>1,sign(board(krow,kcol-1))!=ksign,isAValidMove(krow,kcol,krow,kcol-1,0)),$.=l(l(krow,kcol-1,1,0)))
-if(and(kcol<8,sign(board(krow,kcol+1))!=ksign,isAValidMove(krow,kcol,krow,kcol+1,0)),$.=l(l(krow,kcol+1,1,0)))
+if(and(krow>1,sign(board(krow-1,kcol))!=ksign),(kme=getMoveEffect(krow,kcol,krow-1,kcol,0),if(kme>=0,$.=l(l(krow-1,kcol,1,kme)))))
+if(and(krow<8,sign(board(krow+1,kcol))!=ksign),(kme=getMoveEffect(krow,kcol,krow+1,kcol,0),if(kme>=0,$.=l(l(krow+1,kcol,1,kme)))))
+if(and(kcol>1,sign(board(krow,kcol-1))!=ksign),(kme=getMoveEffect(krow,kcol,krow,kcol-1,0),if(kme>=0,$.=l(l(krow,kcol-1,1,kme)))))
+if(and(kcol<8,sign(board(krow,kcol+1))!=ksign),(kme=getMoveEffect(krow,kcol,krow,kcol+1,0),if(kme>=0,$.=l(l(krow,kcol+1,1,kme)))))
 ; 2. all diagonal moves
-if(and(krow>1,kcol>1,sign(board(krow-1,kcol-1))!=ksign,isAValidMove(krow,kcol,krow-1,kcol-1,0)),$.=l(l(krow-1,kcol-1,1,0)))
-if(and(krow>1,kcol<8,sign(board(krow-1,kcol+1))!=ksign,isAValidMove(krow,kcol,krow-1,kcol+1,0)),$.=l(l(krow-1,kcol+1,1,0)))
-if(and(krow<8,kcol<8,sign(board(krow+1,kcol+1))!=ksign,isAValidMove(krow,kcol,krow+1,kcol+1,0)),$.=l(l(krow+1,kcol+1,1,0)))
-if(and(krow<8,kcol>1,sign(board(krow+1,kcol-1))!=ksign,isAValidMove(krow,kcol,krow+1,kcol-1,0)),$.=l(l(krow+1,kcol-1,1,0)))
+if(and(krow>1,kcol>1,sign(board(krow-1,kcol-1))!=ksign),(kme=getMoveEffect(krow,kcol,krow-1,kcol-1,0),if(kme>=0,$.=l(l(krow-1,kcol-1,1,kme)))))
+if(and(krow>1,kcol<8,sign(board(krow-1,kcol+1))!=ksign),(kme=getMoveEffect(krow,kcol,krow-1,kcol+1,0),if(kme>=0,$.=l(l(krow-1,kcol+1,1,kme)))))
+if(and(krow<8,kcol<8,sign(board(krow+1,kcol+1))!=ksign),(kme=getMoveEffect(krow,kcol,krow+1,kcol+1,0),if(kme>=0,$.=l(l(krow+1,kcol+1,1,kme)))))
+if(and(krow<8,kcol>1,sign(board(krow+1,kcol-1))!=ksign),(kme=getMoveEffect(krow,kcol,krow+1,kcol-1,0),if(kme>=0,$.=l(l(krow+1,kcol-1,1,kme)))))
 ; castling
 ; short castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
 ; long castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
 ; AND all intermediate positions should NOT be occupied (pretty essential bro')
 if(kcastling
   ,(if(and(piecepositions(kpl,2,4)==0,board(krow,6)==0,board(krow,7)==0,attacks(-ksign,krow,6)==0,attacks(-ksign,krow,7)==0,attacks(-ksign,krow,8)==0)
-      ,$.=l(l(krow,7,2,0)))
+      ,(kme=getMoveEffect(krow,kcol,krow,kcol+2,2),if(kme>=0,$.=l(l(krow,7,2,kme)))))
    ,if(and(piecepositions(kpl,3,4)==0,board(krow,2)==0,board(krow,3)==0,board(krow,4)==0,attacks(-ksign,krow,4)==0,attacks(-ksign,krow,3)==0,attacks(-ksign,krow,1)==0)
-      ,$.=l(l(krow,3,3,0)))
+      ,(kme=getMoveEffect(krow,kcol,krow,kcol-2,3),if(kme>=0,$.=l(l(krow,3,3,kme)))))
    )
    ,out("No check for castling anymore!")
   )
