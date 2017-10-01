@@ -1153,7 +1153,7 @@ class Environment:
 										else: # MDH@20SEP2017: ok, if this expression initializes identifier not yet existing in this environment, we're going to declare them!!!
 											expressioninitializes=expression.initializes(self)
 											if len(expressioninitializes)>0:
-												#######note("Initialized in '"+expressiontext+"': "+getText(expressioninitializes)+".")
+												note("Initialized in '"+str(expression)+"': "+getText(expressioninitializes)+".")
 												for expressioninitialize in expressioninitializes:
 													self.addIdentifier(Identifier(expressioninitialize))
 									else: # ignore expression
@@ -2595,7 +2595,9 @@ class Expression(Token):
 				# theoretically one could initialize variables in the indices of an IdentifierElementExpression as well
 				subexpressioninitializes=token.initializes(_environment)
 				if len(subexpressioninitializes)>0:
-					result.extend(subexpressioninitializes)
+					for subexpressioninitialize in subexpressioninitializes:
+						if not subexpressioninitialize in result:
+							result.append(subexpressioninitialize)
 			elif tokentype==IDENTIFIER_TOKENTYPE:
 				# careful the identifier might be a function
 				identifiername=token.getText()

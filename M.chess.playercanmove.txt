@@ -2,13 +2,13 @@
 ; excluding any piece at #excluderow,#excludecol (i.e. a piece captured by the opponent)
 ; i.e. move a piece at all without becoming in check
 $=0
-ppps=piecepositions(pl)
-ppi=len(ppps)
-while(and($=0,ppi>0),ppp=ppps(ppi)
+pps=piecepositions(pl)
+ppi=len(pps)
+while(and($=0,ppi>0),pp=pps(ppi)
      ,if(ppp(1)>0
-        ,(pprow=ppp(2),ppcol=ppp(3),
+        ,(pprow=pp(2),ppcol=pp(3),
          ,if(or(pprow!=excluderow,ppcol!=excludecol)
-            ,select(ppp(1),
+            ,select(pp(1),
                    ,if(pawnCanMove(pprow,ppcol),$=1)
                    ,if(rookCanMove(pprow,ppcol),$=1)
                    ,if(knightCanMove(pprow,ppcol),$=1)

@@ -8,8 +8,7 @@ for(ppi,1..len(pps)
    ,piecetype=pieceinfo(1)
    ,if(piecetype>0
       ,(piecerow=pieceinfo(2),piececol=pieceinfo(3)
-       ,select(piecetype
-              ,
+       ,select(piecetype,
               ,$(ppi)=getValidPawnMoves(piecerow,piececol,pieceinfo(4)>0,enpassantcols(3-pl))
               ,$(ppi)=getValidRookMoves(piecerow,piececol)
               ,$(ppi)=getValidKnightMoves(piecerow,piececol)
