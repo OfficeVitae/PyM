@@ -1,0 +1,13 @@
+; pawnCanMove() determines if the pawn at #prow,#pcol can move
+;               3rd parameter #penpassantcol defines the en passant column of the opponent
+$=0
+psign=sign(board(prow,pcol))
+; non-capture moves
+if(and(prow+psign>0,prow+psign<9,board(prow+psign,pcol)==0,isAValidMove(prow,pcol,prow+psign,pcol,0)),return(1))
+if(and(prow==if(psign>0,2,7),board(prow+psign,pcol)==0,board(prow+2*psign,pcol)==0,isAValidMove(prow,pcol,prow+2*psign,pcol,0)),return(1))
+; capture moves
+if(and(pcol>1,prow+psign>0,prow+psign<9,sign(board(prow+psign,pcol-1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol-1,0)),return(1))
+if(and(pcol<8,prow+psign>0,prow+psign<9,sign(board(prow+psign,pcol+1))+psign==0,isAValidMove(prow,pcol,prow+psign,pcol+1,0)),return(1))
+; en passant capture move
+if(and(penpassantcol>0,abs(pcol-penpassantcol)==1,prow==if(psign>0,5,4),isAValidMove(prow,pcol,prow+psign,penpassantcol,-psign)),return(1))
+

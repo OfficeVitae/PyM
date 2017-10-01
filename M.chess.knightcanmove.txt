@@ -1,0 +1,15 @@
+; knightCanMove() determines if the knight at #nrow,#ncol can move
+$=0
+nsign=sign(board(nrow,ncol))
+; left and down
+if(and(krow>1,kcol>2,sign(board(krow-1,kcol-2))!=nsign,isAValidMove(krow,kcol,krow-1,kcol-2,0),return(1)))
+if(and(krow>2,kcol>1,sign(board(krow-2,kcol-1))!=nsign,isAValidMove(krow,kcol,krow-2,kcol-1,0),return(1)))
+; left and up
+if(and(krow<8,kcol>2,sign(board(krow+1,kcol-2))!=nsign,isAValidMove(krow,kcol,krow+1,kcol-2,0),return(1)))
+if(and(krow<7,kcol>1,sign(board(krow+2,kcol-1))!=nsign,isAValidMove(krow,kcol,krow+2,kcol-1,0),return(1)))
+; right and up
+if(and(krow<8,kcol<7,sign(board(krow+1,kcol+2))!=nsign,isAValidMove(krow,kcol,krow+1,kcol+2,0),return(1)))
+if(and(krow<7,kcol<8,sign(board(krow+2,kcol+1))!=nsign,isAValidMove(krow,kcol,krow+2,kcol+1,0),return(1)))
+; right and down
+if(and(krow>1,kcol<7,sign(board(krow-1,kcol+2))!=nsign,isAValidMove(krow,kcol,krow-1,kcol+2,0),return(1)))
+if(and(krow>2,kcol<8,sign(board(krow-2,kcol+1))!=nsign,isAValidMove(krow,kcol,krow-2,kcol+1,0),return(1)))

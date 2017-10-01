@@ -20,9 +20,9 @@ knightAttacks	nrow	ncol	krow	kcol
 rookAttacks	rrow	rcol	krow	kcol
 bishopAttacks	brow	bcol	krow	kcol
 queenAttacks	qrow	qcol	krow	kcol
-getMoveEffect	fromrow	fromcol	torow	tocol	enpassantsign
-playerCanMove	pl
-pawnCanMove	prow	pcol
+getMoveEffect	fromrow	fromcol	torow	tocol	movetype
+playerCanMove	pl	excluderow	excludecol
+pawnCanMove	prow	pcol	penpassantcol
 rookCanMove	rrow	pcol
 bishopCanMove	brow	bcol
 knightCanMove	nrow	ncol

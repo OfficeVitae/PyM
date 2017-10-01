@@ -6,7 +6,7 @@ $=0
 ;;out("isAValidMove(",fromrow,",",fromcol,",",torow,",",tocol,")=") ; cleanup to write the result
 ; 1. GET AFFECTED PIECES
 (piece=board(fromrow,fromcol),psign=sign(piece),captured=board(torow,tocol)) ; the sign of the player (1 for player 1, and -1 for player 2)
-if(psign==sign(captured),return()) ; you cannot move to where your own pieces are
+;;if(psign==sign(captured),return()) ; you cannot move to where your own pieces are
 ; 2. MOVE PIECES
 ; if this is an en passant capture #enpassantsign will be either 1 (white being captured) or -1 (black being captured)
 ; in which case the actual position of the pawn is enpassantsign rows up with value enpassantsign (how convenient)

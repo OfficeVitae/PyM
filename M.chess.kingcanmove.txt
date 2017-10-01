@@ -1,0 +1,14 @@
+; kingCanMove determines if the king at #krow,#kcol can move
+$=0
+ksign=sign(board(krow,kcol))
+; 1. all straight moves
+if(and(krow>1,sign(board(krow-1,kcol))!=ksign),if(isAValidMove(krow,kcol,krow-1,kcol,0),return(1)))
+if(and(krow<8,sign(board(krow+1,kcol))!=ksign),if(isAValidMove(krow,kcol,krow+1,kcol,0),return(1)))
+if(and(kcol>1,sign(board(krow,kcol-1))!=ksign),if(isAValidMove(krow,kcol,krow,kcol-1,0),return(1)))
+if(and(kcol<8,sign(board(krow,kcol+1))!=ksign),if(isAValidMove(krow,kcol,krow,kcol+1,0),return(1)))
+; 2. all diagonal moves
+if(and(krow>1,kcol>1,sign(board(krow-1,kcol-1))!=ksign),if(isAValidMove(krow,kcol,krow-1,kcol-1,0),return(1)))
+if(and(krow>1,kcol<8,sign(board(krow-1,kcol+1))!=ksign),if(isAValidMove(krow,kcol,krow-1,kcol+1,0),return(1)))
+if(and(krow<8,kcol<8,sign(board(krow+1,kcol+1))!=ksign),if(isAValidMove(krow,kcol,krow+1,kcol+1,0),return(1)))
+if(and(krow<8,kcol>1,sign(board(krow+1,kcol-1))!=ksign),if(isAValidMove(krow,kcol,krow+1,kcol-1,0),return(1)))
+; NOTE no need to check castling because in order to be able to castle, king should be able to move at least one step towards the rook

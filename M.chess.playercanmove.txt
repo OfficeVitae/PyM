@@ -8,8 +8,7 @@ while(and($=0,ppi>0),ppp=ppps(ppi)
      ,if(ppp(1)>0
         ,(pprow=ppp(2),ppcol=ppp(3),
          ,if(or(pprow!=excluderow,ppcol!=excludecol)
-            ,select(ppp(1)
-                   ,
+            ,select(ppp(1),
                    ,if(pawnCanMove(pprow,ppcol),$=1)
                    ,if(rookCanMove(pprow,ppcol),$=1)
                    ,if(knightCanMove(pprow,ppcol),$=1)

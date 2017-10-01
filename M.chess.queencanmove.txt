@@ -1,0 +1,2 @@
+; queenCanMove determines if the queen at #qrow,#qcol can move
+$=or(bishopCanMove(qrow,qcol),rookCanMove(qrow,qcol))

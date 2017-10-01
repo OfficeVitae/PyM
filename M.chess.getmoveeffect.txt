@@ -19,7 +19,8 @@ select(abs(movetype),
 if(and(krow==fromrow,kcol==fromcol),(krow=torow,kcol=tocol)) ; if this move moves the king pass along the new king position
 ; if the move does not result in the king being in check (at #krow,#kcol), determine if opponent in check and/or whether can move
 if(attacks(-psign,krow,kcol)==0
-  ,$=attacks(psign,pieceposition(3-player,1,2),piecepositions(3-player,1,3))+if(playerCanMove(3-player),2,0)
+  ,$=attacks(psign,pieceposition(3-player,1,2),piecepositions(3-player,1,3))
+    +if(playerCanMove(3-player,torow+if(abs(movetype)==1,movetype,0),tocol),2,0)
   )
 ; normal move undo
 (board(fromrow,fromcol)=piece,board(torow,tocol)=captured)

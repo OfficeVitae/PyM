@@ -1,0 +1,19 @@
+; bishopCanMove() determines whether the bishop at #brow,#bcol can move
+$=0
+bsign=-sign(board(brow,bcol))
+; 1. left and down
+(nrow=brow-1,ncol=bcol-1)
+while(and(nrow>0,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol,0),return(1)),nrow-=1,ncol-=1)
+if(and(nrow>0,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol,0),return(1))) ; capture move
+; 2. right and up
+(nrow=brow+1,ncol=bcol+1)
+while(and(nrow<9,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol,0),return(1)),nrow+=1,ncol+=1)
+if(and(nrow<9,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol,0),return(1))) ; capture move
+; 3. left and up
+(nrow=brow+1,ncol=bcol-1)
+while(and(nrow<9,ncol>0,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol,0),return(1),nrow+=1,ncol-=1)
+if(and(nrow<9,ncol>0,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol,0),return(1))) ; capture move
+; 4. right and down
+(nrow=brow-1,ncol=bcol+1)
+while(and(nrow>0,ncol<9,board(nrow,ncol)==0),if(isAValidMove(brow,bcol,nrow,ncol,0),return(1)),nrow-=1,ncol+=1)
+if(and(nrow>0,ncol<9,sign(board(nrow,ncol))==bsign,isAValidMove(brow,bcol,nrow,ncol,0),return(1))) ; capture move
