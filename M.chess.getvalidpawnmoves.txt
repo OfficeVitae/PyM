@@ -14,18 +14,18 @@ if(prow==if(psign>0,8,1),return())
 ; non-capture moves
 ; 1. one step ahead
 if(board(prow+psign,pcol)==0
-  ,pme=getMoveEffect(prow,pcol,prow+psign,pcol,0),if(pme>=0,$.=l(l(prow+psign,pcol,1,pme))))
+  ,(pme=getMoveEffect(prow,pcol,prow+psign,pcol,0),if(pme>=0,$.=l(l(prow+psign,pcol,1,pme)))))
 ; 2. two steps ahead
 if(and(pmoved==0,board(prow+psign,pcol)==0,board(prow+2*psign,pcol)==0)
-  ,pme=getMoveEffect(prow,pcol,prow+2*psign,pcol,0),if(pme>=0,$.=l(l(prow+2*psign,pcol,4,pme))))
+  ,(pme=getMoveEffect(prow,pcol,prow+2*psign,pcol,0),if(pme>=0,$.=l(l(prow+2*psign,pcol,4,pme)))))
 
 ; capture moves
 ; 3. to the 'left'
 if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0)
-  ,pme=getMoveEffect(prow,pcol,prow+psign,pcol-1,0),if(pme>=0,$.=l(l(prow+psign,pcol-1,1,pme))))
+  ,(pme=getMoveEffect(prow,pcol,prow+psign,pcol-1,0),if(pme>=0,$.=l(l(prow+psign,pcol-1,1,pme)))))
 ; 4. to the 'right'
 if(and(pcol<8,sign(board(prow+psign,pcol+1))+psign==0)
-  ,pme=getMoveEffect(prow,pcol,prow+psign,pcol+1,0),if(pme>=0,$.=l(l(prow+psign,pcol+1,1,pme))))
+  ,(pme=getMoveEffect(prow,pcol,prow+psign,pcol+1,0),if(pme>=0,$.=l(l(prow+psign,pcol+1,1,pme)))))
 ; 5. en passant capture
 ; required conditions: 1. there's an enpassant column (#penpassantcol) 2. the pawn's row is either 4 (player 2) or 5 (player 3) 3. the pawn's column is next to #penpassantcol
 ;                      of course it still needs to be a valid move (i.e. one that does not check itself)

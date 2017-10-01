@@ -1011,6 +1011,7 @@ class UserFunction(Function):
 		if expressions is not None:
 			l=len(expressions)
 			if l>0:
+				####note("Local identifiers of "+self.name+": "+str(self.definitionenvironment.getLocalIdentifierNames())+".")
 				#####note("Number of expressions in "+self.name+" to evaluate: "+str(l)+"...")
 				executionenvironment=self.getExecutionEnvironment(_arglist)
 				expressionindex=0
@@ -1280,8 +1281,10 @@ class Environment:
 		else:
 			pass ####note("Exists in "+self.name+"!")
 		return result
+	def getLocalIdentifierNames(self):
+		return self.identifiers.keys()
 	def getIdentifierNames(self,_sort=True):
-		identifiernames=self.identifiers.keys()
+		identifiernames=self.getLocalIdentifierNames()
 		if self.parent is not None:
 			parentidentifiernames=self.parent.getIdentifierNames()
 			for parentidentifiername in parentidentifiernames:
