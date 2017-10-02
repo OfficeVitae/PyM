@@ -21,7 +21,7 @@ if(and(krow==fromrow,kcol==fromcol),(krow=torow,kcol=tocol)) ; if this move move
 kingcheckedby=attacks(-psign,krow,kcol)
 if(kingcheckedby(1)==0
   ,(opponentcheckedby=attacks(psign,piecepositions(3-player,1,2),piecepositions(3-player,1,3))
-   ,$=if(opponentcheckedby(1)>0,1,0)+2*playerCanMove(3-player,torow+if(abs(movetype)==1,movetype,0),tocol)
+   ,$=sign(opponentcheckedby(1))+2*playerCanMove(3-player,torow+if(abs(movetype)==1,movetype,0),tocol)
    )
   ,(out("When moving the ",playertypes(player)," ",piecetypenames(abs(piece))," from ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow)," the ",playertypes(3-player)," ",piecetypenames(kingcheckedby(1))," at ",cols(kingcheckedby(3)),rows(kingcheckedby(2))," checks the king at ",cols(kcol),rows(krow))
    ,$=-kingcheckedby(1)
