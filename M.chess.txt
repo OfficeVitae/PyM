@@ -71,7 +71,7 @@ pieceindex=movablepieceindices(piececharacterindex) ; returns the index of the p
 piecetypeindex=piecepositions(playerindex,pieceindex,1) ; the type of the piece being moved
 out("Piece index=",pieceindex," - type=",piecetypeindex,lf)
 piecemoveto=getMoveTo(pieceindex,piecetypeindex,colors(playerindex)) ; where to move the piece to (marking the options in the player color!!)
-if(len(piecemoveto)==0,jump(-13)) ; if undefined, allow another selection
+if(len(piecemoveto)==0,jump(-8)) ; if undefined, allow another selection
 out("Position to move to=",piecemoveto,lf)
 ; EXECUTE THE MOVE
 (fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3),torow=piecemoveto(1),tocol=piecemoveto(2))
@@ -110,4 +110,4 @@ if(captured>0,(out("Captured at ",cols(tocol),rows(torow),":",captured,".",lf)
               )
   )
 out("Board: ",board,lf,"Piece positions: ",piecepositions,lf) ; for debugging purposes
-jump(-75+11+6+12) ; take all continuations into account!!!
+jump(-78+11+7+13) ; take all continuations into account!!!
