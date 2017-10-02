@@ -3,9 +3,7 @@
 ;      to getValidKingMoves()
 pps=piecepositions(pl)
 $=replicate(?,len(pps))
-for(ppi,1..len(pps)
-   ,pieceinfo=pps(ppi)
-   ,piecetype=pieceinfo(1)
+for(ppi,1..len(pps),pieceinfo=pps(ppi),piecetype=pieceinfo(1)
    ,if(piecetype>0
       ,(piecerow=pieceinfo(2),piececol=pieceinfo(3)
        ,select(piecetype,

@@ -1,1 +1,1 @@
-out("Valid bishop moves: ",result,lf)
+;out("Valid bishop moves: ",result,lf)

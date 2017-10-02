@@ -2,13 +2,14 @@
 $=0 ; assume no winner
 (debugnow=debug,debug=0) ; disable debugging
 piecetypes='PRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and king)
-piecetypenames=('pawn','rook','knight','bishop','queen','king') ; the names of the piece (types)
+piecetypenames=l('pawn','rook','knight','bishop','queen','king') ; the names of the piece (types)
+playertypes=l('white','black') ; the player 'types'
 movecharacters='abcdefghijklmnopqrstuvwxyz.,' ; the characters to use for marking the piece positions on the board that can be moved
 movetypecolors=l(20,200,201,33,226) ; the move type colors used by showBoard() 1=normal, 2=short castling, 3=long castling, 4=two step pawn, 5=en passant capture
 ranges=l(8..1,1..8) ; display ranges
 colors=l(231,16) ; the (foreground) color of the pieces
 bgcolors=l(247,251) ; the field colors
-shadowcolors=l(249,249) ; the gray next to the field colors
+shadowcolors=l(249,249) ; the grays close to the field colors for showing the row and column name in each field
 ; initialize the game
 rows='12345678' ; the row names
 cols='abcdefgh' ; the column names
@@ -29,7 +30,7 @@ for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps
 ; initialize check pieces (the positions on the board from where pieces can give check)
 ; NOTE that at the start of the game there are no check fields
 (checkpieces,incheckinfo) ; declare
-if(debug&1,out(lf))
+if(debugnow&1,out(lf))
 ; PREPARE FOR ACCEPTING A MOVE
 playerindex=3-playerindex
 out(if(playerindex==1,player1,player2),", it's your turn.",lf)

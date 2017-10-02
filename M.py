@@ -2,6 +2,8 @@
 Marc's expression tokenizer and evaluator
 """
 """ History of development:
+02OCT2017:
+- BUG FIX: DEBUG in =Expression(...) replaced by getDebug()
 28SEP2017:
 - explicit List class for storing lists created with the list() function to replace implicit list (like arguments)
 24SEP2017:
@@ -393,7 +395,18 @@ def continueExpression(_expression,_expressiontext): # continues the given expre
 		expression=_expression # start out with the given expression
 		# MDH@62ND_BIRTHDAY: QUICK FIX we have to skip any character auto-inserted on parsing the expression!!
 		autoinserted=None
+		"""
+		newexpression=True
+		aresultexpression=False
+		"""
 		for ch in _expressiontext:
+			"""
+			if newexpression:
+				newexpression=False
+				aresultexpression=(ch=='$')
+			if aresultexpression:
+				output(ch)
+			"""
 			# MDH@21SEP2017: a quick hack to skip the situation where the expression inserted additional characters like the = behind a !
 			#								 it's better if the expression exposes what it inserted automatically...
 			if autoinserted is not None and ch==autoinserted:
@@ -407,6 +420,12 @@ def continueExpression(_expression,_expressiontext): # continues the given expre
 				break
 			autoinserted=expression.getAutoInserted() # remember any character auto-inserted
 			expression=new_expression # which hopefully is not None!!!!
+			"""
+			if expression!=new_expression:
+				if aresultexpression:
+					output("\n")
+				newexpression=True
+			"""
 	else:
 		expression=None
 	return (expression,error)
@@ -602,6 +621,7 @@ class Function:
 							return value
 						elif self.functionindex==10: # minus unary operator
 							return -value
+							note("Returning the negative value of "+str(value)+".")
 						elif self.functionindex==11:
 							return value
 						elif self.functionindex==12:
@@ -1021,7 +1041,7 @@ class UserFunction(Function):
 					expression=expressions[expressionindex]
 					if expression is not None and not expression.isEmpty(): # MDH@19SEP2017: skip 'comment' lines
 						try:
-							##########note("Evaluating expression #"+str(expressionindex)+" of "+self.name+": '"+expression.getText()+"'...")
+							######note("Evaluating expression #"+str(expressionindex)+" of "+self.name+": '"+expression.getText()+"'...")
 							expressionvalue=expression.evaluatesTo(executionenvironment) # evaluate the expression in the execution environment
 							#######note("Value of expression #"+str(expressionindex)+"("+str(expression)+") of "+self.name+": "+str(expressionvalue)+".")
 						except JumpException,jumpException:
@@ -1078,7 +1098,10 @@ class VariablesIdentifier(EnvironmentIdentifier):
 class Environment:
 	# MDH@15SEP2017: dynamic identifiers, to expose the list of available functions and variables
 	def getNumberOfExpressions(self):
-		return len(self.M.getValue())
+		try:
+			return len(self.M.getValue())
+		except:
+			return 0
 	def getExpression(self,_index):
 		#######note("Expression #"+str(_index)+" requested...")
 		expressions=self.M.getValue()
@@ -1154,7 +1177,7 @@ class Environment:
 										else: # MDH@20SEP2017: ok, if this expression initializes identifier not yet existing in this environment, we're going to declare them!!!
 											expressioninitializes=expression.initializes(self)
 											if len(expressioninitializes)>0:
-												note("Initialized in '"+str(expression)+"': "+getText(expressioninitializes)+".")
+												########note("Initialized in '"+str(expression)+"': "+getText(expressioninitializes)+".")
 												for expressioninitialize in expressioninitializes:
 													self.addIdentifier(Identifier(expressioninitialize))
 									else: # ignore expression
@@ -1205,7 +1228,7 @@ class Environment:
 	def getUsersFilename(self):
 		return join('.',("M",self.getFilename(),'users'))
 	def getPrompt(self):
-		return join(".",(self.getName(),"M"))+"("+str(len(self.M.getValue())+1)+")"+modechars[self.mode]+" "
+		return join(".",(self.getName(),"M"))+"("+str(self.getNumberOfExpressions()+1)+")"+modechars[self.mode]+" "
 	def getParent(self):
 		return self.parent
 	def getHost(self):
@@ -1438,6 +1461,10 @@ class Environment:
 				if getDebug()&8:
 					note("Assigning "+str(operand2)+" to "+str(operand1)+".")
 				if isinstance(operand1,Identifier):
+					"""
+					if operand1.getName()=='$':
+						note("Assigning "+str(operand2)+" to the result of "+self.name+".")
+					"""
 					return operand1.setValue(operand2).getValue()
 				if isinstance(argument1,IdentifierElementExpression):
 					#######note("Evaluating identifier element expression "+str(operand1)+".")
@@ -2090,6 +2117,7 @@ class Token:
 		self.suffix=[] # replacing: "" # what's appended to the token AFTER it ends (typically whitespace or a comment)
 		self.continuable=True # assume to be continuable to start with
 		self.ended=False # not ended until end() is actually called!!!
+		self.type=None # MDH@02OCT2017
 		self.setType(_tokentype)
 		# what used to go in start
 		### added: prefix / infix / postfix written stuff initialized to empty strings
@@ -2113,6 +2141,10 @@ class Token:
 			self.continuable=False
 			if len(self.text)>0:
 				self.text[-1].end()
+			# MDH@02OCT2017 BUG FIX nit just in end(): any operator that might have been continued, register it as operator immediately, so one cannot continue it with the second character!!!
+			if self.type>0 and self.type<OPERATOR_TOKENTYPE:
+				##########output("CONT")
+				self.type=OPERATOR_TOKENTYPE
 			if self.echo:
 				if self.debug&2: # indicates the start of the suffix (if any)
 					self.writteninfix.append(write("|",DEBUG_COLOR)) ###self.write("|",DEBUG_COLOR)
@@ -2139,6 +2171,7 @@ class Token:
 				self.text[-1].end()
 			# any operator that might have been continued, register it as operator immediately, so one cannot continue it with the second character!!!
 			if self.type>0 and self.type<OPERATOR_TOKENTYPE:
+				########output("TNOC")
 				self.type=OPERATOR_TOKENTYPE
 			if self.echo:
 				if self.debug&2:
@@ -2324,6 +2357,11 @@ class Token:
 	# MDH@31AUG2017: let's see whether we can actually change the coloring if the type changes
 	#								 assuming that this is the current token being written actively i.e. it is not ended or discontinued
 	def setType(self,_tokentype):
+		"""
+		if self.type is not None:
+			output(str(self.type))
+		output("->"+str(_tokentype))
+		"""
 		self.type=_tokentype
 		if self.echo:
 			self.color=getTokentypeColor(self.type) # initiate the color to use when writing once
@@ -2656,6 +2694,7 @@ class Expression(Token):
 				# STEP 1. DETERMINE WHETHER _tokenchar IS A CONTINUATION OF THE CURRENT TOKEN (as stored in self.token)
 				#					NOTE that some situations are dealt with completely in itself i.e. take care of adding _tokenchar to the current token as well, whereas many situations determine whether to create a new token not the addition of _tokenchar
 				tokentype=self.setTokentype(self.getTokentype()) # given that we're NOT keeping track of the token type in self, we reconstruct it from self.token and self.tokens
+				#####output(")"+str(tokentype)+":"+_tokenchar+"(")
 				# within certain tokens almost any character is a continuation, so we should deal with those situations first
 				# MDH@10AUG2017: we need to distinguish between a comment suffix (which cannot be ended) and a closing parenthesis (subexpression) suffix which can be ended with any character
 				#								 NO we don't because any whitespace behind a subexpression will end up in the parent's subexpression token suffix instead of the suffix of the subexpression itself
@@ -2853,6 +2892,7 @@ class Expression(Token):
 									if _tokenchar is not None: # no error, and _tokenchar not consumed yet
 										if _tokenchar in s or _tokenchar in soro: # a unary operator
 											# add the unary operators
+											#########output("UNARYOP")
 											self.addToken(SIGN_TOKENTYPE,_tokenchar,echo).discontinued()
 											_tokenchar=None # don't append again!!
 										# any character that unambiguously starts a binary operator should be prohibited
@@ -2863,9 +2903,11 @@ class Expression(Token):
 													self.error="It is not allowed to separate operator characters."
 												else:
 													self.error="Binary operator "+(("(start) ","")[_tokenchar in o])+_tokenchar+" not allowed behind operator "+operatortext+"."
-								if self.error is None:
-									if tokentype<OPERATOR_TOKENTYPE:
-										self.token.setType(OPERATOR_TOKENTYPE)
+									# MDH@02OCT2017: TODO do we need to do the following i.e. change the token type, FOR NOW decide to exclude when _tokenchar is None (which is when a NEW token is added!!!)
+									if self.error is None and _tokenchar is not None:
+										if tokentype<OPERATOR_TOKENTYPE:
+											#####output(">>"+str(tokentype)+"<<")
+											self.token.setType(OPERATOR_TOKENTYPE)
 						elif abs(tokentype)==INTEGER_TOKENTYPE or abs(tokentype)==REAL_TOKENTYPE: # in/behind a number
 							# it's better to only allow digits (periods and whitespace already handled above)
 							if not _tokenchar in d: # anything not a digit will discontinue the number
@@ -2917,7 +2959,7 @@ class Expression(Token):
 							# NOTE we might have negated the tokentype we ended, so we can still know what it was
 							# NOTE we NOW always have a self.token which is the token that has finished but is not yet added to self.tokens!!
 							tokentype=self.setTokentype(self.getTokentype()) # due to the possilbity of tokens finishing we have to redetermine the current token type
-							########write("{"+str(tokentype)+"}")
+							########output("?"+str(tokentype)+"?")
 							if tokentype<=0: # i.e. the given character starts a new token BUT this can be an operand or an operator
 								# we can not create the token until we actually know the type
 								# because the type determines the color in which the token character that is added is displayed
@@ -2990,6 +3032,8 @@ class Expression(Token):
 								elif _tokenchar in soro: # a unary or binary operator (i.e. ! or - or +) depending on where it's located
 									# BUT - and + can also be used as binary operator (to make things simple!!!)
 									#			 so we have to do something different when it's the binary operator
+									# MDH@02OCT2017: BUG FIX if behind a continuable binary operator we'd have a tokentype smaller then
+									########output("SORO"+_tokenchar+str(tokentype)+"OROS")
 									if tokentype!=0 and tokentype+OPERATOR_TOKENTYPE!=0 and tokentype+SIGN_TOKENTYPE!=0: # NOT behind a operator (or nothing) right now
 										soroindex=soro.index(_tokenchar)
 										if soroindex==0: # this would be the two-character unequal to operator to which we may automatically add the equal character
@@ -2999,8 +3043,8 @@ class Expression(Token):
 											self.addToken(OPERATOR_TOKENTYPE,_tokenchar+assignmentchar,echo).discontinued() # todo more likely the equal-to-character
 											if echo: # interactive mode
 												beep() # inform user of something special happening
-										else: # possibly - or + binary operator
-											if (tokentype+SINGLEQUOTED_TOKENTYPE==0 or tokentype+DOUBLEQUOTED_TOKENTYPE==0) and soroindex==1: # applying - not +
+										else: # possibly - or + binary operator (= soro operator already processed before)
+											if (tokentype+SINGLEQUOTED_TOKENTYPE==0 or tokentype+DOUBLEQUOTED_TOKENTYPE==0) and soroindex==2: # applying - not +
 												self.error="Not allowed to apply the - operator to a string literal."
 											else:
 												tokentype=self.setTokentype(OPERATOR_TOKENTYPE) # I suppose I need this to make the processing below right (i.e. it uses the operator tokentype)
@@ -3116,7 +3160,8 @@ class Expression(Token):
 		self.value=_value
 	# MDH@07SEP2017: getValue() renamed to evaluatesTo, so we can use getValue() to request the value computed
 	def evaluatesTo(self,_environment=None):
-		#####note("Value of '"+self.getText()+"' requested!")
+		#####if self.getText().startswith('$'):
+		######note("Value of '"+self.getText()+"' requested!")
 		self.value=None
 		self.error=None
 		if not self.isEmpty():
@@ -3341,7 +3386,7 @@ class Expression(Token):
 						tokentype=token.getType()
 						tokentext=token.getText()
 						if self.debug&16:
-							note("Processing token #"+str(tokenindex)+" of type "+getTokentypeRepresentation(tokentype)+": "+tokentext+"...")
+							note("Processing token #"+str(tokenindex)+" of type "+str(tokentype)+"="+getTokentypeRepresentation(tokentype)+": '"+tokentext+"'...")
 						if tokentype==SIGN_TOKENTYPE: # a unary operator (! or - or ~ or + and now even =)
 							# any token is either from s or soro
 							sindex=s.find(tokentext)
@@ -4415,7 +4460,7 @@ def main():
 				mexpression=copy.deepcopy(mexpressionretrieved) # NO need to unend here because we already did that when showing the expression!!!
 		# if we haven't got an expression (to continue) at this moment, we create a new one
 		if mexpression is None:
-			mexpression=Expression(environment,None,DEBUG,True) # start a new expression at the main debug level (DEBUG) which is the default!!
+			mexpression=Expression(environment,None,getDebug(),True) # start a new expression at the main debug level (DEBUG) which is the default!!
 			########output(str(userInputLine)) # MDH@01SEP2017: no need to do this we've already echoed the unended expression!!!
 		# I guess we can allow Ctrl-D at any moment as well
 		# NOTE a newline (Enter) shouldn't end the expression input per se
