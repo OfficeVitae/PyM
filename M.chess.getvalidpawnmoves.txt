@@ -1,36 +1,23 @@
-; getValidPawnMoves() returns all moves the pawn at #prow,#pcol that moved #pmoved times can do
-;                     #enpassantcol contains the enpassant column of the opponent
+; getValidPawnMoves() returns all moves the pawn at #prow,#pcol that moved #pmoved can do
+;                     #penpassantcol contains the enpassant column of the opponent
+;;out("Executing getValidPawnMoves(prow=",prow,",pcol=",pcol,",pmoved=",pmoved,",penpassantcol=",penpassantcol,")...",lf)
 $=l() ; initialize result
 psign=sign(board(prow,pcol)) ; white pawns can only move up, the black ones down
 
 ; unlikely that a pawn has reached the final row, and remained a pawn but ok
 if(prow==if(psign>0,8,1),return())
-; if we get here, there's a row the pawn can move to
+; if we get here, there's a row the pawn could move to
 
-; we want to determine whether the move of this pawn checks the opponent, so we need the position of the opponent's king
-; whether this is a checking move is stored in the 4th element of the move and is easy to determine for a pawn
-;;(opl=if(psign>0,2,1),okrow=piecepositions(opl,1,2),okcol=piecepositions(opl,1,3))
-
-; non-capture moves
 ; 1. one step ahead
-if(board(prow+psign,pcol)==0
-  ,(pme=getMoveEffect(prow,pcol,prow+psign,pcol,0),if(pme>=0,$.=l(l(prow+psign,pcol,1,pme)))))
+if(board(prow+psign,pcol)==0,(pme=getMoveEffect(prow,pcol,prow+psign,pcol,0),if(pme>=0,$.=l(l(prow+psign,pcol,1,pme)))))
 ; 2. two steps ahead
-if(and(pmoved==0,board(prow+psign,pcol)==0,board(prow+2*psign,pcol)==0)
-  ,(pme=getMoveEffect(prow,pcol,prow+2*psign,pcol,0),if(pme>=0,$.=l(l(prow+2*psign,pcol,4,pme)))))
-
-; capture moves
-; 3. to the 'left'
-if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0)
-  ,(pme=getMoveEffect(prow,pcol,prow+psign,pcol-1,0),if(pme>=0,$.=l(l(prow+psign,pcol-1,1,pme)))))
-; 4. to the 'right'
-if(and(pcol<8,sign(board(prow+psign,pcol+1))+psign==0)
-  ,(pme=getMoveEffect(prow,pcol,prow+psign,pcol+1,0),if(pme>=0,$.=l(l(prow+psign,pcol+1,1,pme)))))
+if(and(pmoved==0,board(prow+psign,pcol)==0,board(prow+2*psign,pcol)==0),(pme=getMoveEffect(prow,pcol,prow+2*psign,pcol,0),if(pme>=0,$.=l(l(prow+2*psign,pcol,4,pme)))))
+; 3. ordinary capture to the 'left'
+if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0),(pme=getMoveEffect(prow,pcol,prow+psign,pcol-1,0),if(pme>=0,$.=l(l(prow+psign,pcol-1,1,pme)))))
+; 4. ordinary capture to the 'right'
+if(and(pcol<8,sign(board(prow+psign,pcol+1))+psign==0),(pme=getMoveEffect(prow,pcol,prow+psign,pcol+1,0),if(pme>=0,$.=l(l(prow+psign,pcol+1,1,pme)))))
 ; 5. en passant capture
 ; required conditions: 1. there's an enpassant column (#penpassantcol) 2. the pawn's row is either 4 (player 2) or 5 (player 3) 3. the pawn's column is next to #penpassantcol
 ;                      of course it still needs to be a valid move (i.e. one that does not check itself)
 if(and(penpassantcol>0,prow==if(psign>0,5,4),abs(penpassantcol-pcol)==1)
-  ,(penpassantrow=if(psign>0,6,3)
-   ,pme=getMoveEffect(prow,pcol,penpassantrow,penpassantcol,-psign)
-   ,if(pme>=0,$.=l(l(penpassantrow,penpassantcol,5,pme))))
-  )
+  ,(penpassantrow=if(psign>0,6,3),pme=getMoveEffect(prow,pcol,penpassantrow,penpassantcol,-psign),if(pme>=0,$.=l(l(penpassantrow,penpassantcol,5,pme)))))

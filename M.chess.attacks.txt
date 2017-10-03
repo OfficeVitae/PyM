@@ -2,27 +2,6 @@
 ; this functions is called e.g. by getValidKingMoves() to determine if the king can castle which requires all positions the king passes or occupies are not attacked
 ; and by isAValidMove() to determine if the King will be attacked as a result of the move
 ; NOTE attacks() does not check for the en passant capture option, although this would be a valid attacked position
-$=l(0) ; assume not being attacked
-;out("Result of checking attack on ",cols(pcol),rows(prow),": ")
-; attacked by a pawn?
-if(and(prow+psign>0,prow+psign<9,pcol<8,board(prow+psign,pcol+1)==psign),return(l(1,prow+psign,pcol+1)))
-if(and(prow+psign>0,prow+psign<9,pcol>1,board(prow+psign,pcol-1)==psign),return(l(1,prow+psign,pcol-1)))
-; attacked (horizontally) by a rook or queen?
-(arow=prow-1,while(arow>0&&board(arow,pcol)==0,arow-=1),if(arow>0,if(board(arow,pcol)==psign*2,return(l(2,arow,pcol)),if(board(arow,pcol)==psign*5,return(l(5,arow,pcol))))))
-(arow=prow+1,while(arow<9&&board(arow,pcol)==0,arow+=1),if(arow<9,if(board(arow,pcol)==psign*2,return(l(2,arow,pcol)),if(board(arow,pcol)==psign*5,return(l(5,arow,pcol))))))
-(acol=pcol-1,while(acol>0&&board(prow,acol)==0,acol-=1),if(acol>0,if(board(prow,acol)==psign*2,return(l(2,prow,acol)),if(board(prow,acol)==psign*5,return(l(5,prow,acol))))))
-(acol=pcol+1,while(acol<9&&board(prow,acol)==0,acol+=1),if(acol<9,if(board(prow,acol)==psign*2,return(l(2,prow,acol)),if(board(prow,acol)==psign*5,return(l(5,prow,acol))))))
-; attacked (diagonally) by a bishop or queen?
-(arow=prow-1,acol=pcol-1,while(and(arow>0,acol>0,board(arow,acol)==0),arow-=1,acol-=1),if(and(arow>0,acol>0),if(board(arow,acol)==psign*4,return(l(4,arow,acol)),if(board(arow,acol)==psign*5,return(l(5,arow,acol))))))
-(arow=prow+1,acol=pcol+1,while(and(arow<9,acol<9,board(arow,acol)==0),arow+=1,acol+=1),if(and(arow<9,acol<9),if(board(arow,acol)==psign*4,return(l(4,arow,acol)),if(board(arow,acol)==psign*5,return(l(5,arow,acol))))))
-(arow=prow+1,acol=pcol-1,while(and(arow<9,acol>0,board(arow,acol)==0),arow+=1,acol-=1),if(and(arow<9,acol>0),if(board(arow,acol)==psign*4,return(l(4,arow,acol)),if(board(arow,acol)==psign*5,return(l(5,arow,acol))))))
-(arow=prow-1,acol=pcol+1,while(and(arow>0,acol<9,board(arow,acol)==0),arow-=1,acol+=1),if(and(arow>0,acol<9),if(board(arow,acol)==psign*4,return(l(4,arow,acol)),if(board(arow,acol)==psign*5,return(l(5,arow,acol))))))
-; attacked by a knight?
-if(and(prow>1,pcol>2,board(prow-1,pcol-2)==psign*3),return(l(3,prow-1,pcol-2)))
-if(and(prow>2,pcol>1,board(prow-2,pcol-1)==psign*3),return(l(3,prow-2,pcol-1)))
-if(and(prow<8,pcol>2,board(prow+1,pcol-2)==psign*3),return(l(3,prow+1,pcol-2)))
-if(and(prow<7,pcol>1,board(prow+2,pcol-1)==psign*3),return(l(3,prow+2,pcol-1)))
-if(and(prow>1,pcol<7,board(prow-1,pcol+2)==psign*3),return(l(3,prow-1,pcol+2)))
-if(and(prow>2,pcol<8,board(prow-2,pcol+1)==psign*3),return(l(3,prow-2,pcol+1)))
-if(and(prow<8,pcol<7,board(prow+1,pcol+2)==psign*3),return(l(3,prow+1,pcol+2)))
-if(and(prow<7,pcol<8,board(prow+2,pcol+1)==psign*3),return(l(3,prow+2,pcol+1)))
+;;out("attacks(psign=",psign,",prow=",prow,",pcol=",pcol,")=")
+attacker=attackedBy(psign,prow,pcol)
+$=attacker(1)

@@ -1,8 +1,9 @@
 ; getValidKingMoves() returns the valid moves the king at #krow,#kcol can make
-; third parameter #kcastling indicates whether or not the king could castle now (when it is not in check and hasn't moved yet, and no pieces in between)
+; third and fourth parameter #kshortcastle and #klongcastle tell if the king can short or long castle respectively
 ; but still need to check whether or not the king would be attacked on one of the intermediate positions
+;;out("Executing getValidKingMoves(row=",krow,",col=",kcol,",shortcastle=",kshortcastle,",longcastle=",klongcastle,")...",lf)
 $=l()
-(ksign=sign(board(krow,kcol)),kpl=if(ksign>0,1,2))
+ksign=sign(board(krow,kcol))
 ; 1. all straight moves
 if(and(krow>1,sign(board(krow-1,kcol))!=ksign),(kme=getMoveEffect(krow,kcol,krow-1,kcol,0),if(kme>=0,$.=l(l(krow-1,kcol,1,kme)))))
 if(and(krow<8,sign(board(krow+1,kcol))!=ksign),(kme=getMoveEffect(krow,kcol,krow+1,kcol,0),if(kme>=0,$.=l(l(krow+1,kcol,1,kme)))))
@@ -17,11 +18,9 @@ if(and(krow<8,kcol>1,sign(board(krow+1,kcol-1))!=ksign),(kme=getMoveEffect(krow,
 ; short castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
 ; long castling is allowed if: 1. the rook hasn't moved yet, and 2. intermediate positions are not attacked
 ; AND all intermediate positions should NOT be occupied (pretty essential bro')
-if(kcastling
-  ,(if(and(piecepositions(kpl,2,4)==0,board(krow,6)==0,board(krow,7)==0,attacks(-ksign,krow,6)==0,attacks(-ksign,krow,7)==0,attacks(-ksign,krow,8)==0)
-      ,(kme=getMoveEffect(krow,kcol,krow,kcol+2,2),if(kme>=0,$.=l(l(krow,7,2,kme)))))
-   ,if(and(piecepositions(kpl,3,4)==0,board(krow,2)==0,board(krow,3)==0,board(krow,4)==0,attacks(-ksign,krow,4)==0,attacks(-ksign,krow,3)==0,attacks(-ksign,krow,1)==0)
-      ,(kme=getMoveEffect(krow,kcol,krow,kcol-2,3),if(kme>=0,$.=l(l(krow,3,3,kme)))))
-   )
-   ,out("No check for castling anymore!")
-  )
+if(kshortcastle
+  ,(if(and(board(krow,6)==0,board(krow,7)==0,attacks(-ksign,krow,6)==0,attacks(-ksign,krow,7)==0,attacks(-ksign,krow,8)==0)
+      ,(kme=getMoveEffect(krow,kcol,krow,kcol+2,2),if(kme>=0,$.=l(l(krow,7,2,kme)))))))
+if(klongcastle
+  ,(if(and(board(krow,2)==0,board(krow,3)==0,board(krow,4)==0,attacks(-ksign,krow,4)==0,attacks(-ksign,krow,3)==0,attacks(-ksign,krow,1)==0)
+      ,(kme=getMoveEffect(krow,kcol,krow,kcol-2,3),if(kme>=0,$.=l(l(krow,3,3,kme)))))))

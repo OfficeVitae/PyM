@@ -1,15 +1,17 @@
 ; getValidKnightMoves() returns all valid moves originating at #krow,#kcol
+;;out("Executing getValidKnightMoves(row=",krow,",col=",kcol,")...",lf)
 $=l()
+ksign=sign(board(krow,kcol))
 ; in order to determine whether the move checks the opponent we need the opponent's king position
 ; left and down
-if(and(krow>1,kcol>2),(nme=getMoveEffect(krow,kcol,krow-1,kcol-2,0),if(nme>=0,$.=l(l(krow-1,kcol-2,1,nme)))))
-if(and(krow>2,kcol>1),(nme=getMoveEffect(krow,kcol,krow-2,kcol-1,0),if(nme>=0,$.=l(l(krow-2,kcol-1,1,nme)))))
+if(and(krow>1,kcol>2,sign(board(krow-1,kcol-2))!=ksign),(nme=getMoveEffect(krow,kcol,krow-1,kcol-2,0),if(nme>=0,$.=l(l(krow-1,kcol-2,1,nme)))))
+if(and(krow>2,kcol>1,sign(board(krow-2,kcol-1))!=ksign),(nme=getMoveEffect(krow,kcol,krow-2,kcol-1,0),if(nme>=0,$.=l(l(krow-2,kcol-1,1,nme)))))
 ; left and up
-if(and(krow<8,kcol>2),(nme=getMoveEffect(krow,kcol,krow+1,kcol-2,0),if(nme>=0,$.=l(l(krow+1,kcol-2,1,nme)))))
-if(and(krow<7,kcol>1),(nme=getMoveEffect(krow,kcol,krow+2,kcol-1,0),if(nme>=0,$.=l(l(krow+2,kcol-1,1,nme)))))
+if(and(krow<8,kcol>2,sign(board(krow+1,kcol-2))!=ksign),(nme=getMoveEffect(krow,kcol,krow+1,kcol-2,0),if(nme>=0,$.=l(l(krow+1,kcol-2,1,nme)))))
+if(and(krow<7,kcol>1,sign(board(krow+2,kcol-1))!=ksign),(nme=getMoveEffect(krow,kcol,krow+2,kcol-1,0),if(nme>=0,$.=l(l(krow+2,kcol-1,1,nme)))))
 ; right and up
-if(and(krow<8,kcol<7),(nme=getMoveEffect(krow,kcol,krow+1,kcol+2,0),if(nme>=0,$.=l(l(krow+1,kcol+2,1,nme)))))
-if(and(krow<7,kcol<8),(nme=getMoveEffect(krow,kcol,krow+2,kcol+1,0),if(nme>=0,$.=l(l(krow+2,kcol+1,1,nme)))))
+if(and(krow<8,kcol<7,sign(board(krow+1,kcol+2))!=ksign),(nme=getMoveEffect(krow,kcol,krow+1,kcol+2,0),if(nme>=0,$.=l(l(krow+1,kcol+2,1,nme)))))
+if(and(krow<7,kcol<8,sign(board(krow+2,kcol+1))!=ksign),(nme=getMoveEffect(krow,kcol,krow+2,kcol+1,0),if(nme>=0,$.=l(l(krow+2,kcol+1,1,nme)))))
 ; right and down
-if(and(krow>1,kcol<7),(nme=getMoveEffect(krow,kcol,krow-1,kcol+2,0),if(nme>=0,$.=l(l(krow-1,kcol+2,1,nme)))))
-if(and(krow>2,kcol<8),(nme=getMoveEffect(krow,kcol,krow-2,kcol+1,0),if(nme>=0,$.=l(l(krow-2,kcol+1,1,nme)))))
+if(and(krow>1,kcol<7,sign(board(krow-1,kcol+2))!=ksign),(nme=getMoveEffect(krow,kcol,krow-1,kcol+2,0),if(nme>=0,$.=l(l(krow-1,kcol+2,1,nme)))))
+if(and(krow>2,kcol<8,sign(board(krow-2,kcol+1))!=ksign),(nme=getMoveEffect(krow,kcol,krow-2,kcol+1,0),if(nme>=0,$.=l(l(krow-2,kcol+1,1,nme)))))

@@ -5,7 +5,7 @@ $=0
 pps=piecepositions(pl)
 ppi=len(pps)
 while(and($=0,ppi>0),pp=pps(ppi)
-     ,if(ppp(1)>0
+     ,if(pp(1)>0
         ,(pprow=pp(2),ppcol=pp(3),
          ,if(or(pprow!=excluderow,ppcol!=excludecol)
             ,select(pp(1),

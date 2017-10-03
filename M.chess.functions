@@ -3,7 +3,7 @@ updateCheckPieces
 updatePlayerCheckPieces	pl
 getCheckPieceCharacter	pl	row	col
 showBoard	showpositions	showcolor
-getValidPlayerMoves	pl
+getValidPlayerMoves	pl	incheck
 getMoveTo	pieceindex	piecetypeindex	piececolor
 givingUp
 updateInCheck
@@ -13,8 +13,9 @@ getValidRookMoves	rrow	rcol
 getValidKnightMoves	krow	kcol
 getValidBishopMoves	brow	bcol
 getValidQueenMoves	qrow	qcol
-getValidKingMoves	krow	kcol	kcastling
+getValidKingMoves	krow	kcol	kshortcastle	klongcastle
 isAValidMove	fromrow	fromcol	torow	tocol	enpassantsign
+attackedBy	psign	prow	pcol
 attacks	psign	prow	pcol
 knightAttacks	nrow	ncol	krow	kcol
 rookAttacks	rrow	rcol	krow	kcol

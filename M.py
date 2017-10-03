@@ -2,6 +2,10 @@
 Marc's expression tokenizer and evaluator
 """
 """ History of development:
+03OCT2017:
+- clone() of List now clones List items
+- all identifiers assigned to in a function are created as local identifiers (previously this was only done for those identifiers not yet available)
+  which meant that external variables would be assigned to (which would prohibit using local variables with the same name)
 02OCT2017:
 - BUG FIX: DEBUG in =Expression(...) replaced by getDebug()
 28SEP2017:
@@ -381,8 +385,8 @@ class Identifier:
 		return self.name
 	def __str__(self):
 		return self.name
-VERSION=Identifier('version','2017-09-28 19:18:06') # MDH@28SEP2017: the current version
-DEBUG=Identifier('debug',1) # MDH@22SEP2017: let's make debug accessible to the expressions
+VERSION=Identifier(_value='2017-10-03 17:20:00') # MDH@28SEP2017: constant representing the current version timestamp
+DEBUG=Identifier('debug',0) # MDH@22SEP2017: let's make debug accessible to the expressions
 def getDebug():
 	return DEBUG.getValue()
 # MDH@19SEP2017: _executable signifies whether or not the expressions should be immediately executable
@@ -1050,7 +1054,7 @@ class UserFunction(Function):
 								expressionindex+=deltaexpressionindex
 								if expressionindex<0:
 									break
-								note("Will jump to expression #"+str(expressionindex)+" ("+str(expressions[expressionindex])+")")
+								#######note("Will jump to expression #"+str(expressionindex)+" ("+str(expressions[expressionindex])+")")
 								continue
 							note("Invalid jump result: '"+str(deltaexpressionindex)+"'.")
 						except ReturnException,returnException:
@@ -1177,7 +1181,7 @@ class Environment:
 										else: # MDH@20SEP2017: ok, if this expression initializes identifier not yet existing in this environment, we're going to declare them!!!
 											expressioninitializes=expression.initializes(self)
 											if len(expressioninitializes)>0:
-												########note("Initialized in '"+str(expression)+"': "+getText(expressioninitializes)+".")
+												#####note("Initialized in '"+str(expression)+"' of "+self.name+": "+getText(expressioninitializes)+".")
 												for expressioninitialize in expressioninitializes:
 													self.addIdentifier(Identifier(expressioninitialize))
 									else: # ignore expression
@@ -1354,12 +1358,13 @@ class Environment:
 			return False
 		# parent could have it!!!
 		return self.parent.identifiersExistStartingWith(_identifierprefix)
+	def localIdentifierExists(self,_identifiername):
+		return _identifiername in self.identifiers
 	def identifierExists(self,_identifiername):
-		if _identifiername in self.identifiers:
-			return True
-		if self.parent is not None:
-			return self.parent.identifierExists(_identifiername)
-		return False # can't find it
+		result=self.localIdentifierExists(_identifiername)
+		if not result and self.parent is not None:
+			result=self.parent.identifierExists(_identifiername)
+		return result
 	def getExistingLocalIdentifier(self,_identifiername):
 		if _identifiername in self.identifiers:
 			return self.identifiers[_identifiername]
@@ -1593,7 +1598,7 @@ class Environment:
 					result=(falsevalue,truevalue)[operand1>=operand2]
 				elif operator=="==":
 					# here we have to deal with undefined as well (which is now defined as None
-					result=(falsevalue,truevalue)[operand1==operand2]
+					result=equals(operand1,operand2)
 				elif operator=="!=":
 					result=(falsevalue,truevalue)[operand1!=operand2]
 				elif operator=="<<":
@@ -1621,7 +1626,8 @@ class Environment:
 					result=(falsevalue,truevalue)[operand1>=operand2]
 				elif operator=="==":
 					# here we have to deal with undefined as well (which is now defined as None
-					result=(falsevalue,truevalue)[operand1==operand2]
+					# MDH@03OCT2017: comparing two lists should also be done element-wise (as we do with the binary arithmetic operators)
+					result=(falsevalue,truevalue)[equals(operand1,operand2)]
 				elif operator=="!=":
 					result=(falsevalue,truevalue)[operand1!=operand2]
 			if getDebug()&8:
@@ -1645,7 +1651,7 @@ import math
 # create the root environment
 Menvironment=Environment() # MDH@03SEP2017: the root M environment containing the M identifiers and functions always accessible
 # populate the M environment with the predefined constants/variables
-Menvironment.addIdentifier(VERSION) # MDH@28SEP2017: the current version timestamp
+Menvironment.addIdentifier(VERSION,'version') # MDH@28SEP2017: the current version timestamp
 Menvironment.addIdentifier(DEBUG) # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(undefined,'?') # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(Identifier(_value=falsevalue),'false')
@@ -1773,7 +1779,15 @@ class List: # wraps a list, to prevent de-listing
 			self.list=[]
 	# convenience method to clone a List TODO should this be a deep copy????
 	def clone(self):
-		return List(list(self.list))
+		result=list()
+		for item in self.list:
+			if item is None:
+				result.append(None)
+			elif isinstance(item,List):
+				result.append(item.clone())
+			else:
+				result.append(item)
+		return List(result)
 	def index(self,_searchfor):
 		return self.list.index(_searchfor)
 	def insert(self,_index,_value):
@@ -1803,6 +1817,47 @@ class List: # wraps a list, to prevent de-listing
 		return getText(self.list)
 	def __str__(self):
 		return "["+getListItemsText(self.list)+"]"
+	def equals(self,_value):
+		result=list()
+		# scalar comparison?
+		if isinstance(_value,List): # comparing with a list
+			l=len(_value)
+			for (index,item) in enumerate(self.list):
+				result.append(equals(item,_value[index%l]))
+		else:
+			for item in self.list:
+				result.append(equals(item,_value))
+		return List(result)
+	def getAnd(self):
+		# all items need to be truevalue to return truevalue
+		for item in self.list:
+			if item is None:
+				continue
+			if isinstance(item,List):
+				if item.getAnd()!=truevalue:
+					return falsevalue
+			elif item!=truevalue:
+				return falsevalue
+		return truevalue
+	def getOr(self):
+		# all items need to be truevalue to return truevalue
+		for item in self.list:
+			if item is None:
+				continue
+			if isinstance(item,List):
+				if item.getOr()!=falsevalue:
+					return truevalue
+			elif item!=falsevalue:
+				return truevalue
+		return falsevalue
+def equals(_value1,_value2):
+	# the longer list should take the lead
+	if isinstance(_value1,List) and (not isinstance(_value2,List) or len(_value1)>=len(_value2)):
+		return _value1.equals(_value2)
+	if isinstance(_value2,List):
+		return equals(_value2,_value1)
+	# neither is a List
+	return (falsevalue,truevalue)[_value1==_value2]
 def getInteger(_value):
 	if isinstance(_value,(int,long)):
 		return _value
@@ -2620,13 +2675,16 @@ class Expression(Token):
 	# MDH@20SEP2017: it makes sense to collect all identifier names assigned to that do not yet exist????
 	def initializes(self,_environment):
 		result=list()
+		#######output("Initialized by expression '"+self.getText()+"':")
 		behindassigningoperator=False
 		behindidentifiername=None # the name of the non-existing identifier we are behind
 		for token in self.tokens:
+			########output(" "+str(token)+"=")
 			# first look at the conditions that will prevent further searching
 			if behindassigningoperator: # something being assigned to
 				# only accept iff the given identifier does not yet exist, and is therefore initialized...
-				if not _environment.identifierExists(behindidentifiername):
+				# MDH@03OCT2017: the identifier should now exist as local identifier
+				if not _environment.localIdentifierExists(behindidentifiername):
 					result.append(behindidentifiername)
 				# start over
 				behindassigningoperator=False
@@ -2648,6 +2706,7 @@ class Expression(Token):
 				if behindidentifiername is not None: # previous token was an identifier
 					if token.assigns(): # if this is an assigning operator token almost there!!!
 						behindassigningoperator=True
+		######note("Initialized by expression '"+self.getText()+"': "+str(result)+".")
 		return result
 	def assigns(self):
 		# an expression assigns when it contains an assignment or any of it's expression assigns
@@ -3248,8 +3307,13 @@ class Expression(Token):
 					if len(arg.tokens)==0:
 						continue
 					argvalue=arg.evaluatesTo(evaluationenvironment)
-					if argvalue==falsevalue:
-						return falsevalue
+					# the argument value might be a List!!!!
+					if argvalue is not None:
+						if isinstance(argvalue,List):
+							if argvalue.getAnd()==falsevalue:
+								return falsevalue
+						elif argvalue==falsevalue:
+							return falsevalue
 				return truevalue
 			def getOrResult(_arglist):
 				# any argument that does not evaluate to the false value (0) makes the result of or true
@@ -3257,8 +3321,12 @@ class Expression(Token):
 					if len(arg.tokens)==0:
 						continue
 					argvalue=arg.evaluatesTo(evaluationenvironment)
-					if argvalue!=falsevalue:
-						return truevalue
+					if argvalue is not None:
+						if isinstance(argvalue,List):
+							if argvalue.getOr()!=falsevalue:
+								return truevalue
+						elif argvalue!=falsevalue:
+							return truevalue
 				return falsevalue
 			def getIfResult(_arglist):
 				# NOTE we might expand if a bit but making it a multiselector

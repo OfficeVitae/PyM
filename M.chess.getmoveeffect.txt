@@ -1,4 +1,5 @@
 ; getMoveEffect() checks whether or not the move from #fromrow,#fromcol to #torow,#tocol is valid
+;;out("Executing getMoveEffect(fromrow=",fromrow,",fromcol=",fromcol,",torow=",torow,",tocol=",tocol,",movetype=",movetype,")...",lf)
 ; assumes that the piece at (fromrow,fromcol) can actually be moved to (torow,tocol)
 ; fifth argument #movetype indicates what type of move it is:
 ; -1=black en passant capture, 1=white en passant capture, 2=short castling, 3=long castling, 0=normal
@@ -18,9 +19,9 @@ select(abs(movetype),
 (player=if(psign>0,1,2),krow=piecepositions(player,1,2),kcol=piecepositions(player,1,3)) ; the 'before' move king position
 if(and(krow==fromrow,kcol==fromcol),(krow=torow,kcol=tocol)) ; if this move moves the king pass along the new king position
 ; if the move does not result in the king being in check (at #krow,#kcol), determine if opponent in check and/or whether can move
-kingcheckedby=attacks(-psign,krow,kcol)
+kingcheckedby=attackedBy(-psign,krow,kcol)
 if(kingcheckedby(1)==0
-  ,(opponentcheckedby=attacks(psign,piecepositions(3-player,1,2),piecepositions(3-player,1,3))
+  ,(opponentcheckedby=attackedBy(psign,piecepositions(3-player,1,2),piecepositions(3-player,1,3))
    ,$=sign(opponentcheckedby(1))+2*playerCanMove(3-player,torow+if(abs(movetype)==1,movetype,0),tocol)
    )
   ,(out("When moving the ",playertypes(player)," ",piecetypenames(abs(piece))," from ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow)," the ",playertypes(3-player)," ",piecetypenames(kingcheckedby(1))," at ",cols(kingcheckedby(3)),rows(kingcheckedby(2))," checks the king at ",cols(kcol),rows(krow))
