@@ -5,7 +5,7 @@ Marc's expression tokenizer and evaluator
 03OCT2017:
 - clone() of List now clones List items
 - all identifiers assigned to in a function are created as local identifiers (previously this was only done for those identifiers not yet available)
-  which meant that external variables would be assigned to (which would prohibit using local variables with the same name)
+	which meant that external variables would be assigned to (which would prohibit using local variables with the same name)
 02OCT2017:
 - BUG FIX: DEBUG in =Expression(...) replaced by getDebug()
 28SEP2017:
@@ -1506,25 +1506,28 @@ class Environment:
 					######note("Result list: '"+str(result)+"'.")
 				# ok, both elements should be either lists or scalars, at least to apply the non-assignment binary operators to
 				# although we should always obtain two list or two items, we make a list of either if need be
-				elif isinstance(operand2,list):
-					####note("Operand 2 is a list.")
-					if len(operand2)==0:
-						return operand1
-					if not isinstance(operand1,list):
-						return self.getOperationResult(operand2,operator,[operand1])
-					# delist if both arguments are one-element lists
-					if len(operand1)==1 and len(operand2)==1:
-						result=self.getOperationResult(operand2[0],operator,operand1[0])
+				elif isinstance(operand1,(list,List)) or isinstance(operand2,(list,List)): # either operand is a list (wrapper)
+					# we want to apply the operation to each pair of elements in the operands
+					# if we do not have a list we create one
+					result=list()
+					loperand1=listify(operand1)
+					loperand2=listify(operand2)
+					l1=len(loperand1)
+					l2=len(loperand2)
+					if l1==0:
+						result=loperand2
+					elif l2==0:
+						result=loperand1
+					elif l1>=l2:
+						for (lindex1,litem1) in enumerate(loperand1):
+							result.append(self.getOperationResult(litem1,operator,loperand2[lindex1%l2]))
 					else:
-						result=list()
-						for i in range(0,max(len(operand1),len(operand2))):
-							result.append(self.getOperationResult(getItem(operand2,i),operator,getItem(operand1,i)))
-				elif isinstance(operand1,list):
-					####note("Operand 1 is a list.")
-					if len(operand1)==0:
-						result=operand2
+						for (lindex2,litem2) in enumerate(loperand2):
+							result.append(self.getOperationResult(litem2,operator,loperand1(lindex2%l1)))
+					if isinstance(operand1,List) or isinstance(operand2,List):
+						return List(result)
 					else:
-						result=self.getOperationResult([operand2],operator,operand1)
+						return result
 				elif operator=="..": # MDH@27AUG2017: replaced : because : is now the operator to defined a block of (unevaluated) expressions
 					if isinstance(operand1,(int,long,float)) and isinstance(operand2,(int,long,float)):
 						values=[operand1]
@@ -1881,9 +1884,13 @@ def getValue(_value):
 		return _value.getValue()
 	return _value
 def listify(t):
+	if t is None:
+		return t
+	if isinstance(t,List):
+		return listify(t.list)
 	if isinstance(t,list):
 		return t
-	return [t]
+	return [t] # wrap the given non-list in a single-item list
 def stringify(t):
 	if isinstance(t,str):
 		return t
