@@ -1,17 +1,16 @@
-; getValidPlayerMoves() determines all valid moves knowing #penpassantcol, #pcanshortcastle and #pcanlongcastle
-out("Executing getValidPlayerMoves(penpassantcol=",penpassantcol,",canshortcastle=",pcanshortcastle,",canlongcastle=",pcanlongcastle,")...",lf)
-pps=piecepositions(pl)
+; getValidPlayerMoves() determines all valid moves of the current player
+pps=piecepositions(playerindex)
 $=replicate(?,len(pps))
 for(ppi,1..len(pps),pieceinfo=pps(ppi),piecetype=pieceinfo(1)
    ,if(piecetype>0
       ,(piecerow=pieceinfo(2),piececol=pieceinfo(3),piecemoved=pieceinfo(4)
        ,select(piecetype,
-              ,$(ppi)=getValidPawnMoves(piecerow,piececol,piecemoved,penpassantcol)
+              ,$(ppi)=getValidPawnMoves(piecerow,piececol,piecemoved,enpassantcols(3-playerindex))
               ,$(ppi)=getValidRookMoves(piecerow,piececol)
               ,$(ppi)=getValidKnightMoves(piecerow,piececol)
               ,$(ppi)=getValidBishopMoves(piecerow,piececol)
               ,$(ppi)=getValidQueenMoves(piecerow,piececol)
-              ,$(ppi)=getValidKingMoves(piecerow,piececol,pcanshortcastle,pcanlongcastle)
+              ,$(ppi)=getValidKingMoves(piecerow,piececol,canshortcastle(playerindex),canlongcastle(playerindex))
               )
        )
       )

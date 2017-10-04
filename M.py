@@ -907,7 +907,7 @@ class Function:
 			raise ReturnException(_arglist)
 		if self.functionindex==-1:
 			#######note("Wrapping "+str(_arglist)+" in a List.")
-			return List(_arglist)
+			return List(listclone(_arglist)) # MDH@04OCT2017: TODO should we clone here??????
 		if self.functionindex<-1: # assumed list function TODO can we somehow process these as any other 'normal' function??????
 			return self.apply(_arglist) # but we want to apply the list function to each of the arguments
 		argcount=1+(self.functionindex/100) # the number of arguments the function requires
@@ -1488,9 +1488,9 @@ class Environment:
 					if shortcutting: # we're going to append directly to the value of the argument (represented by operand1)
 						shortcutting=False
 						result=operand1
-						note("Appending '"+str(operand2)+"' to value '"+str(operand1)+"' of argument "+str(argument1)+".")
+						####note("Appending '"+str(operand2)+"' to value '"+str(operand1)+"' of argument "+str(argument1)+".")
 					else:
-						note("Concatenating '"+str(operand2)+"' to '"+str(operand1)+"'.")
+						######note("Concatenating '"+str(operand2)+"' to '"+str(operand1)+"'.")
 						result=List()
 						result.extend(operand1)
 					if isinstance(operand2,(list,List)): # something to append
@@ -1855,7 +1855,7 @@ class List: # wraps a list, to prevent de-listing
 # MDH@04OCT2017: cloning a list instance, is not just a matter of creating a shallow copy, we need a deep copy in that we do NOT want to have references to other lists
 def listclone(_list):
 	if isinstance(_list,list):
-		note("Cloning "+str(_list))
+		######note("Cloning "+str(_list))
 		result=list()
 		for item in _list:
 			if item is None:

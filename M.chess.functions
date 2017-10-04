@@ -3,7 +3,7 @@ updateCheckPieces
 updatePlayerCheckPieces	pl
 getCheckPieceCharacter	pl	row	col
 showBoard	showpositions	showcolor
-getValidPlayerMoves	penpassantcol	pcanshortcastle	pcanlongcastle
+getValidPlayerMoves
 getMoveTo	pieceindex	piecetypeindex	piececolor
 givingUp
 updateInCheck
