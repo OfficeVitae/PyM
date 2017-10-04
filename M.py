@@ -1138,7 +1138,7 @@ class Environment:
 	def setup(self): # to be called on a new function
 		self.expressionfile=open(self.getExpressionsFilename(),'a') # TODO append or write or what
 	def loadExpressions(self,_evaluate=False): # MDH@19SEP2017: replacing readExpressions()
-		self.M.value=list() # initialize the list of expressions (this is a bit of cheating as we cannot use setValue() on a constant like M)
+		self.M.value=List() # initialize the list of expressions (this is a bit of cheating as we cannot use setValue() on a constant like M)
 		expressionsfilename=self.getExpressionsFilename()
 		if opsyspath.exists(expressionsfilename):
 			######note("Reading expressions from "+expressionsfilename+"...")
@@ -1483,26 +1483,20 @@ class Environment:
 				# with the period also defined as list concatenation operand we should simply extend operand1 with (listified) operand2
 				if operator==periodchar: # the list concatenation operator
 					# MDH@22SEP2017: ah, we have to be careful here because the original list might be empty
-					########note("Concatenating lists '"+str(operand1)+"' and '"+str(operand2)+"'.")
-					result=List()
-					# MDH@26SEP2017: theoretically operand1 (the value of argument1) should be a list
-					#								 we should start out with an empty list if operand1 is the undefined value
-					result.extend(operand1)
-					"""
-					if isinstance(operand1,List):
-						# ignore all None values at the end of the list
-						i=len(operand1)
-						while i>0 and i>operand1[i-1] is None:
-							i-=1
-						if i>0:
-							result.extend(operand1[:i])
-					elif operand1!=undefined.getValue():
-						result.extend([operand1])
-					"""
-					if isinstance(operand2,(list,List)) and len(operand2)>0: # something to append
-						result.extend(operand2)
-					elif shortcutting: # nothing to append, no change to the assignment destination
+					# MDH@04OCT2017: if we distinguish between shortcutting concatenation and value concatenation
+					#                when shortcutting we should append immediately to the first operand
+					if shortcutting: # we're going to append directly to the value of the argument (represented by operand1)
 						shortcutting=False
+						result=operand1
+						note("Appending '"+str(operand2)+"' to value '"+str(operand1)+"' of argument "+str(argument1)+".")
+					else:
+						note("Concatenating '"+str(operand2)+"' to '"+str(operand1)+"'.")
+						result=List()
+						result.extend(operand1)
+					if isinstance(operand2,(list,List)): # something to append
+						result.extend(operand2)
+					else:
+						result.append(operand2)
 					######note("Result list: '"+str(result)+"'.")
 				# ok, both elements should be either lists or scalars, at least to apply the non-assignment binary operators to
 				# although we should always obtain two list or two items, we make a list of either if need be
@@ -1780,24 +1774,28 @@ class List: # wraps a list, to prevent de-listing
 			self.list=_list
 		else:
 			self.list=[]
-	# convenience method to clone a List TODO should this be a deep copy????
+	# cloning a list simply consist of wrapping a clone of it's list in a List instance
 	def clone(self):
-		result=list()
-		for item in self.list:
-			if item is None:
-				result.append(None)
-			elif isinstance(item,List):
-				result.append(item.clone())
-			else:
-				result.append(item)
-		return List(result)
+		return List(listclone(self.list))
 	def index(self,_searchfor):
 		return self.list.index(_searchfor)
 	def insert(self,_index,_value):
-		self.list.insert(_index,_value)
+		if isinstance(_value,List):
+			self.list.insert(_index,_value.clone())
+		elif isinstance(_value,list):
+			self.list.insert(_index,listclone(_value))
+		else:
+			self.list.insert(_index,_value)
+	# MDH@04OCT2017: we should not append by reference, so we clone 
 	def append(self,_value):
-		self.list.append(_value)
+		if isinstance(_value,List):
+			self.list.append(_value.clone())
+		elif isinstance(_value,list):
+			self.list.append(listclone(_value))
+		else:
+			self.list.append(_value)
 	def extend(self,_list):
+		# extending with _list means that we want to iterate over the elements of _list and append these items one by one
 		listtoappend=None
 		if isinstance(_list,List):
 			listtoappend=_list.list
@@ -1806,7 +1804,8 @@ class List: # wraps a list, to prevent de-listing
 		elif _list is not None:
 			listtoappend=[_list]
 		if isinstance(listtoappend,list) and len(listtoappend)>0:
-			self.list.extend(listtoappend)
+			for itemtoappend in listtoappend:
+				self.append(itemtoappend)
 	def getValue(self):
 		return self
 	def __setitem__(self,_index,_value):
@@ -1853,6 +1852,22 @@ class List: # wraps a list, to prevent de-listing
 			elif item!=falsevalue:
 				return truevalue
 		return falsevalue
+# MDH@04OCT2017: cloning a list instance, is not just a matter of creating a shallow copy, we need a deep copy in that we do NOT want to have references to other lists
+def listclone(_list):
+	if isinstance(_list,list):
+		note("Cloning "+str(_list))
+		result=list()
+		for item in _list:
+			if item is None:
+				result.append(None)
+			elif isinstance(item,List):
+				result.append(item.clone())
+			elif isinstance(item,list):
+				result.append(listclone(item))
+			else:
+				result.append(item)
+		return result
+	return None
 def equals(_value1,_value2):
 	# the longer list should take the lead
 	if isinstance(_value1,List) and (not isinstance(_value2,List) or len(_value1)>=len(_value2)):

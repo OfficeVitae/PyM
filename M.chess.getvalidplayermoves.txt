@@ -1,18 +1,17 @@
-; getValidPlayerMoves() determines all valid moves for each piece of player #pl which is either in check or not as set by #incheck argument
-; NOTE passing whether or not the king moved before, or is currently in check as castling flagto getValidKingMoves()
-;;out("Executing getValidPlayerMoves(pl=",pl,",incheck=",incheck,")...",lf)
+; getValidPlayerMoves() determines all valid moves knowing #penpassantcol, #pcanshortcastle and #pcanlongcastle
+out("Executing getValidPlayerMoves(penpassantcol=",penpassantcol,",canshortcastle=",pcanshortcastle,",canlongcastle=",pcanlongcastle,")...",lf)
 pps=piecepositions(pl)
 $=replicate(?,len(pps))
 for(ppi,1..len(pps),pieceinfo=pps(ppi),piecetype=pieceinfo(1)
    ,if(piecetype>0
       ,(piecerow=pieceinfo(2),piececol=pieceinfo(3),piecemoved=pieceinfo(4)
        ,select(piecetype,
-              ,$(ppi)=getValidPawnMoves(piecerow,piececol,piecemoved,enpassantcols(3-pl))
+              ,$(ppi)=getValidPawnMoves(piecerow,piececol,piecemoved,penpassantcol)
               ,$(ppi)=getValidRookMoves(piecerow,piececol)
               ,$(ppi)=getValidKnightMoves(piecerow,piececol)
               ,$(ppi)=getValidBishopMoves(piecerow,piececol)
               ,$(ppi)=getValidQueenMoves(piecerow,piececol)
-              ,(cancastle=and(incheck==0,piecemoved==0),$(ppi)=getValidKingMoves(piecerow,piececol,and(cancastle,piecepositions(pl,2,4)==0),and(cancastle,piecepositions(pl,3,4)==0)))
+              ,$(ppi)=getValidKingMoves(piecerow,piececol,pcanshortcastle,pcanlongcastle)
               )
        )
       )
