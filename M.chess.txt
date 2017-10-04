@@ -28,23 +28,11 @@ piecepositions=l(
 ; put the pieces on the board
 board=replicate(replicate(0,8),8) ; create empty board
 for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1))))
-boardstates=l() ; to allow claiming a draw when a board state is replicated for the third time we have to keep track of the board states
+(boardstates=l(),canshortcastle=0,canlongcaste=0,enpassantcol=0) ; to allow claiming a draw when a board state is replicated for the third time we have to keep track of the board states
 if(debugnow&1,out(lf))
 ; PREPARE FOR ACCEPTING A MOVE
 ;;out(if(playerindex==1,player1,player2),", it's your turn.",lf)
 out("Chess board after ",movecount," moves:",lf)
-; determine state elements (the board of course, and whether or not the player could castle or capture en passant
-if(and(moveeffect==0,piecepositions(playerindex,1,4)==0)
-  ,(krow=piecepositions(playerindex,1,2),kcol=piecepositions(playerindex,1,3),ksign=3-2*playerindex
-   ,canshortcastle=and(piecepositions(playerindex,2,4)==0,board(krow,6)==0,board(krow,7)==0,attacks(-ksign,krow,6)==0,attacks(-ksign,krow,7)==0,attacks(-ksign,krow,8)==0)
-   ,canlongcastle=and(piecepositions(playerindex,3,4)==0,board(krow,2)==0,board(krow,3)==0,board(krow,4)==0,attacks(-ksign,krow,4)==0,attacks(-ksign,krow,3)==0,attacks(-ksign,krow,1)==0)
-   )
-  ,(canshortcastle=0,canlongcastle=0)
-  )
-enpassantcol=enpassantcols(3-playerindex)
-out("Current state: En passant capture column=",enpassantcol," - short castling=",if(canshortcastle,"yes","no")," - long castling=",if(canlongcastle,"yes","no"),".",lf)
-boardstate=l(board,canshortcastle,canlongcastle,enpassantcol)
-boardstates.=l(boardstate)
 ; determine all valid moves the current player can do (iff the game hasn't ended in a draw (moveeffect=2) or mate (moveeffect=3)
 ; determine the positions of the pieces that can be moved, and count the number of possible moves
 ; we also determine if a certain piece can check the opponent with one of its moves
@@ -137,5 +125,17 @@ if(captured>0,(moveslefttodrawclaim=100
   )
 ;;out("Board: ",board,lf,"Piece positions: ",piecepositions,lf) ; for debugging purposes
 if(and(moveeffect!=1,moveeffect!=3),(out("Do you want to offer your opponent a draw? "),drawoffered=(inch('yn')==1),out(lf)))
+enpassantcol=enpassantcols(playerindex) ; the en passant column for the next player
 playerindex=3-playerindex
-jump(-105+21+10+13+6) ; take all continuations into account!!!
+; determine state elements (the board of course, and whether or not the player could castle or capture en passant
+if(and(moveeffect==0,piecepositions(playerindex,1,4)==0)
+  ,(krow=piecepositions(playerindex,1,2),kcol=piecepositions(playerindex,1,3),ksign=3-2*playerindex
+   ,canshortcastle=and(piecepositions(playerindex,2,4)==0,board(krow,6)==0,board(krow,7)==0,attacks(-ksign,krow,6)==0,attacks(-ksign,krow,7)==0,attacks(-ksign,krow,8)==0)
+   ,canlongcastle=and(piecepositions(playerindex,3,4)==0,board(krow,2)==0,board(krow,3)==0,board(krow,4)==0,attacks(-ksign,krow,4)==0,attacks(-ksign,krow,3)==0,attacks(-ksign,krow,1)==0)
+   )
+  ,(canshortcastle=0,canlongcastle=0)
+  )
+out("Current state: En passant capture column=",enpassantcol," - short castling=",if(canshortcastle,"yes","no")," - long castling=",if(canlongcastle,"yes","no"),".",lf)
+boardstate=l(board,canshortcastle,canlongcastle,enpassantcol)
+boardstates.=l(boardstate)
+jump(-105+6+21+10+13) ; take all continuations into account!!!
