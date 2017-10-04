@@ -2,6 +2,8 @@
 Marc's expression tokenizer and evaluator
 """
 """ History of development:
+04OCT2017:
+- adding Interval instance for doing binary operation interval arithmetic (most basic)
 03OCT2017:
 - clone() of List now clones List items
 - all identifiers assigned to in a function are created as local identifiers (previously this was only done for those identifiers not yet available)
@@ -385,7 +387,7 @@ class Identifier:
 		return self.name
 	def __str__(self):
 		return self.name
-VERSION=Identifier(_value='2017-10-03 17:20:00') # MDH@28SEP2017: constant representing the current version timestamp
+VERSION=Identifier(_value='2017-10-04 17:43:00') # MDH@28SEP2017: constant representing the current version timestamp
 DEBUG=Identifier('debug',0) # MDH@22SEP2017: let's make debug accessible to the expressions
 def getDebug():
 	return DEBUG.getValue()
@@ -752,7 +754,10 @@ class Function:
 					elif len(arguments)>1: # shouldn't happen though
 						return [self.apply([x]) for x in arguments] # we have to listify the arguments because self.apply expects an argument list (even a single one)
 				elif self.functionindex<200: # the two-argument functions
-					if self.functionindex==106: # MDH@28SEP2017: the int function takes a string and something that's integer as default
+					if self.functionindex==107: # MDH@04OCT2017: create intervals
+						if isinstance(arguments[0],(int,long,float)) and isinstance(arguments[1],(int,long,float)):
+							return Interval(arguments[0],arguments[1])
+					elif self.functionindex==106: # MDH@28SEP2017: the int function takes a string and something that's integer as default
 						inttext=dequote(arguments[0])[0]
 						try:
 							return int(inttext)
@@ -1424,7 +1429,7 @@ class Environment:
 			self.addFunction(Function(_functionindexdict[functionname]),functionname)
 	# MDH@15AUG2017: the way we're pushing the elements of the expression on the stack, we're always popping the second operand first, then the operator, then the first argument
 	def getOperationResult(self,argument2,operator,argument1):
-		#####note("Computing "+str(argument1)+" "+str(operator)+" "+str(argument2)+"...")
+		note("Computing "+str(argument1)+" "+str(operator)+" "+str(argument2)+"...")
 		result=None
 		if argument2 is not None and argument1 is not None:
 			def getElementValue(_element):
@@ -1517,7 +1522,7 @@ class Environment:
 							result.append(self.getOperationResult(litem1,operator,loperand2[lindex1%l2]))
 					else:
 						for (lindex2,litem2) in enumerate(loperand2):
-							result.append(self.getOperationResult(litem2,operator,loperand1(lindex2%l1)))
+							result.append(self.getOperationResult(litem2,operator,loperand1[lindex2%l1]))
 					if isinstance(operand1,List) or isinstance(operand2,List):
 						return List(result)
 					else:
@@ -1536,16 +1541,23 @@ class Environment:
 						#####note("Range result: "+str(result)+".")
 						result=List(values)
 				elif operator=="-":
-					result=operand1-operand2
+					if isinstance(operand1,Interval):
+						result=operand1.minus(operand2)
+					else:
+						result=operand1-operand2
 				elif operator=="+":
 					# a bit of an issue if we have string concatenation which we should or should not allow
 					if isinstance(operand1,(int,long,float)) and isinstance(operand2,(int,long,float)):
 						result=operand1+operand2
+					elif isinstance(operand1,Interval):
+						result=operand1.plus(operand2)
 					else:
 						result=textconcatenate(operand1,operand2)
 				elif operator=="*":
 					if isinstance(operand1,(int,long,float)) and isinstance(operand2,(int,long,float)):
 						result=operand1*operand2
+					elif isinstance(operand1,Interval):
+						result=operand1.times(operand2)
 					else:
 						result=repeat(operand1,operand2)
 				elif operator=="%" or operator=="%%": # modulo operators but the latter forces the result to be integer
@@ -1567,14 +1579,16 @@ class Environment:
 					else:
 						raise Exception("Integer division by zero attempted.")
 				elif operator=="/": # non-integer division
-					if operand2!=0:
+					if isinstance(operand1,Interval):
+						result=operand1.dividedby(operand2)
+					elif operand2!=0:
 						# we'll have to force Python to do non-integer division
 						if isinstance(operand1,(int,long)) and isinstance(operand2,(int,long)):
 							result=float(operand1)/operand2
 						else:
 							result=operand1/operand2
 					else:
-						result=undefined ####raise Exception("Division by zero attempted.")
+						result=undefined.getValue() ####raise Exception("Division by zero attempted.")
 				elif operator=="^":
 					result=(falsevalue,truevalue)[operand1^operand2]
 				elif operator=="|":
@@ -1660,7 +1674,7 @@ Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'l':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
 Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'sign':45,'jump':47,'in':48,'inch':49})
-Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'int':106,'function':150,'join':199})
+Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'int':106,'i':107,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'and':211,'or':212,'function':211})
 
 environment=None # MDH@03SEP2017: wait for the user name to be known!!!
@@ -1768,6 +1782,31 @@ te="'"+'"' # ends a string literal
 # we have some predefined identifiers which are all functions of a fixed number of arguments
 # and here's the dictionary in which the identifiers themselves are stored
 # we allow using M as variable, referring to the previously executed commands, given that the value is a list you can change elements (not recommended though)
+class Interval: # represents a single numeric interval
+	def __init__(self,_fr,_to):
+		if _fr<=_to:
+			self.fr=_fr
+			self.to=_to
+		else:
+			self.fr=_to
+			self.to=_fr
+	def plus(self,_interval):
+		return Interval(self.fr+_interval.fr,self.to+_interval.to)
+	def minus(self,_interval):
+		return Interval(self.fr-_interval.to,self.to-_interval.fr)
+	def times(self,_interval):
+		return Interval(self.fr*_interval.fr,self.to*_interval.to)
+	def dividedby(self,_interval):
+		# the given divisor interval should not contain 0
+		if _interval.fr>0 or _interval.to<0:
+			return self.times(Interval(1.0/_interval.to,1.0/_interval.fr))
+		return undefined.getValue()
+	def __repr__(self):
+		return str(self.fr)+"-"+str(self.to)	
+	def __str__(self):
+		return self.__repr__()
+	def getValue(self):
+		return self
 class List: # wraps a list, to prevent de-listing
 	def __init__(self,_list=None):
 		if isinstance(_list,list) and (len(_list)>1 or len(_list)==0 or _list[0] is not None):
