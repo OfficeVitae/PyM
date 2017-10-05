@@ -1429,7 +1429,7 @@ class Environment:
 			self.addFunction(Function(_functionindexdict[functionname]),functionname)
 	# MDH@15AUG2017: the way we're pushing the elements of the expression on the stack, we're always popping the second operand first, then the operator, then the first argument
 	def getOperationResult(self,argument2,operator,argument1):
-		note("Computing "+str(argument1)+" "+str(operator)+" "+str(argument2)+"...")
+		#########note("Computing "+str(argument1)+" "+str(operator)+" "+str(argument2)+"...")
 		result=None
 		if argument2 is not None and argument1 is not None:
 			def getElementValue(_element):
@@ -1592,11 +1592,11 @@ class Environment:
 				elif operator=="^":
 					result=(falsevalue,truevalue)[operand1^operand2]
 				elif operator=="|":
-					result=(falsevalue,truevalue)[operand1|operand2]
+					result=operand1|operand2
 				elif operator=="||":
 					result=(falsevalue,truevalue)[operand1 or operand2]
 				elif operator=="&":
-					result=(falsevalue,truevalue)[operand1&operand2]
+					result=operand1&operand2
 				elif operator=="&&":
 					result=(falsevalue,truevalue)[operand1 and operand2]
 				elif operator=="<":
@@ -3281,7 +3281,7 @@ class Expression(Token):
 	# MDH@07SEP2017: getValue() renamed to evaluatesTo, so we can use getValue() to request the value computed
 	def evaluatesTo(self,_environment=None):
 		#####if self.getText().startswith('$'):
-		######note("Value of '"+self.getText()+"' requested!")
+		#######note("Value of '"+self.getText()+"' requested!")
 		self.value=None
 		self.error=None
 		if not self.isEmpty():

@@ -11,7 +11,8 @@ if(prow==if(psign>0,8,1),return())
 ; 1. one step ahead
 if(board(prow+psign,pcol)==0,(pme=getMoveEffect(prow,pcol,prow+psign,pcol,0),if(pme>=0,$.=l(l(prow+psign,pcol,1,pme)))))
 ; 2. two steps ahead
-if(and(pmoved==0,board(prow+psign,pcol)==0,board(prow+2*psign,pcol)==0),(pme=getMoveEffect(prow,pcol,prow+2*psign,pcol,0),if(pme>=0,$.=l(l(prow+2*psign,pcol,4,pme)))))
+; NOTE essential to pass movetype=4 to getMoveEffect(), so it will use pcol as the en passant column to be passed to pawnCanMove()
+if(and(pmoved==0,board(prow+psign,pcol)==0,board(prow+2*psign,pcol)==0),(pme=getMoveEffect(prow,pcol,prow+2*psign,pcol,4),if(pme>=0,$.=l(l(prow+2*psign,pcol,4,pme)))))
 ; 3. ordinary capture to the 'left'
 if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0),(pme=getMoveEffect(prow,pcol,prow+psign,pcol-1,0),if(pme>=0,$.=l(l(prow+psign,pcol-1,1,pme)))))
 ; 4. ordinary capture to the 'right'

@@ -1,23 +1,28 @@
 ; playerCanMove() determines if player #pl can move (at all)
 ; excluding any piece at #excluderow,#excludecol (i.e. a piece captured by the opponent)
+; fourth argument is the en passant column (caused by the opponent's move)
 ; i.e. move a piece at all without becoming in check
-$=0
+movableppi=0
 pps=piecepositions(pl)
 ppi=len(pps)
-while(and($=0,ppi>0),pp=pps(ppi)
+;;out("Can player #",pl," move any of its ",ppi," pieces excluding the captured piece at (",excluderow,",",excludecol,") and en passant column ",enpassantcol,"? ")
+while(and(movableppi==0,ppi>0),pp=pps(ppi)
      ,if(pp(1)>0
-        ,(pprow=pp(2),ppcol=pp(3),
+        ,(pprow=pp(2),ppcol=pp(3)
          ,if(or(pprow!=excluderow,ppcol!=excludecol)
             ,select(pp(1),
-                   ,if(pawnCanMove(pprow,ppcol),$=1)
-                   ,if(rookCanMove(pprow,ppcol),$=1)
-                   ,if(knightCanMove(pprow,ppcol),$=1)
-                   ,if(bishopCanMove(pprow,ppcol),$=1)
-                   ,if(queenCanMove(pprow,ppcol),$=1)
-                   ,if(kingCanMove(pprow,ppcol),$=1)
+                   ,if(pawnCanMove(pprow,ppcol,enpassantcol),movableppi=ppi)
+                   ,if(rookCanMove(pprow,ppcol),movableppi=ppi)
+                   ,if(knightCanMove(pprow,ppcol),movableppi=ppi)
+                   ,if(bishopCanMove(pprow,ppcol),movableppi=ppi)
+                   ,if(queenCanMove(pprow,ppcol),movableppi=ppi)
+                   ,if(kingCanMove(pprow,ppcol),movableppi=ppi)
                    )
-            )
+             )
          )
         )
      ,ppi-=1
     )
+;;if(movableppi>0,out("yes, with a ",piecetypenames(movableppi)),out("no"))
+;;out(".",lf)
+$=(movableppi>0)

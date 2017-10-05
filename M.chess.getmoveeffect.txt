@@ -2,27 +2,28 @@
 ;;out("Executing getMoveEffect(fromrow=",fromrow,",fromcol=",fromcol,",torow=",torow,",tocol=",tocol,",movetype=",movetype,")...",lf)
 ; assumes that the piece at (fromrow,fromcol) can actually be moved to (torow,tocol)
 ; fifth argument #movetype indicates what type of move it is:
-; -1=black en passant capture, 1=white en passant capture, 2=short castling, 3=long castling, 0=normal
+; -1=black en passant capture, 1=white en passant capture, 2=short castling, 3=long castling, 4=pawn double step, 0=normal
 ; returns -1 if an invalid move, 0 if normal move, 1 if it results in the opponent in check
 ; returns 2 if opponent can not move but not in check, 3 if both i.e. mate
 ; NOTE most of the code is similar to that of isAValidMove() except we have to assess
 ;      the effect of the move as well, not just whether or not it is valid
 ; normal move execution
-(piece=board(fromrow,fromcol),psign=sign(piece),captured=board(torow,tocol),
-  board(torow,tocol)=piece,board(fromrow,fromcol)=0)
+(piece=board(fromrow,fromcol),psign=sign(piece),captured=board(torow,tocol),board(torow,tocol)=piece,board(fromrow,fromcol)=0)
+;;out("Determining the effect of moving a ",piecetypenames(abs(piece))," (move type ",movetype,") from ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow),"...",lf)
 ; additional things we need to do depending on the move type (when 0 nothing is done!)
+; if this is an en passant capture, we set captured to 1 to indicate that a capture occurred
 select(abs(movetype),
-      ,board(torow+movetype,tocol)=0
+      ,(board(torow+movetype,tocol)=0,captured=-movetype)
       ,(board(torow,6)=board(torow,8),board(torow,8)=0)
       ,(board(torow,4)=board(torow,1),board(torow,1)=0)
       )
 (player=if(psign>0,1,2),krow=piecepositions(player,1,2),kcol=piecepositions(player,1,3)) ; the 'before' move king position
 if(and(krow==fromrow,kcol==fromcol),(krow=torow,kcol=tocol)) ; if this move moves the king pass along the new king position
 ; if the move does not result in the king being in check (at #krow,#kcol), determine if opponent in check and/or whether can move
-kingcheckedby=attackedBy(-psign,krow,kcol)
+kingcheckedby=attackedBy(-psign,krow,kcol) ; determine if the move results in the king being checked (in which case it is an invalid move)
 if(kingcheckedby(1)==0
   ,(opponentcheckedby=attackedBy(psign,piecepositions(3-player,1,2),piecepositions(3-player,1,3))
-   ,$=sign(opponentcheckedby(1))+2*playerCanMove(3-player,torow+if(abs(movetype)==1,movetype,0),tocol)
+   ,$=sign(opponentcheckedby(1))+if(playerCanMove(3-player,if(captured!=0,torow+if(abs(movetype)==1,movetype,0),0),if(captured!=0,tocol,0),if(movetype==4,fromcol,0)),0,2)
    )
   ,(out("When moving the ",playertypes(player)," ",piecetypenames(abs(piece))," from ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow)," the ",playertypes(3-player)," ",piecetypenames(kingcheckedby(1))," at ",cols(kingcheckedby(3)),rows(kingcheckedby(2))," checks the king at ",cols(kcol),rows(krow))
    ,$=-kingcheckedby(1)

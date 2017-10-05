@@ -5,7 +5,7 @@ piecetypes='PRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and k
 piecetypenames=l('pawn','rook','knight','bishop','queen','king') ; the names of the piece (types)
 playertypes=l('white','black') ; the player 'types'
 movecharacters='abcdefghijklmnopqrstuvwxyz.,' ; the characters to use for marking the piece positions on the board that can be moved
-moveeffectcharacters=l('+','-','#') ; characters for representing the effect of the last move (of the opponent), i.e. 1=check, 2=draw, 3=mate
+moveeffectcharacters=l('+','=','#') ; characters for representing the effect of the last move (of the opponent), i.e. 1=check, 2=draw, 3=mate
 movetypecolors=l(20,200,201,33,226) ; the move type colors used by showBoard() 1=normal, 2=short castling, 3=long castling, 4=two step pawn, 5=en passant capture
 ranges=l(8..1,1..8) ; display ranges
 colors=l(231,16) ; the (foreground) color of the pieces
@@ -24,21 +24,23 @@ piecepositions=l(
   l(l(6,1,5,0),l(2,1,8,0),l(2,1,1,0),l(3,1,2,0),l(4,1,3,0),l(5,1,4,0),l(4,1,6,0),l(3,1,7,0),l(1,2,1,0),l(1,2,2,0),l(1,2,3,0),l(1,2,4,0),l(1,2,5,0),l(1,2,6,0),l(1,2,7,0),l(1,2,8,0)),
   l(l(6,8,5,0),l(2,8,8,0),l(2,8,1,0),l(3,8,2,0),l(4,8,3,0),l(5,8,4,0),l(4,8,6,0),l(3,8,7,0),l(1,7,1,0),l(1,7,2,0),l(1,7,3,0),l(1,7,4,0),l(1,7,5,0),l(1,7,6,0),l(1,7,7,0),l(1,7,8,0))
   )
-out("Initial piece positions: ",piecepositions,lf)
+;;out("Initial piece positions: ",piecepositions,lf)
 ; put the pieces on the board
 board=replicate(replicate(0,8),8) ; create empty board
 for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1))))
 (boardstates=l(),canshortcastle=l(0,0),canlongcastle=l(0,0),enpassantcols=l(0,0)) ; to allow claiming a draw when a board state is replicated for the third time we have to keep track of the board states
 if(debugnow&1,out(lf))
+remoteplayerindex=0 ; no remote player
 ; PREPARE FOR ACCEPTING A MOVE
 ;;out(if(playerindex==1,player1,player2),", it's your turn now.",lf)
-out("Chess board after ",movecount," moves:",lf)
+if(playerindex==remoteplayerindex,(rpm=getRemotePlayerMove(),pieceindex=rpm(1),piecemoveto=l(rpm(2),rpm(3),rpm(4),rpm(5)),jump(40)))
+if(movecount>0,out("Chess board after ",movecount," moves:",lf))
 ; determine all valid moves the current player can do (iff the game hasn't ended in a draw (moveeffect=2) or mate (moveeffect=3)
 ; determine the positions of the pieces that can be moved, and count the number of possible moves
 ; we also determine if a certain piece can check the opponent with one of its moves
-moveablepiecepositions=l()
+movablepiecepositions=l()
 if(moveeffect<2
-  ,(validmoves=getValidPlayerMoves()
+  ,(validmoves=getValidPlayerMoves(),
    ,validmovecount=0,piecemovecharacters='',movablepieceindices=l(),movablepiecepositions=l(),
     for(validmoveindex,1..len(validmoves)
        ,lvm=len(validmoves(validmoveindex))
@@ -47,8 +49,9 @@ if(moveeffect<2
            ,pmc=movecharacters(len(movablepiecepositions)+1)
            ,piecemovecharacters+=pmc
            ,movablepieceindices.=l(validmoveindex)
-           ,cancheck=0,piecemoveindex=lvm,while(and(cancheck==0,piecemoveindex>0),if(validmoves(validmoveindex,piecemoveindex,4)>0,cancheck=1,piecemoveindex-=1))
-           ,movablepiecepositions.=l(l(piecepositions(playerindex,validmoveindex,2),piecepositions(playerindex,validmoveindex,3),cancheck,pmc))
+           ,checkormate=0,anydraw=0,piecemoveindex=lvm
+           ,while(piecemoveindex>0,select(validmoves(validmoveindex,piecemoveindex,4),,if(checkormate==0,checkormate=2),anydraw=1,checkormate=4),piecemoveindex-=1)
+           ,movablepiecepositions.=l(l(piecepositions(playerindex,validmoveindex,2),piecepositions(playerindex,validmoveindex,3),anydraw+checkormate,pmc))
            )
           )
        )
@@ -69,12 +72,12 @@ if(piececharacterindex<=0,if(givingUp(),(debug=debugnow,return(3-playerindex)),j
 pieceindex=movablepieceindices(piececharacterindex) ; returns the index of the piece to move (so piecepositions(playerindex,pieceindex,(2,3)) is the start position)
 piecetypeindex=piecepositions(playerindex,pieceindex,1) ; the type of the piece being moved
 ;;out("Piece index=",pieceindex," - type=",piecetypeindex,lf)
-piecemoveto=getMoveTo(pieceindex,piecetypeindex,colors(playerindex)) ; where to move the piece to (marking the options in the player color!!)
+(fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3),piecemoveto=getMoveTo(pieceindex,piecetypeindex,colors(playerindex),fromrow,fromcol)) ; where to move the piece to (marking the options in the player color!!)
 if(len(piecemoveto)==0,jump(-14)) ; start over (showing the board again!)
-out("Position to move to=",piecemoveto,lf)
+;;out("Position to move to=",piecemoveto,lf)
 ; EXECUTE THE MOVE
-(fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3),torow=piecemoveto(1),tocol=piecemoveto(2))
-out("Moving your ",piecetypenames(piecetypeindex)," at ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow),".",lf)
+(torow=piecemoveto(1),tocol=piecemoveto(2))
+out("Moving the ",playertypes(piecetypeindex)," ",piecetypenames(piecetypeindex)," at ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow),".",lf)
 plsign=3-2*playerindex
 pawnmoved=(abs(board(fromrow,fromcol))==1)
 (movetype=piecemoveto(3),moveeffect=piecemoveto(4),movecount+=1) ; increment the move count, and remember the 'effect' of the move (1=checks, 2=draw, 3=mate, 0=not in check, can move)
@@ -105,9 +108,7 @@ if(captured>0,(moveslefttodrawclaim=100
               ,opponentindex=3-playerindex,pieceindex=16,notfound=1
               ,while(and(notfound!=0,pieceindex>0)
                     ,if(and(piecepositions(opponentindex,pieceindex,1)==captured,piecepositions(opponentindex,pieceindex,2)==torow,piecepositions(opponentindex,pieceindex,3)==tocol)
-                       ,(notfound=0,piecepositions(opponentindex,pieceindex,1)=-captured
-                        ,out("Captured piece #",pieceindex," found: ",piecepositions(opponentindex,pieceindex),'.',lf)
-                        )
+                       ,(notfound=0,piecepositions(opponentindex,pieceindex,1)=-captured)
                        ,pieceindex-=1
                        )
                     )
@@ -126,7 +127,7 @@ if(captured>0,(moveslefttodrawclaim=100
 ;;out("Board: ",board,lf,"Piece positions: ",piecepositions,lf) ; for debugging purposes
 if(and(moveeffect!=1,moveeffect!=3),(out("Do you want to offer your opponent a draw? "),drawoffered=(inch('yn')==1),out(lf)))
 playerindex=3-playerindex
-; determine state elements (the board of course, and whether or not the player could castle or capture en passant
+; update special move flags (the board of course, and whether or not the player could castle or capture en passant
 if(and(moveeffect==0,piecepositions(playerindex,1,4)==0)
   ,(krow=piecepositions(playerindex,1,2),kcol=piecepositions(playerindex,1,3),ksign=3-2*playerindex
    ,canshortcastle(playerindex)=and(piecepositions(playerindex,2,4)==0,board(krow,6)==0,board(krow,7)==0,attacks(-ksign,krow,6)==0,attacks(-ksign,krow,7)==0,attacks(-ksign,krow,8)==0)
@@ -134,7 +135,7 @@ if(and(moveeffect==0,piecepositions(playerindex,1,4)==0)
    )
   ,(canshortcastle(playerindex)=0,canlongcastle(playerindex)=0)
   )
-out("Current state: En passant capture column=",enpassantcols(3-playerindex)," - short castling=",if(canshortcastle(playerindex),"yes","no")," - long castling=",if(canlongcastle(playerindex),"yes","no"),".",lf)
+;;out("Current state: En passant capture column=",enpassantcols(3-playerindex)," - short castling=",if(canshortcastle(playerindex),"yes","no")," - long castling=",if(canlongcastle(playerindex),"yes","no"),".",lf)
 boardstate=l(board,canshortcastle,canlongcastle,enpassantcols) ; the information we need to store in order to be able to recognize the same state
 boardstates.=l(boardstate)
-jump(-105+6+21+10+13) ; take all continuations into account!!!
+jump(-105+6+19+10+17) ; take all continuations into account!!!

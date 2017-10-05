@@ -4,7 +4,7 @@ updatePlayerCheckPieces	pl
 getCheckPieceCharacter	pl	row	col
 showBoard	showpositions	showcolor
 getValidPlayerMoves
-getMoveTo	pieceindex	piecetypeindex	piececolor
+getMoveTo	pieceindex	piecetypeindex	piececolor	piecerow	piececol
 givingUp
 updateInCheck
 ; functions for acquiring all valid moves for each of the piece types
@@ -22,10 +22,10 @@ rookAttacks	rrow	rcol	krow	kcol
 bishopAttacks	brow	bcol	krow	kcol
 queenAttacks	qrow	qcol	krow	kcol
 getMoveEffect	fromrow	fromcol	torow	tocol	movetype
-playerCanMove	pl	excluderow	excludecol	pps	ppi	pprow	ppcol	pp
-pawnCanMove	prow	pcol	penpassantcol	psign
-rookCanMove	rrow	pcol	rsign
-bishopCanMove	brow	bcol	bsign
-knightCanMove	nrow	ncol	nsign
-queenCanMove	qrow	qcol	qsign
-kingCanMove	krow	kcol	ksign
+playerCanMove	pl	excluderow	excludecol	enpassantcol
+pawnCanMove	prow	pcol	penpassantcol
+rookCanMove	rrow	rcol
+bishopCanMove	brow	bcol
+knightCanMove	nrow	ncol
+queenCanMove	qrow	qcol
+kingCanMove	krow	kcol
