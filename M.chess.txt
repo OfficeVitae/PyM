@@ -63,7 +63,7 @@ showBoard(movablepiecepositions,colors(playerindex))
 ; if DRAW OR CHECK MATE EXIT
 if(moveeffect==2,return(0),if(moveeffect==3,return(3-playerindex)))
 ; ACCEPT THE DRAW OFFER OF THE OPPONENT?
-if(drawoffered,(out("Would you agree to a draw [yn]? "),if(inch('yn')==1,return(0))))
+if(drawoffered,(drawoffered=0,out("Would you agree to a draw [yn]? "),drawok=inch('yn'),out(lf),if(drawok==1,return(0))))
 ; ASK THE CURRENT PLAYER FOR THE PIECE TO MOVE
 (out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+piecemovecharacters+']? '),piececharacterindex=inch(piecemovecharacters),out(lf)) ; get one of the player pieces characters
 if(piececharacterindex<=0,if(givingUp(),(debug=debugnow,return(3-playerindex)),jump(-1))) ; if no piece defined, ask the user if they want to give up
@@ -77,7 +77,7 @@ if(len(piecemoveto)==0,jump(-14)) ; start over (showing the board again!)
 ;;out("Position to move to=",piecemoveto,lf)
 ; EXECUTE THE MOVE
 (torow=piecemoveto(1),tocol=piecemoveto(2))
-out("Moving the ",playertypes(piecetypeindex)," ",piecetypenames(piecetypeindex)," at ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow),".",lf)
+out("Moving the ",playertypes(playerindex)," ",piecetypenames(piecetypeindex)," at ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow),".",lf)
 plsign=3-2*playerindex
 pawnmoved=(abs(board(fromrow,fromcol))==1)
 (movetype=piecemoveto(3),moveeffect=piecemoveto(4),movecount+=1) ; increment the move count, and remember the 'effect' of the move (1=checks, 2=draw, 3=mate, 0=not in check, can move)
@@ -124,8 +124,11 @@ if(captured>0,(moveslefttodrawclaim=100
                   )
                 )
   )
-;;out("Board: ",board,lf,"Piece positions: ",piecepositions,lf) ; for debugging purposes
-if(and(moveeffect!=1,moveeffect!=3),(out("Do you want to offer your opponent a draw? "),drawoffered=(inch('yn')==1),out(lf)))
+if(moveeffect==0
+  ,(showBoard(l(),colors(playerindex))
+   ,out("Do you want to offer your opponent a draw [yn]? "),drawoffered=(inch('yn')==1),out(lf)
+   )
+  )
 playerindex=3-playerindex
 ; update special move flags (the board of course, and whether or not the player could castle or capture en passant
 if(and(moveeffect==0,piecepositions(playerindex,1,4)==0)
@@ -138,4 +141,4 @@ if(and(moveeffect==0,piecepositions(playerindex,1,4)==0)
 ;;out("Current state: En passant capture column=",enpassantcols(3-playerindex)," - short castling=",if(canshortcastle(playerindex),"yes","no")," - long castling=",if(canlongcastle(playerindex),"yes","no"),".",lf)
 boardstate=l(board,canshortcastle,canlongcastle,enpassantcols) ; the information we need to store in order to be able to recognize the same state
 boardstates.=l(boardstate)
-jump(-105+6+19+10+17) ; take all continuations into account!!!
+jump(-105+6+4+19+10+17) ; take all continuations into account!!!
