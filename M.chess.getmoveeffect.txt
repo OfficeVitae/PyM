@@ -25,10 +25,10 @@ if(kingcheckedby(1)==0
   ,(opponentcheckedby=attackedBy(psign,piecepositions(3-player,1,2),piecepositions(3-player,1,3))
    ,$=sign(opponentcheckedby(1))+if(playerCanMove(3-player,if(captured!=0,torow+if(abs(movetype)==1,movetype,0),0),if(captured!=0,tocol,0),if(movetype==4,fromcol,0)),0,2)
    )
-  ,(out("When moving the ",playertypes(player)," ",piecetypenames(abs(piece))," from ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow)," the ",playertypes(3-player)," ",piecetypenames(kingcheckedby(1))," at ",cols(kingcheckedby(3)),rows(kingcheckedby(2))," checks the king at ",cols(kcol),rows(krow))
-   ,$=-kingcheckedby(1)
-   ,out(" (result: ",$,").",lf)
-   )
+  , 
+; (out("When moving the ",playertypes(player)," ",piecetypenames(abs(piece))," from ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow)," the ",playertypes(3-player)," ",piecetypenames(kingcheckedby(1))," at ",cols(kingcheckedby(3)),rows(kingcheckedby(2))," checks the king at ",cols(kcol),rows(krow)),
+    $=-kingcheckedby(1)
+; ,out(" (result: ",$,").",lf))
   )
 ; normal move undo
 (board(fromrow,fromcol)=piece,board(torow,tocol)=captured)

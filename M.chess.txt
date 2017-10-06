@@ -1,11 +1,12 @@
 ; arguments: player1 and player2
-$=0 ; assume no winner
+$=-1 ; assume no winner
 (debugnow=debug,debug=0) ; disable debugging
 piecetypes='PRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and king)
 piecetypenames=l('pawn','rook','knight','bishop','queen','king') ; the names of the piece (types)
 playertypes=l('white','black') ; the player 'types'
 movecharacters='abcdefghijklmnopqrstuvwxyz.,' ; the characters to use for marking the piece positions on the board that can be moved
 moveeffectcharacters=l('+','=','#') ; characters for representing the effect of the last move (of the opponent), i.e. 1=check, 2=draw, 3=mate
+moveeffectnames=l('nothing','check','stalemate','mate') ; name of move effect
 movetypecolors=l(20,200,201,33,226) ; the move type colors used by showBoard() 1=normal, 2=short castling, 3=long castling, 4=two step pawn, 5=en passant capture
 ranges=l(8..1,1..8) ; display ranges
 colors=l(231,16) ; the (foreground) color of the pieces
@@ -14,9 +15,9 @@ shadowcolors=l(249,249) ; the grays close to the field colors for showing the ro
 ; initialize the game
 rows='12345678' ; the row names
 cols='abcdefgh' ; the column names
-(movecount=0,moveeffect=0) ; the move effect represents the effect of the last move (0='no',1=check,2=draw (not in check, but can't move),3=mate)
+(movecount=0,moveeffects=l(0,0)) ; the move effect represents the effect of the last move by the player (0='no',1=check,2=draw (not in check, but can't move),3=mate)
 playerindex=1 ; current player
-(drawoffered=0,moveslefttodrawclaim=100) ; things that have to do with offering or claiming a draw
+(boardstaterecurrence=0,drawoffered=0,moveslefttodrawclaim=100) ; things that have to do with offering or claiming a draw
 ; keep track of the positions of all pieces (by player, by type)
 ; if we always store the position of the king in the first element, it's easy to find
 ; and the nearest rook in the second position, and the farthest rook in the third position to make it easy to check whether they moved
@@ -28,19 +29,21 @@ piecepositions=l(
 ; put the pieces on the board
 board=replicate(replicate(0,8),8) ; create empty board
 for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps(2),pps(3))=if(pi==1,pps(1),-pps(1))))
-(boardstates=l(),canshortcastle=l(0,0),canlongcastle=l(0,0),enpassantcols=l(0,0)) ; to allow claiming a draw when a board state is replicated for the third time we have to keep track of the board states
+(piececounts=l(16,16),canshortcastle=l(0,0),canlongcastle=l(0,0),enpassantcols=l(0,0)) ; to allow claiming a draw when a board state is replicated for the third time we have to keep track of the board states
+boardstates=l() ; initialize board states
+boardstates.=l(l(piececounts,canshortcastle,canlongcastle,enpassantcols,board,0)) ; register first board state (do not forget to append 0 as the recurrence count! and can theoretically might repeat it self), this is the one that might repeat itself when player 1 is to play next
 if(debugnow&1,out(lf))
 remoteplayerindex=0 ; no remote player
 ; PREPARE FOR ACCEPTING A MOVE
-;;out(if(playerindex==1,player1,player2),", it's your turn now.",lf)
+out(if(playerindex==1,player1,player2),", it's your turn now.",lf)
 if(playerindex==remoteplayerindex,(rpm=getRemotePlayerMove(),pieceindex=rpm(1),piecemoveto=l(rpm(2),rpm(3),rpm(4),rpm(5)),jump(40)))
-if(movecount>0,out("Chess board after ",movecount," moves:",lf))
+if(movecount>0,out("Chess board after ",movecount," moves:",lf),out("Chess board:",lf))
 ; determine all valid moves the current player can do (iff the game hasn't ended in a draw (moveeffect=2) or mate (moveeffect=3)
 ; determine the positions of the pieces that can be moved, and count the number of possible moves
 ; we also determine if a certain piece can check the opponent with one of its moves
 movablepiecepositions=l()
-if(moveeffect<2
-  ,(validmoves=getValidPlayerMoves(),
+if(moveeffects(3-playerindex)<2
+  ,(validmoves=getValidPlayerMoves(),out("Valid moves: ",validmoves,".",lf)
    ,validmovecount=0,piecemovecharacters='',movablepieceindices=l(),movablepiecepositions=l(),
     for(validmoveindex,1..len(validmoves)
        ,lvm=len(validmoves(validmoveindex))
@@ -56,14 +59,15 @@ if(moveeffect<2
           )
        )
     )
+  ,out("Please report the following bug: The current player is allowed to move, but can't!")
   )
 ;;out("Movable piece indices: ",movablepieceindices,lf)
 ; show chess board in the orientation of the current player
 showBoard(movablepiecepositions,colors(playerindex))
-; if DRAW OR CHECK MATE EXIT
-if(moveeffect==2,return(0),if(moveeffect==3,return(3-playerindex)))
+; if in a board state that has occurred at least twice before player may claim a draw
+if(boardstaterecurrence>=2,(out("The current board state occurred ",boardstaterecurrence," times before! Do you want to claim a draw [yn]? "),drawclaimed=(inch('yn')==1),out(lf),if(drawclaimed,return(0))))
 ; ACCEPT THE DRAW OFFER OF THE OPPONENT?
-if(drawoffered,(drawoffered=0,out("Would you agree to a draw [yn]? "),drawok=inch('yn'),out(lf),if(drawok==1,return(0))))
+if(drawoffered,(drawoffered=0,out(if(playerindex==1,player1,player2),", would you agree to a draw [yn]? "),drawagreedupon=(inch('yn')==1),out(lf),if(drawagreedupon,return(0))))
 ; ASK THE CURRENT PLAYER FOR THE PIECE TO MOVE
 (out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+piecemovecharacters+']? '),piececharacterindex=inch(piecemovecharacters),out(lf)) ; get one of the player pieces characters
 if(piececharacterindex<=0,if(givingUp(),(debug=debugnow,return(3-playerindex)),jump(-1))) ; if no piece defined, ask the user if they want to give up
@@ -80,7 +84,17 @@ if(len(piecemoveto)==0,jump(-14)) ; start over (showing the board again!)
 out("Moving the ",playertypes(playerindex)," ",piecetypenames(piecetypeindex)," at ",cols(fromcol),rows(fromrow)," to ",cols(tocol),rows(torow),".",lf)
 plsign=3-2*playerindex
 pawnmoved=(abs(board(fromrow,fromcol))==1)
-(movetype=piecemoveto(3),moveeffect=piecemoveto(4),movecount+=1) ; increment the move count, and remember the 'effect' of the move (1=checks, 2=draw, 3=mate, 0=not in check, can move)
+(movetype=piecemoveto(3),out("movetype=",movetype,".",lf),moveeffects(playerindex)=piecemoveto(4),movecount+=1) ; increment the move count, and remember the 'effect' of the move (1=checks, 2=draw, 3=mate, 0=not in check, can move)
+; if this is a pawn promotion, the piecetypeindex can change to 2 (rook), 3 (knight), 4 (bishop) or 5 (queen)
+if(movetype==6,
+  ,(out("movetype=",movetype,".",lf)
+   ,playermoveeffect=moveeffects(playerindex)
+   ,out("Effect of promoting the pawn to:")
+   ,out(" a rook: ",moveeffectnames(1+(playermoveeffect&3)))
+   ,out("  -  a knight: ",moveeffectnames(1+(playermoveeffect>>2)&3))
+   ,out("  -  a bishop: ",moveeffectnames(1+(playermoveeffect>>4)&3))
+   ,out("  -  a queen: ",moveeffectnames(1+(playermoveeffect>>6)&3),".",lf)
+   ,out("What piece would you want the pawn to become [RBNQ]? "),piecetypeindex=inch('RBNQ')+1,if(piecetypeindex<2,piecetypeindex==5),piecepositions(playerindex,pieceindex,1)=piecetypeindex,out(lf)))
 (captured=abs(board(torow,tocol)),board(torow,tocol)=plsign*piecetypeindex,board(fromrow,fromcol)=0) ; perform the move on the board
 ; register the new position and increment the number of moves made by the moved piece
 (piecepositions(playerindex,pieceindex,2)=torow,piecepositions(playerindex,pieceindex,3)=tocol,piecepositions(playerindex,pieceindex,4)+=1)
@@ -91,6 +105,7 @@ pawnmoved=(abs(board(fromrow,fromcol))==1)
 ; 3. long castling
 ; 4. if a pawn moves two rows the first time (as indicated by the move type), we have to make it en passant capturable
 ; 5. en passant capture
+; 6. pawn promotion
 if(movetype!=1
   ,(out("Type of move: ")
    ,select(movetype,out("invalid"),
@@ -98,17 +113,17 @@ if(movetype!=1
            ,(out("long castling"),board(torow,1)=0,board(torow,4)=plsign*2,piecepositions(playerindex,3,3)=4)
            ,(out("pawn double step"),enpassantcols(playerindex)=fromcol)
            ,(out("en passant capture"),captured=1,torow=fromrow,board(torow,tocol)=0)
+           ,(out("pawn promotion"))
            )
     ,out(".",lf)
     )
   )
-if(moveeffect>0,(out("Effect of move: "),select(moveeffect,,out("check"),out("draw"),out("check and mate")),out(".",lf)))
-enpassantcols(3-playerindex)=0 ; no matter what move was done there won't be a enpassant col of the opponent any more
+if(moveeffects(playerindex)>0,(out("Effect of move: "),select(moveeffects(playerindex),,out("check"),out("draw"),out("check and mate")),out(".",lf)))
 if(captured>0,(moveslefttodrawclaim=100
-              ,opponentindex=3-playerindex,pieceindex=16,notfound=1
-              ,while(and(notfound!=0,pieceindex>0)
+              ,opponentindex=3-playerindex,pieceindex=16,found=0
+              ,while(and(found==0,pieceindex>0)
                     ,if(and(piecepositions(opponentindex,pieceindex,1)==captured,piecepositions(opponentindex,pieceindex,2)==torow,piecepositions(opponentindex,pieceindex,3)==tocol)
-                       ,(notfound=0,piecepositions(opponentindex,pieceindex,1)=-captured)
+                       ,(found=1,piececounts(opponentindex)-=1,piecepositions(opponentindex,pieceindex,1)=-captured)
                        ,pieceindex-=1
                        )
                     )
@@ -118,27 +133,52 @@ if(captured>0,(moveslefttodrawclaim=100
                 ,(moveslefttodrawclaim-=1
                  ,if(moveslefttodrawclaim<=0
                     ,(out("At least 50 moves without moving a pawn or capturing a piece have passed! Do you want to claim a draw [yn]?")
-                     ,if(inch('yn')==1,moveeffect=2)
+                     ,if(inch('yn')==1,moveeffects(playerindex)=2)
                     )
                    )
                   )
                 )
   )
-if(moveeffect==0
-  ,(showBoard(l(),colors(playerindex))
-   ,out("Do you want to offer your opponent a draw [yn]? "),drawoffered=(inch('yn')==1),out(lf)
-   )
-  )
-playerindex=3-playerindex
-; update special move flags (the board of course, and whether or not the player could castle or capture en passant
-if(and(moveeffect==0,piecepositions(playerindex,1,4)==0)
+; with the move performed we should update the board state but this requires updating #canshortcastle and #canlongcastle of BOTH players
+; NOTE that #board, #enpassantcols and #piececounts is already updated
+if(piecepositions(playerindex,1,4)==0
   ,(krow=piecepositions(playerindex,1,2),kcol=piecepositions(playerindex,1,3),ksign=3-2*playerindex
    ,canshortcastle(playerindex)=and(piecepositions(playerindex,2,4)==0,board(krow,6)==0,board(krow,7)==0,attacks(-ksign,krow,6)==0,attacks(-ksign,krow,7)==0,attacks(-ksign,krow,8)==0)
    ,canlongcastle(playerindex)=and(piecepositions(playerindex,3,4)==0,board(krow,2)==0,board(krow,3)==0,board(krow,4)==0,attacks(-ksign,krow,4)==0,attacks(-ksign,krow,3)==0,attacks(-ksign,krow,1)==0)
    )
   ,(canshortcastle(playerindex)=0,canlongcastle(playerindex)=0)
   )
+(enpassantcols(3-playerindex)=0,moveeffects(3-playerindex)=0) ; cancel any en passant capturing and checking of the current player's opponent
+; and now to update the castle opportunities of the next (=current) player
+for(pli,1..2
+   ,if(and(or(pli==playerindex,moveeffects(playerindex)==0),piecepositions(pli,1,4)==0)
+      ,(krow=piecepositions(pli,1,2),kcol=piecepositions(pli,1,3),ksign=3-2*pli
+       ,canshortcastle(pli)=and(piecepositions(pli,2,4)==0,board(krow,6)==0,board(krow,7)==0,attacks(-ksign,krow,6)==0,attacks(-ksign,krow,7)==0,attacks(-ksign,krow,8)==0)
+       ,canlongcastle(pli)=and(piecepositions(pli,3,4)==0,board(krow,2)==0,board(krow,3)==0,board(krow,4)==0,attacks(-ksign,krow,4)==0,attacks(-ksign,krow,3)==0,attacks(-ksign,krow,1)==0)
+       ),(canshortcastle(pli)=0,canlongcastle(pli)=0)
+      ))
 ;;out("Current state: En passant capture column=",enpassantcols(3-playerindex)," - short castling=",if(canshortcastle(playerindex),"yes","no")," - long castling=",if(canlongcastle(playerindex),"yes","no"),".",lf)
-boardstate=l(board,canshortcastle,canlongcastle,enpassantcols) ; the information we need to store in order to be able to recognize the same state
-boardstates.=l(boardstate)
-jump(-105+6+4+19+10+17) ; take all continuations into account!!!
+boardstate=l(piececounts,canshortcastle,canlongcastle,enpassantcols,board) ; the information we need to store in order to be able to recognize the same state
+boardstates.=l(boardstate) ; store board state
+; let's determine how often this board state has repeated itself (with the same player to move!!) in the board states, BUT no need when mate
+if(moveeffects(playerindex)>=2,(showBoard(l(),colors(playerindex)),return(if(moveeffects(playerindex)==2,0,playerindex)))) ; if stalemate or mate, show the board one last time and exit
+(boardstaterecurrence=0,boardstateindex=len(boardstates)-2)
+while(and(boardstaterecurrence==0,boardstateindex>0)
+     ,if(and(boardstates(boardstateindex,1)==boardstate(1))
+        ,if(and(and(boardstates(boardstateindex,2)==boardstate(2)),and(boardstates(boardstateindex,3)==boardstate(3)),and(boardstates(boardstateindex,4)==boardstate(4)),and(boardstates(boardstateindex,5)==boardstate(5)))
+           ,(out("Board state recurrence #",boardstateindex,": ",boardstates(boardstateindex,6),".",lf),boardstaterecurrence=boardstates(boardstateindex,6)+1,out("Board state recurrence: ",boardstaterecurrence,".",lf))
+           ,boardstateindex-=2)
+        ,boardstateindex=0
+        )
+     )
+boardstates(-1).=boardstaterecurrence ; append the board state recurrence count to the registered board state
+; show the current board to the current player if (s)he might offer a draw (which I allow only when the opponent cannot claim a draw)
+if(boardstaterecurrence<2
+  ,(showBoard(l(),colors(playerindex))
+   ,if(boardstaterecurrence==1,out("This board state occurred once before. The next time your opponent can claim a draw!",lf))
+   ,out(if(playerindex==1,player1,player2),", do you want to offer ",if(playerindex==2,player1,player2)," a draw [yn]? "),drawoffered=(inch('yn')==1),out(lf)
+   )
+   ,out("This board occurred at least twice before. Your opponent will now get the opportunity to claim a draw!",lf)
+  )
+playerindex=3-playerindex ; switch player
+jump(-143+6+7+6+6+19+11+6+18) ; take all continuations into account!!!

@@ -6,17 +6,18 @@ psign=sign(board(prow,pcol)) ; white pawns can only move up, the black ones down
 
 ; unlikely that a pawn has reached the final row, and remained a pawn but ok
 if(prow==if(psign>0,8,1),return())
-; if we get here, there's a row the pawn could move to
-
+; if we get here, there's a row ahead the pawn could move to
+; any 'normal' move could be a promotion (NOTE this complicates determining the effect of the move as the pawn might turn into a rook, knight, bishop or queen)
+pawnmovetype=if(prow==if(psign>0,7,2),6,1)
 ; 1. one step ahead
-if(board(prow+psign,pcol)==0,(pme=getMoveEffect(prow,pcol,prow+psign,pcol,0),if(pme>=0,$.=l(l(prow+psign,pcol,1,pme)))))
+if(board(prow+psign,pcol)==0,(pme=getMoveEffect(prow,pcol,prow+psign,pcol,0),if(pme>=0,$.=l(l(prow+psign,pcol,pawnmovetype,if(pawnmovetype==6,getPromotionMoveEffect(psign,prow,pcol,prow+psign,pcol),pme))))))
 ; 2. two steps ahead
 ; NOTE essential to pass movetype=4 to getMoveEffect(), so it will use pcol as the en passant column to be passed to pawnCanMove()
 if(and(pmoved==0,board(prow+psign,pcol)==0,board(prow+2*psign,pcol)==0),(pme=getMoveEffect(prow,pcol,prow+2*psign,pcol,4),if(pme>=0,$.=l(l(prow+2*psign,pcol,4,pme)))))
 ; 3. ordinary capture to the 'left'
-if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0),(pme=getMoveEffect(prow,pcol,prow+psign,pcol-1,0),if(pme>=0,$.=l(l(prow+psign,pcol-1,1,pme)))))
+if(and(pcol>1,sign(board(prow+psign,pcol-1))+psign==0),(pme=getMoveEffect(prow,pcol,prow+psign,pcol-1,0),if(pme>=0,$.=l(l(prow+psign,pcol-1,pawnmovetype,if(pawnmovetype==6,getPromotionMoveEffect(psign,prow,pcol,prow+psign,pcol-1),pme))))))
 ; 4. ordinary capture to the 'right'
-if(and(pcol<8,sign(board(prow+psign,pcol+1))+psign==0),(pme=getMoveEffect(prow,pcol,prow+psign,pcol+1,0),if(pme>=0,$.=l(l(prow+psign,pcol+1,1,pme)))))
+if(and(pcol<8,sign(board(prow+psign,pcol+1))+psign==0),(pme=getMoveEffect(prow,pcol,prow+psign,pcol+1,0),if(pme>=0,$.=l(l(prow+psign,pcol+1,pawnmovetype,if(pawnmovetype==6,getPromotionMoveEffect(psign,prow,pcol,prow+psign,pcol+1),pme))))))
 ; 5. en passant capture
 ; required conditions: 1. there's an enpassant column (#penpassantcol) 2. the pawn's row is either 4 (player 2) or 5 (player 3) 3. the pawn's column is next to #penpassantcol
 ;                      of course it still needs to be a valid move (i.e. one that does not check itself)

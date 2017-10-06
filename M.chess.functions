@@ -22,6 +22,7 @@ rookAttacks	rrow	rcol	krow	kcol
 bishopAttacks	brow	bcol	krow	kcol
 queenAttacks	qrow	qcol	krow	kcol
 getMoveEffect	fromrow	fromcol	torow	tocol	movetype
+getPromotionMoveEffect	psign	fromrow	fromcol	torow	tocol
 playerCanMove	pl	excluderow	excludecol	enpassantcol
 pawnCanMove	prow	pcol	penpassantcol
 rookCanMove	rrow	rcol

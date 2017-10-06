@@ -1086,6 +1086,7 @@ class UserFunction(Function):
 			note("ERROR: No expressions to evaluate!")
 		return (undefined.getValue(),result)[result is not None]
 # keep track of the identifier (that have a value)
+commentchar=";" # any comment starts behind a semicolon
 undefined=Identifier(_value='?') # the identifier with None value is used to indicate an undefined value and is to be returned as value when non-computable/computed
 # MDH@30AUG2017: an 'environment is basically a dictionary of identifiers
 # MDH@02SEP2017: we're gonna let Environment keep a list of user functions being created
@@ -1160,6 +1161,9 @@ class Environment:
 						if len(rstrippedexpressiontext)>0: # not an expression declaration (probably the value of the expression)
 							# remove any leading whitespace
 							expressiontext=rstrippedexpressiontext.lstrip()
+							# MDH@06OCT2017: ignore any comment line in a continuation (interestingly this allows for comment lines in continued expressions
+							if expression is not None and (len(expressiontext)==0 or expressiontext[0]==commentchar):
+								continue
 							########note("\tParsing line #"+str(expressionlineindex)+" of "+self.name+": '"+expressiontext+"'...")
 							# MDH@10SEP2017: essential to pass 0 for the debug value!!!
 							# MDH@22SEP2017: we're going to allow expression continuation on the next line
@@ -1756,7 +1760,6 @@ ls="(" # starts an argument list
 le=")" # ends an (argument) list
 ld="," # separates list arguments
 w=" "+newlinechar # whitespace between tokens (include the newline character now)
-commentchar=";" # any comment starts behind a semicolon
 # also allowing underscores in identifiers and dollar signs and pound signs (forget about the pound signs we might need it for other stuff
 a="_$abcdefghijklmnopqrstuvwxyz"
 A="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -1859,6 +1862,7 @@ class List: # wraps a list, to prevent de-listing
 	def __str__(self):
 		return "["+getListItemsText(self.list)+"]"
 	def equals(self,_value):
+		####note("Determining whether "+str(self.list)+" equals "+str(_value)+".")
 		result=list()
 		# scalar comparison?
 		if isinstance(_value,List): # comparing with a list
@@ -1868,29 +1872,42 @@ class List: # wraps a list, to prevent de-listing
 		else:
 			for item in self.list:
 				result.append(equals(item,_value))
+		####note("And the answer is: "+str(result)+".")
 		return List(result)
 	def getAnd(self):
-		# all items need to be truevalue to return truevalue
-		for item in self.list:
-			if item is None:
-				continue
-			if isinstance(item,List):
-				if item.getAnd()!=truevalue:
-					return falsevalue
-			elif item!=truevalue:
-				return falsevalue
-		return truevalue
+		####note("Anding list "+str(self.list)+".")
+		result=listand(self.list)
+		####note("\tAnd the result is: "+str(result)+".")
+		return result
 	def getOr(self):
-		# all items need to be truevalue to return truevalue
-		for item in self.list:
-			if item is None:
-				continue
-			if isinstance(item,List):
-				if item.getOr()!=falsevalue:
-					return truevalue
-			elif item!=falsevalue:
+		return listor(self.list)
+def listor(_list):
+	# all items need to be truevalue to return truevalue
+	for item in self.list:
+		if item is None:
+			continue
+		if isinstance(item,List):
+			if item.getOr()!=falsevalue:
 				return truevalue
-		return falsevalue
+		elif isinstance(item,list):
+			if listor(item)!=falsevalue:
+				return truevalue
+		elif item!=falsevalue:
+			return truevalue
+	return falsevalue
+def listand(_list):
+	for item in _list:
+		if item is None:
+			continue
+		if isinstance(item,List):
+			if item.getAnd()!=truevalue:
+				return falsevalue
+		elif isinstance(item,list):
+			if listand(item)!=truevalue:
+				return falsevalue
+		elif item!=truevalue:
+			return falsevalue
+	return truevalue # no objection by any
 # MDH@04OCT2017: cloning a list instance, is not just a matter of creating a shallow copy, we need a deep copy in that we do NOT want to have references to other lists
 def listclone(_list):
 	if isinstance(_list,list):

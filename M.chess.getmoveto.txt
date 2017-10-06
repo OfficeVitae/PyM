@@ -6,10 +6,15 @@ numberofpiecemoves=len(validpiecemoves)
 ; let user choose any of the possible destinations by index
 piecemoveindices='' ; collecting the indices to pass to inch()
 ; count over the even indices (which are the columns)
+; NOTE if a pawn promotion move, the separate effects of promoting the pawn to a rook, knight, bishop or queen is accumulated
 (piecemoves=l(l(piecerow,piececol,0,'*',0)),piecemovecharacters=''
   ,for(piecemoveindex,1..numberofpiecemoves
-      ,pmc=movecharacters(piecemoveindex),piecemovecharacters+=pmc
-      ,checkormate=0,anydraw=0,select(validpiecemoves(piecemoveindex,4),,checkormate=2,anydraw=1,checkormate=4)
+      ,pmc=movecharacters(piecemoveindex),piecemovecharacters+=pmc,piecemoveeffect=validpiecemoves(piecemoveindex,4)
+      ,checkormate=0,anydraw=0
+      ,select(piecemoveeffect&3,,checkormate=2,anydraw=1,checkormate=4)
+      ,select((piecemoveeffect>>2)&3,,if(checkormate==0,checkormate=2),anydraw=1,checkormate=4)
+      ,select((piecemoveeffect>>4)&3,,if(checkormate==0,checkormate=2),anydraw=1,checkormate=4)
+      ,select((piecemoveeffect>>6)&3,,if(checkormate==0,checkormate=2),anydraw=1,checkormate=4)
       ,piecemoves.=l(l(validpiecemoves(piecemoveindex,1),validpiecemoves(piecemoveindex,2),anydraw+checkormate,pmc,validpiecemoves(piecemoveindex,3))))
   )
 showBoard(piecemoves,piececolor) ; show the board with the possible end positions marked

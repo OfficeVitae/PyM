@@ -31,9 +31,8 @@ for(row,ranges(playerindex)
              ,showpositionindex-=1)
        ,positionmoveeffects=if(showpositionindex>0,showpositions(showpositionindex,3),0)
        ,draweffect=(positionmoveeffects&1),incheckeffect=(positionmoveeffects>>1)
-       ,p=board(row,col),pl=(3-sign(p))\2,
-       ,if(abs(p)==6&&pl==playerindex&&moveeffect>0
-          ,outc((9,bg),moveeffectcharacters(moveeffect)),outc((colors(playerindex),bg),getCheckPieceCharacter(3-playerindex,row,col)))
+       ,p=board(row,col),pl=(3-sign(p))\2,moveeffect=moveeffects(3-pl)
+       ,if(abs(p)==6&&moveeffect>0,outc((9,bg),moveeffectcharacters(moveeffect)),outc((colors(playerindex),bg),getCheckPieceCharacter(3-playerindex,row,col)))
        ,outc((colors(pl),bg),if(p!=0,piecetypes(abs(p)),' '))
        ,if(incheckeffect>0
           ,outc((colors(playerindex),bg),moveeffectcharacters(2*incheckeffect-1))
