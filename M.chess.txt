@@ -86,9 +86,8 @@ plsign=3-2*playerindex
 pawnmoved=(abs(board(fromrow,fromcol))==1)
 (movetype=piecemoveto(3),out("movetype=",movetype,".",lf),moveeffects(playerindex)=piecemoveto(4),movecount+=1) ; increment the move count, and remember the 'effect' of the move (1=checks, 2=draw, 3=mate, 0=not in check, can move)
 ; if this is a pawn promotion, the piecetypeindex can change to 2 (rook), 3 (knight), 4 (bishop) or 5 (queen)
-if(movetype==6,
-  ,(out("movetype=",movetype,".",lf)
-   ,playermoveeffect=moveeffects(playerindex)
+if(movetype==6
+  ,(playermoveeffect=moveeffects(playerindex)
    ,out("Effect of promoting the pawn to:")
    ,out(" a rook: ",moveeffectnames(1+(playermoveeffect&3)))
    ,out("  -  a knight: ",moveeffectnames(1+(playermoveeffect>>2)&3))
