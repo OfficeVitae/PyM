@@ -33,10 +33,14 @@ for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps
 boardstates=l() ; initialize board states
 boardstates.=l(l(piececounts,canshortcastle,canlongcastle,enpassantcols,board,0)) ; register first board state (do not forget to append 0 as the recurrence count! and can theoretically might repeat it self), this is the one that might repeat itself when player 1 is to play next
 if(debugnow&1,out(lf))
-remoteplayerindex=0 ; no remote player
+if(remoteplayerindex>0,remoteplayer=brstart(ports(remoteplayerindex),ports(3-remoteplayerindex))) ; open a 'channel' to the remote player
 ; PREPARE FOR ACCEPTING A MOVE
-out(if(playerindex==1,player1,player2),", it's your turn now.",lf)
-if(playerindex==remoteplayerindex,(rpm=getRemotePlayerMove(),pieceindex=rpm(1),piecemoveto=l(rpm(2),rpm(3),rpm(4),rpm(5)),jump(40)))
+if(remoteplayerindex==0,out(if(playerindex==1,player1,player2),", it's your turn now.",lf)) ; it's always the same player's move locally
+if(playerindex==remoteplayerindex
+  ,(if(movecount>0,brout('l(',pieceindex,',',piecetypeindex,',',piecemoveto(1),',',piecemoveto(2),',',piecemoveto(3),',',piecemoveto(4),')'))
+  ,(movein=brin(remoteplayer,1.0),while(len(movein)==0,out("."),movein=brin(remoteplayer,1.0)),out(lf),move=eval(movein(1))
+   ,pieceindex=move(1),fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3),piecetypeindex=move(2)
+   ,piecemoveto=l(move(3),move(4),move(5),move(6)),jump(48-4-18))))
 if(movecount>0,out("Chess board after ",movecount," moves:",lf),out("Chess board:",lf))
 ; determine all valid moves the current player can do (iff the game hasn't ended in a draw (moveeffect=2) or mate (moveeffect=3)
 ; determine the positions of the pieces that can be moved, and count the number of possible moves
@@ -65,9 +69,9 @@ if(moveeffects(3-playerindex)<2
 ; show chess board in the orientation of the current player
 showBoard(movablepiecepositions,colors(playerindex))
 ; if in a board state that has occurred at least twice before player may claim a draw
-if(boardstaterecurrence>=2,(out("The current board state occurred ",boardstaterecurrence," times before! Do you want to claim a draw [yn]? "),drawclaimed=(inch('yn')==1),out(lf),if(drawclaimed,return(0))))
+if(boardstaterecurrence>=2,(out("The current board state occurred ",boardstaterecurrence," times before! Do you want to claim a draw [yn]? "),drawclaimed=(inch('yn')==1),out(lf),if(drawclaimed,return(0)))))
 ; ACCEPT THE DRAW OFFER OF THE OPPONENT?
-if(drawoffered,(drawoffered=0,out(if(playerindex==1,player1,player2),", would you agree to a draw [yn]? "),drawagreedupon=(inch('yn')==1),out(lf),if(drawagreedupon,return(0))))
+if(drawoffered,(drawoffered=0,out(if(playerindex==1,player1,player2),", would you agree to a draw [yn]? "),drawagreedupon=(inch('yn')==1),out(lf),if(drawagreedupon,return(0)))))
 ; ASK THE CURRENT PLAYER FOR THE PIECE TO MOVE
 (out(if(playerindex==1,player1,player2)+', what piece do you want to move ['+piecemovecharacters+']? '),piececharacterindex=inch(piecemovecharacters),out(lf)) ; get one of the player pieces characters
 if(piececharacterindex<=0,if(givingUp(),(debug=debugnow,return(3-playerindex)),jump(-1))) ; if no piece defined, ask the user if they want to give up
@@ -180,4 +184,4 @@ if(boardstaterecurrence<2
    ,out("This board occurred at least twice before. Your opponent will now get the opportunity to claim a draw!",lf)
   )
 playerindex=3-playerindex ; switch player
-jump(-143+6+7+6+6+19+11+6+18) ; take all continuations into account!!!
+jump(-146+6+7+6+6+19+11+6+18+3) ; take all continuations into account!!!

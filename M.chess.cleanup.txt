@@ -1,0 +1,2 @@
+; chess.cleanup() takes care of removing any remote player comm link
+if(remoteplayerindex>0,brend(remoteplayer))

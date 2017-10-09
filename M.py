@@ -2,6 +2,8 @@
 Marc's expression tokenizer and evaluator
 """
 """ History of development:
+09OCT2017:
+- remote player possibility on local network using Mcomm.py
 04OCT2017:
 - adding Interval instance for doing binary operation interval arithmetic (most basic)
 03OCT2017:
@@ -58,6 +60,7 @@ Marc's expression tokenizer and evaluator
 - Token constructor can also receive a token character to add immediately
 - opening and closing parenthesis moved over to the prefix and suffix of an expression
 """
+import Mcomm # MDH@09OCT2017: for using brstart, brend, brout and brin
 import copy
 import sys
 # method to read a single character
@@ -387,7 +390,7 @@ class Identifier:
 		return self.name
 	def __str__(self):
 		return self.name
-VERSION=Identifier(_value='2017-10-04 17:43:00') # MDH@28SEP2017: constant representing the current version timestamp
+VERSION=Identifier(_value='2017-10-09 17:00:00') # MDH@28SEP2017: constant representing the current version timestamp
 DEBUG=Identifier('debug',0) # MDH@22SEP2017: let's make debug accessible to the expressions
 def getDebug():
 	return DEBUG.getValue()
@@ -452,19 +455,20 @@ def getExpressionValue(_expressiontext,_environment,_debug=None):
 	return expression.evaluatesTo(_environment)
 def concatenate(_texts,_enquoted=True):
 	if not isIterable(_texts):
-		return dequote(_texts)[0]
-	result=""
-	quotechar=None
-	#######note("Concatenating '"+str(_texts)+"'.")
-	for text in _texts:
-		######note("To show: '"+text+"'.")
-		if isinstance(text,list):
-			result+=getText(text)
-		else: # probably an str thing
-			(dqtext,dqchar)=dequote(text)
-			if quotechar is None and dqchar is not None:
-				quotechar=dqchar
-			result+=dqtext
+		result=dequote(_texts)[0]
+	else:
+		result=""
+		quotechar=None
+		#######note("Concatenating '"+str(_texts)+"'.")
+		for text in _texts:
+			######note("To show: '"+text+"'.")
+			if isinstance(text,list):
+				result+=getText(text)
+			else: # probably an str thing
+				(dqtext,dqchar)=dequote(text)
+				if quotechar is None and dqchar is not None:
+					quotechar=dqchar
+				result+=dqtext
 	if not _enquoted:
 		return result
 	return enquote(result,(quotechar,ts[0])[quotechar is None])
@@ -588,6 +592,9 @@ class Function:
 						# the first argument should be the foreground and background color value, the remainder the elements to show
 						if len(arguments)>1 and isinstance(arguments[0],list) and len(arguments[0])>1:
 							write(concatenate(arguments[1:],False),arguments[0][0],arguments[0][1])
+					elif self.functionindex==-10: # MDH@09OCT2017: brout
+						if isinstance(arguments[0],int) and arguments[0]>=0:
+							return (falsevalue,truevalue)[Mcomm.brout(arguments[0],concatenate(arguments[1:],False))]
 			else: # a fixed-argument function
 				# application of a scalar function to a list, means applying the function to each element of the list (and return the list of it)
 				if self.functionindex<100: # a scalar function
@@ -726,6 +733,8 @@ class Function:
 							return (truevalue,falsevalue)[value==undefined.getValue()]
 						elif self.functionindex==32: # undefined
 							return (falsevalue,truevalue)[value==undefined.getValue()]
+						elif self.functionindex==36: # MDH@09OCT2017: brend
+							return (falsevalue,truevalue)[Mcomm.brend(value)] # end the communication over the given 'channel'
 						elif self.functionindex==45: # MDH@21SEP2017: sign function
 							return ((-1,1)[value>0],0)[value==0]
 						elif self.functionindex==47: # MDH@18SEP2017: jump only allowed in a function
@@ -754,6 +763,19 @@ class Function:
 					elif len(arguments)>1: # shouldn't happen though
 						return [self.apply([x]) for x in arguments] # we have to listify the arguments because self.apply expects an argument list (even a single one)
 				elif self.functionindex<200: # the two-argument functions
+					if self.functionindex==109: # MDH@09OCT2017: brin
+						if isinstance(arguments[0],int) and arguments[0]>=0 and isinstance(arguments[1],(int,float)) and arguments[1]>=0:
+							resulttexts=Mcomm.brin(arguments[0],arguments[1])
+							if isinstance(resulttexts,list):
+								result=list()
+								for resulttext in resulttexts:
+									result.append(enquote(resulttext))
+								return List(result)
+							elif resulttexts is not None:
+								return enquote(getText(resulttexts))
+					elif self.functionindex==108: # MDH@09OCT2017: brstart
+						if isinstance(arguments[0],int) and arguments[0]>=1024 and isinstance(arguments[1],(int,float)) and arguments[1]>=1024 and arguments[0]!=arguments[1]:
+							return Mcomm.brstart(arguments[0],arguments[1])
 					if self.functionindex==107: # MDH@04OCT2017: create intervals
 						if isinstance(arguments[0],(int,long,float)) and isinstance(arguments[1],(int,long,float)):
 							return Interval(arguments[0],arguments[1])
@@ -1676,9 +1698,9 @@ Menvironment.addIdentifier(Identifier(_value="'\r'"),'cr') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
-Menvironment.addFunctions({'return':0,'l':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'sign':45,'jump':47,'in':48,'inch':49})
-Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'int':106,'i':107,'function':150,'join':199})
+Menvironment.addFunctions({'return':0,'l':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'brout':-10}) # special functions (0=return,negative ids=list functions)
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'brend':36,'sign':45,'jump':47,'in':48,'inch':49})
+Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'int':106,'i':107,'brstart':108,'brin':109,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'and':211,'or':212,'function':211})
 
 environment=None # MDH@03SEP2017: wait for the user name to be known!!!
@@ -1805,7 +1827,7 @@ class Interval: # represents a single numeric interval
 			return self.times(Interval(1.0/_interval.to,1.0/_interval.fr))
 		return undefined.getValue()
 	def __repr__(self):
-		return str(self.fr)+"-"+str(self.to)	
+		return str(self.fr)+"-"+str(self.to)
 	def __str__(self):
 		return self.__repr__()
 	def getValue(self):
@@ -1828,7 +1850,7 @@ class List: # wraps a list, to prevent de-listing
 			self.list.insert(_index,listclone(_value))
 		else:
 			self.list.insert(_index,_value)
-	# MDH@04OCT2017: we should not append by reference, so we clone 
+	# MDH@04OCT2017: we should not append by reference, so we clone
 	def append(self,_value):
 		if isinstance(_value,List):
 			self.list.append(_value.clone())
