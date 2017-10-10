@@ -5,4 +5,4 @@ test2*	a=1	b=2	c=3
 test3*	a=2	b=3	c=4
 test4*	x='x'	y='y'	z='z'
 fourinarow*	player1='Marc'	player2='Petra'	rows=6	cols=7
-chess*	player1='Marc'	player2='Petra'	remoteplayerindex=0	ports=l(1310,2109)
+chess*	player1=''	player2=''	remoteplayerindex=0	ports=l(1310,2109)

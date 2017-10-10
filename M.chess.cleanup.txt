@@ -1,2 +1,3 @@
 ; chess.cleanup() takes care of removing any remote player comm link
-if(remoteplayerindex>0,brend(remoteplayer))
+setdebug(debugnow) ; reset debug
+if(and(remoteplayerindex>0,brchannel>=0),brend(brchannel)) ; close communication channel
