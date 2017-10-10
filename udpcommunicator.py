@@ -17,7 +17,7 @@ class UDPCommunicator(Thread):
 				(recvtext,recvaddress)=self.recvsocket.recvfrom(1024) # blocks (indefinitely)
 				if isinstance(recvtext,str):
 					######if self.debug>1:
-					print "Received: '"+recvtext+"'."
+					#####print "Received: '"+recvtext+"'."
 					# remember the sender if this is the first time (so we won't keep broadcasting)
 					if self.sendhost is None:
 						self.sendhost=recvaddress[0]
@@ -88,7 +88,7 @@ class UDPCommunicator(Thread):
 	def sent(self,_str):
 		# sends _str to (self.sendhost,self.sendport)
 		# NOTE after stopSending() (called from stop()) self.sendsocket will be None!!!
-		print "Sending: '"+_str+"'."
+		#######print "Sending: '"+_str+"'."
 		try:
 			result=self.sendsocket.sendto(_str,(('<broadcast>',self.sendhost)[self.sendhost is not None],self.sendport))
 			# if not started listening yet, start right away (although preferable to call start() immediately

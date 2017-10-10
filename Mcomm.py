@@ -93,6 +93,7 @@ def brstart(_sendport,_recvport):
 			raise Exception("Failed to register the communicator sending at "+str(_sendport)+" and receiving at "+str(_recvport)+".")
 	return result
 def brend(_brindex):
+	#######print "Ending UDP Communicator #"+str(_brindex)+"..."
 	global udpCommunicatorManager
 	try:
 		udpCommunicator=udpCommunicatorManager[_brindex]
@@ -117,7 +118,7 @@ def brout(_brindex,_tosend):
 		if udpCommunicator is not None:
 			sentcount=udpCommunicatorManager[_brindex].sent(_tosend)
 		else:
-			print "UDP Communicator vanished!"
+			########print "UDP Communicator vanished!"
 			sentcount=0
 		print str(sentcount)
 		if sentcount>=len(_tosend):

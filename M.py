@@ -1089,20 +1089,24 @@ class UserFunction(Function):
 								note("Evaluating expression #"+str(expressionindex)+" of "+self.name+": '"+expression.getText()+"'...")
 							expressionvalue=expression.evaluatesTo(executionenvironment) # evaluate the expression in the execution environment
 							if getDebug()&512:
-								note("Value of expression #"+str(expressionindex)+"("+str(expression)+") of "+self.name+": "+str(expressionvalue)+".")
+								if expressionvalue is not None:
+									note("Value of expression #"+str(expressionindex)+"("+str(expression)+") of "+self.name+": "+str(expressionvalue)+".")
 						except JumpException,jumpException:
 							deltaexpressionindex=jumpException.getValue()
 							if isinstance(deltaexpressionindex,(int,long)):
 								expressionindex+=deltaexpressionindex
+								#####note("Will jump to expression #"+str(expressionindex)+".")
 								if expressionindex<0:
 									break
-								##########note("Will jump to expression #"+str(expressionindex)+" ("+str(expressions[expressionindex])+")")
+								#####note("Which is: "+str(expressions[expressionindex]))
 								continue
 							note("Invalid jump result: '"+str(deltaexpressionindex)+"'.")
 						except ReturnException,returnException:
 							result=returnException.getValue()
 							#######note("Return result of function: "+str(result)+".")
 							break
+						except Exception,exception:
+							pass
 					else:
 						pass #####note("WARNING: Expression #"+str(expressionindex+1)+" undefined or empty!")
 					expressionindex+=1 # normal continuation i.e. next expression to execute next
@@ -1113,10 +1117,11 @@ class UserFunction(Function):
 				if isIterable(result) and len(result)==1:
 					result=result[0]
 				# MDH@26SEP2017: execute any cleanup() function, but mostly will not exist!!!
+				# MDH@10OCT2017: BUG FIX essential to lookup the local cleanup function because we do not want to execute the outer function cleanup (as we found out happened!)
 				if _cleanup:
 					try:
-						self.definitionenvironment.getFunction("cleanup").getValue([result],False) # do NOT cleanup!!!
-						######note("Cleanup function executed!")
+						self.definitionenvironment.getLocalFunction("cleanup").getValue([result],False) # do NOT cleanup!!!
+						######note("Cleanup function of "+self.name+" executed!")
 					except Exception,ex:
 						pass
 		else:
@@ -1382,12 +1387,15 @@ class Environment:
 		allidentifiernames.extend(self.getFunctionNames(False)) # no need to sort these
 		allidentifiernames.extend(self.getIdentifierNames(False)) # no need to sort these
 		return allidentifiernames
-	def getFunction(self,_functionname):
+	def getLocalFunction(self,_functionname):
 		if _functionname in self.functions:
 			return self.functions[_functionname]
-		if self.parent is not None:
-			return self.parent.getFunction(_functionname)
-		return None # not a function
+		return None
+	def getFunction(self,_functionname):
+		result=self.getLocalFunction(_functionname)
+		if result is None and self.parent is not None:
+			result=self.parent.getFunction(_functionname)
+		return result
 	def functionsExistStartingWith(self,_functionprefix):
 		for functionname in self.functions:
 			if functionname.startswith(_functionprefix):
