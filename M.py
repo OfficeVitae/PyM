@@ -2,6 +2,8 @@
 Marc's expression tokenizer and evaluator
 """
 """ History of development:
+11OCT2017:
+- brlisten() and brmute() to start and stop listening for communication messages
 09OCT2017:
 - remote player possibility on local network using Mcomm.py
 04OCT2017:
@@ -61,7 +63,7 @@ Marc's expression tokenizer and evaluator
 - opening and closing parenthesis moved over to the prefix and suffix of an expression
 """
 import time # MDH@10OCT2017: as required to call time.sleep()
-import Mcomm # MDH@09OCT2017: for using brstart, brend, brout and brin
+import Mcomm # MDH@09OCT2017: for using brstart, brend, brout and brin, brlisten and brmute
 import copy
 import sys
 # method to read a single character
@@ -744,10 +746,18 @@ class Function:
 								time.sleep(value)
 							elif isinstance(value,int):
 								time.sleep(value/1000.0)
-						elif self.functionindex==36: # MDH@09OCT2017: brend
-							return (falsevalue,truevalue)[Mcomm.brend(value)] # end the communication over the given 'channel'
-						elif self.functionindex==37: # MDH@10OCT2017: setdebug
+						elif self.functionindex==36: # MDH@10OCT2017: setdebug
 							return setDebug(value)
+						elif self.functionindex==37: # MDH@09OCT2017: brend
+							return (falsevalue,truevalue)[Mcomm.brend(value)] # end the communication over the given 'channel'
+						elif self.functionindex==38: # MDH@11OCT2017: brlisten
+							result=Mcomm.brlisten(value)
+							if isinstance(result,list): # returns a list of what was discarded
+								return List(result)
+						elif self.functionindex==39: # MDH@11OCT2017: brmute
+							result=Mcomm.brmute(value) # returns a list of what was discarded
+							if isinstance(result,list):
+								return List(result)
 						elif self.functionindex==45: # MDH@21SEP2017: sign function
 							return ((-1,1)[value>0],0)[value==0]
 						elif self.functionindex==47: # MDH@18SEP2017: jump only allowed in a function
@@ -778,8 +788,9 @@ class Function:
 				elif self.functionindex<200: # the two-argument functions
 					if self.functionindex==109: # MDH@09OCT2017: brin
 						result=list() # always to return a list
-						if isinstance(arguments[0],int) and arguments[0]>=0 and isinstance(arguments[1],(int,float)):
+						if isinstance(arguments[0],int) and arguments[0]>=0 and isinstance(arguments[1],(int,long,float)):
 							resulttexts=Mcomm.brin(arguments[0],arguments[1])
+							note("Received: "+str(resulttexts)+" of type "+str(type(resulttexts))+".")
 							if isinstance(resulttexts,list):
 								for resulttext in resulttexts:
 									result.append(enquote(resulttext))
@@ -1722,7 +1733,7 @@ Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'l':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'brout':-10}) # special functions (0=return,negative ids=list functions)
-Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'wait':35,'brend':36,'setdebug':37,'sign':45,'jump':47,'in':48,'inch':49})
+Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'wait':35,'setdebug':36,'brend':37,'brlisten':38,'brmute':39,'sign':45,'jump':47,'in':48,'inch':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'int':106,'i':107,'brstart':108,'brin':109,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'and':211,'or':212,'function':211})
 

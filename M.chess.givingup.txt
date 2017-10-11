@@ -1,4 +1,4 @@
 ; givingUp() returns 1 if user answered with Y or y, 0 otherwise
 answer=0
-while(answer==0,(out(if(playerindex==1,player1,player2)+", do you want to give up [yn]? "),answer=inch('yn'),out(lf)))
+while(answer==0,(out(players(playerindex)+", do you want to give up [yn]? "),answer=inch('yn'),out(lf)))
 $=(answer==1)

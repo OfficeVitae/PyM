@@ -1,9 +1,10 @@
-; arguments: player1 and player2
-$=-1 ; assume no winner
+; arguments: 1. player1, 2. player2, 3. remoteplayerindex (default: 0) and 4. ports (default: l(2109,1310) (see M.chess.functions)
+$=-1 ; result initialization
+debugnow=setdebug(256) ; disable debugging
+remoteplayerindex=0 ; initialization needed before any cleanup is performed (which is before the first return function call)
 if(player1==player2,return()) ; player names should be different
 if(len(player1)==0,remoteplayerindex=1,if(len(player2)==0,remoteplayerindex=2)) ; deduce which one is the remote player (the one of which the name is unknown)
 players=l(player1,player2) ; store player names in list
-debugnow=setdebug(256) ; disable debugging
 piecetypes='PRNBQK' ; characters to use (pawn, rook, knight, bishop, queen and king)
 piecetypenames=l('pawn','rook','knight','bishop','queen','king') ; the names of the piece (types)
 playertypes=l('white','black') ; the player 'types'
@@ -36,27 +37,29 @@ for(pi,1..2,ppps=piecepositions(pi),for(ppi,1..len(ppps),pps=ppps(ppi),board(pps
 boardstates=l() ; initialize board states
 boardstates.=l(l(piececounts,canshortcastle,canlongcastle,enpassantcols,board,0)) ; register first board state (do not forget to append 0 as the recurrence count! and can theoretically might repeat it self), this is the one that might repeat itself when player 1 is to play next
 if(debugnow&1,out(lf))
-; open a 'channel' to the remote player, and wait until you receive the name
+; open a 'channel' to the remote player, start listening and wait for receiving the other player's name or the echo of one's own name
 if(remoteplayerindex>0
-   ,(brchannel=brstart(ports(remoteplayerindex),ports(3-remoteplayerindex)),if(brchannel<0,return(-1))
-    ,out("Sending over ",ports(remoteplayerindex)," and receiving over ",ports(3-remoteplayerindex)," using channel #",brchannel,".",lf)
+   ,(brchannel=brstart(ports(remoteplayerindex),ports(3-remoteplayerindex)),if(brchannel<0,return())
+    ,brlisten(brchannel),out("Sending over ",ports(remoteplayerindex)," and receiving over ",ports(3-remoteplayerindex)," using channel #",brchannel,".",lf)
     ,out("Opponent: "),ownnametoreceive=1,opponentnametoreceive=1
     ,while(or(ownnametoreceive,opponentnametoreceive),out(".")
           ,if(ownnametoreceive,out(brout(brchannel,players(3-remoteplayerindex))))
-          ,answers=brin(brchannel,1.0),out(answers),answerindex=len(answers),while(answerindex>0,if(answers(answerindex)!=players(3-remoteplayerindex),(players(remoteplayerindex)=answers(answerindex),out(players(remoteplayerindex)),brout(brchannel,answers(answerindex)),opponentnametoreceive=0),ownnametoreceive=0),answerindex-=1))
-    ,out(lf)
+          ,wait(1.0),answers=brin(brchannel,0),out(answers),answerindex=len(answers)
+          ,while(answerindex>0,if(answers(answerindex)!=players(3-remoteplayerindex),(players(remoteplayerindex)=answers(answerindex),out(players(remoteplayerindex)),brout(brchannel,answers(answerindex)),opponentnametoreceive=0),ownnametoreceive=0),answerindex-=1))
+    ,brmute(brchannel),out(lf)
     )
   )
 ; PREPARE FOR ACCEPTING A MOVE
 if(remoteplayerindex==0,out(players(playerindex),", it's your turn now.",lf)) ; it's always the same player's move locally
+; if it's the remote player to make a move, we wait for the remote player's move, or (s)he might claim a draw or give up I suppose, in which case we catch that as well)
 if(playerindex==remoteplayerindex
-  ,(out("Waiting for the move of ",players(playerindex)),movenotfound=1
-   ,while(movenotfound,wait(1.0),movein=brin(brchannel,0),moveinl=len(movein)
-         ,while(or(movenotfound,moveinl>0),movetext=movein(moveinl),out("{",movetext,"}")
-         ,if(and(movetext(1)=='l',movetext(2)=='('),movenotfound=0,moveinl-=1))
-   ,out(movetext),out(lf),move=eval(movetext)
-   ,drawoffered=move(1),pieceindex=move(2),fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3),piecetypeindex=move(3)
-   ,piecemoveto=l(move(4),move(5),move(6),move(7)),out("Move received: ",piecemoveto,lf),jump(50-6-18))))
+  ,(brlisten(brchannel),out("Move of ",players(playerindex),": "),movenotfound=1
+   ,while(movenotfound,wait(1.0),movein=brin(brchannel,0),moveinl=len(movein),out(moveinl),if(moveinl==0,out("."))
+         ,while(and(movenotfound,moveinl>0),movetext=movein(moveinl),out("{",movetext,"}")
+         ,if(and(movetext(1)=='l',movetext(2)=='('),movenotfound=0,if(movetext(1)=='$',return(int(movetext(3))),moveinl-=1))))
+   ,brmute(brchannel),out(movetext,lf),move=eval(movetext)
+   ,boardstaterecurrence=move(1),drawoffered=move(2),pieceindex=move(3),fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3)
+   ,piecetypeindex=move(4),piecemoveto=l(move(5),move(6),move(7),move(8)),jump(50-7-18)))
 if(movecount>0,out("Chess board after ",movecount," moves:",lf),out("Chess board:",lf))
 ; determine all valid moves the current player can do (iff the game hasn't ended in a draw (moveeffect=2) or mate (moveeffect=3)
 ; determine the positions of the pieces that can be moved, and count the number of possible moves
@@ -194,15 +197,17 @@ while(and(boardstaterecurrence==0,boardstateindex>0)
         )
      )
 boardstates(-1).=boardstaterecurrence ; append the board state recurrence count to the registered board state
-; show the current board to the current player if (s)he might offer a draw (which I allow only when the opponent cannot claim a draw)
-if(boardstaterecurrence<2
-  ,(showBoard(l(),colors(playerindex))
-   ,if(boardstaterecurrence==1,out("This board state occurred once before. The next time your opponent can claim a draw!",lf))
-   ,out(players(playerindex),", do you want to offer ",players(3-playerindex)," a draw [yn]? "),drawoffered=(inch('yn')==1),out(lf)
-   )
-   ,out("This board occurred at least twice before. Your opponent will now get the opportunity to claim a draw!",lf)
+; if it's not the move of the remote player, show the current board  if (s)he might offer a draw (which I allow only when the opponent cannot claim a draw)
+if(playerindex!=remoteplayerindex
+  ,(if(boardstaterecurrence<2
+      ,(showBoard(l(),colors(playerindex))
+       ,if(boardstaterecurrence==1,out("This board state occurred once before. The next time your opponent can claim a draw!",lf))
+       ,out(players(playerindex),", do you want to offer ",players(3-playerindex)," a draw [yn]? "),drawoffered=(inch('yn')==1),out(lf)
+       )
+       ,out("This board occurred at least twice before. Your opponent will now get the opportunity to claim a draw!",lf)
+      ))
   )
 playerindex=3-playerindex ; switch player
 ; send the move to the remote player if the remote player is to play next
-if(playerindex==remoteplayerindex,(out("Sending"),brout(brchannel,'l(',drawoffered,',',pieceindex,',',piecetypeindex,',',piecemoveto(1),',',piecemoveto(2),',',piecemoveto(3),',',piecemoveto(4),')')))
-jump(-156+6+7+6+6+19+11+8+18+6) ; take all continuations into account!!!
+if(playerindex==remoteplayerindex,brout(brchannel,'l(',boardstaterecurrence,',',drawoffered,',',pieceindex,',',piecetypeindex,',',piecemoveto(1),',',piecemoveto(2),',',piecemoveto(3),',',piecemoveto(4),')'))
+jump(-159+8+7+6+6+19+11+8+18+7) ; take all continuations into account!!!

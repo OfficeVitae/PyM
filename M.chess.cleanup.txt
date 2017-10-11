@@ -1,3 +1,6 @@
 ; chess.cleanup() takes care of removing any remote player comm link
 setdebug(debugnow) ; reset debug
-if(and(remoteplayerindex>0,brchannel>=0),(out("cleanup"),brend(brchannel))) ; close communication channel
+; the result needs to be communicated to the remote player if it's the local player that did it
+; which is troublesome if the remote player does not acknowledge having received the result
+if(and(remoteplayerindex>0,brchannel>=0)
+  ,(if(playerindex!=remoteplayerindex,brout(brchannel,"$=",result)),wait(1.0),out("disconnecting...",lf),brend(brchannel))) ; close communication channel

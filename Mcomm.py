@@ -26,31 +26,49 @@ class UDPCommunicatorManager(list):
 			if DEBUG>1:
 				print "Received from "+str(_udpCommunicator)+": '"+str(_received)+"'."
 			udpCommunicatorIndex=self.index(_udpCommunicator)
-			if not udpCommunicatorIndex in self.received:
-				self.received[udpCommunicatorIndex]=list()
-			self.received[udpCommunicatorIndex].append(_received)
+			if udpCommunicatorIndex in self.received: # waiting for it
+				self.received[udpCommunicatorIndex].append(_received)
+			elif DEBUG>1:
+				print "WARNING: '"+str(_received)+"' received from "+str(_udpCommunicator)+" ignored: received out of order."
 		except Exception,ex:
 			if DEBUG>0:
 				print "ERROR: '"+str(ex)+"' processing "+_received+" received from "+str(_udpCommunicator)+"."
 	def somethingReceived(self,_brindex):
 		try:
+			# if not ready to receive something, get ready
+			if not _brindex in self.received:
+				self.received[_brindex]=list()
 			return len(self.received[_brindex])>0
 		except Exception,ex:
 			if DEBUG>0:
 				print "ERROR: '"+str(ex)+"' checking if something received on channel #"+str(_brindex)+"."
 		return False
-	def discardReceived(self,_brindex):
-		self.received[_brindex]=list() # quickest way
+	def mute(self,_brindex): # returns whatever's discarded by removing what was received
+		if _brindex in self.received:
+			discarded=self.received[_brindex]
+			del self.received[_brindex] # quickest way is to simply delete the entry in self.received
+		else:
+			discarded=None
+		return discarded
 	def getReceived(self,_brindex):
 		# returns what was received by the associated UDPCommunicator() and consumes that list
 		result=list()
 		try:
-			while len(self.received[_brindex])>0:
-				result.append(self.received[_brindex].pop(0))
+			if _brindex in self.received:
+				while len(self.received[_brindex])>0:
+					result.append(self.received[_brindex].pop(0))
 		except Exception,ex:
 			if DEBUG>0:
 				print "ERROR: '"+str(ex)+"' popping off text received."
 		return result
+	def listen(self,_brindex):
+		# let's return the number of messages received that is discarded
+		if _brindex in self.received:
+			discarded=self.received[_brindex]
+		else:
+			discarded=None
+		self.received[_brindex]=list() # prepare for receiving whatever's coming in (overwriting anything received in the meanwhile that is now lost)
+		return discarded
 	def appended(self,_udpCommunicator,_brindex):
 		# you can't reuse ports so the ports used by _udpcommunicator should not be in use
 		for udpCommunicator in self:
@@ -62,7 +80,7 @@ class UDPCommunicatorManager(list):
 			self.append(_udpCommunicator)
 			print "UDP Communicator "+str(self[len(self)-1])+" added..."
 			_udpCommunicator.setDebug(DEBUG) # make the appended communicator have the same DEBUG level
-			self.received[_brindex]=list() # initialize the receive list
+			#########self.received[_brindex]=list() # wait with setting the receive list until brin() is called!!!!
 			_udpCommunicator.go(processReceived) # get the communicator going!!
 			return True
 		except Exception,ex:
@@ -109,7 +127,7 @@ def brend(_brindex):
 def brout(_brindex,_tosend):
 	global udpCommunicatorManager
 	# are we going to keep waiting until we succeed?
-	print "Sending '"+_tosend+"'"
+	########print "Sending '"+_tosend+"'"
 	if _brindex<0 or _brindex>=len(udpCommunicatorManager):
 		print "ERROR: UDP Communicator #"+str(_brindex)+" does not exist!"
 		return False
@@ -128,22 +146,26 @@ def brout(_brindex,_tosend):
 		print "ERROR: '"+str(ex)+"' outputting '"+_tosend+"' to UDP communicator #"+str(_brindex+1)+"."
 	return False
 # wait for receiving something, pass 0 for timeout to return immediately with what was received so far, nothing to wait indefinitely...
-def brin(_brindex,_timeoutms=None):
+def brlisten(_brindex):
+	global udpCommunicatorManager
+	return udpCommunicatorManager.listen(_brindex)
+def brmute(_brindex):
+	global udpCommunicatorManager
+	return udpCommunicatorManager.mute(_brindex)
+def brin(_brindex,_maxwaitseconds=None):
 	global udpCommunicatorManager
 	# something might go wrong e.g. when you're trying to access an UDPCommunicator that
 	# was already ended (through brend)
 	try:
-		if isinstance(_timeoutms,float):
+		if isinstance(_maxwaitseconds,float):
 			timeoutms=int(1000*_timeoutms)
-		elif isinstance(_timeoutms,(int,long)):
-			timeoutms=_timeoutms
+		elif isinstance(_maxwaitseconds,(int,long)):
+			timeoutms=1000*_maxwaitseconds
 		else: # by default do not time out i.e. wait indefinitely (which is dangerous)
 			timeoutms=-1
-		"""
 		# if a timeout is used, we actually have to wait for something new to come in
 		if timeoutms!=0:
-			udpCommunicator.discardReceived(_brindex)
-		"""
+			udpCommunicator.mute(_brindex)
 		# wait until something is received
 		while timeoutms!=0 and not udpCommunicatorManager.somethingReceived(_brindex):
 			if timeoutms>0:
