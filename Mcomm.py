@@ -156,17 +156,21 @@ def brmute(_brindex):
 	return udpCommunicatorManager.mute(_brindex-1)
 # MDH@12OCT2017: use brfire() to fire a certain message repeatedly until the assumed ack response is received
 def brfire(_brindex,_waitseconds,_ackresponse,_tosend):
-	# reset listening, 
-	result=brlisten(_brindex)
-	if result:
+	try:
+		brlisten(_brindex)
 		while brout(_brindex,_tosend):
+			print "'"+_tosend+"' sent.."
 			while udpCommunicationManager.somethingReceived(_brindex-1):
 				received=udpCommunicationManager.getFirstReceived(_brindex-1)
+				print "Received: '"+received+"'..."
 				if received==_ackresponse: # and done!!!
 					break
 			if _waitseconds>0:
 				time.sleep(_waitseconds) # wait a bit
-	return result
+		return True
+	except:
+		pass
+	return False
 def brin(_brindex,_maxwaitseconds=None):
 	global udpCommunicatorManager
 	# something might go wrong e.g. when you're trying to access an UDPCommunicator that
