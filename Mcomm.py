@@ -159,10 +159,10 @@ def brfire(_brindex,_waitseconds,_ackresponse,_tosend):
 	try:
 		brlisten(_brindex)
 		while brout(_brindex,_tosend):
-			print "'"+_tosend+"' sent.."
+			######print "'"+_tosend+"' sent.."
 			while udpCommunicationManager.somethingReceived(_brindex-1):
 				received=udpCommunicationManager.getFirstReceived(_brindex-1)
-				print "Received: '"+received+"'..."
+				#####print "Received: '"+received+"'..."
 				if received==_ackresponse: # and done!!!
 					break
 			if _waitseconds>0:
