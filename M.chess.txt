@@ -216,5 +216,5 @@ if(and(playerindex!=remoteplayerindex,moveeffects(playerindex)<2)
   )
 playerindex=3-playerindex ; switch player
 ; send the move to the remote player if the remote player is to play next
-if(and(playerindex==remoteplayerindex,moveeffects(3-playerindex)<2),(out("Please wait for ",players(playerindex),"'s move..."),brfire(brchannel,1,'ack','l(',moveeffects(3-playerindex)>>2,',',boardstaterecurrence,',',drawoffered,',',pieceindex,',',piecetypeindex,',',piecemoveto(1),',',piecemoveto(2),',',piecemoveto(3),',',piecemoveto(4),')')))
+if(playerindex==remoteplayerindex,(out("Please wait for ",players(playerindex),"'s move..."),brfire(brchannel,1,'ack','l(',moveeffects(3-playerindex)>>2,',',boardstaterecurrence,',',drawoffered,',',pieceindex,',',piecetypeindex,',',piecemoveto(1),',',piecemoveto(2),',',piecemoveto(3),',',piecemoveto(4),')')))
 jump(-163+8+7+3+6+6+19+11+8+18+8) ; take all continuations into account!!!
