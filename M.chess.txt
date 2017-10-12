@@ -60,7 +60,7 @@ if(playerindex==remoteplayerindex
   ,(brlisten(brchannel),movenotfound=1
    ,while(movenotfound,wait(1.0),movein=brin(brchannel,0),moveinl=len(movein),if(moveinl==0,out("."))
          ,while(and(movenotfound,moveinl>0),movetext=movein(moveinl)
-         ,if(and(movetext(1)=='l',movetext(2)=='('),(movenotfound=0),if(movetext(1)=='$',return(int(movetext(3))),moveinl-=1))))
+         ,if(and(movetext(1)=='l',movetext(2)=='('),if(brout('ack'),movenotfound=0),if(movetext(1)=='$',return(int(movetext(3))),moveinl-=1))))
    ,brmute(brchannel),out(lf),move=eval(movetext)
    ,remoteplayerclaimedadraw=move(1),boardstaterecurrence=move(2),drawoffered=move(3),pieceindex=move(4),fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3)
    ,piecetypeindex=move(5),piecemoveto=l(move(6),move(7),move(8),move(9)),jump(51-7-18)))
@@ -216,5 +216,5 @@ if(and(playerindex!=remoteplayerindex,moveeffects(playerindex)<2)
   )
 playerindex=3-playerindex ; switch player
 ; send the move to the remote player if the remote player is to play next
-if(and(playerindex==remoteplayerindex,moveeffects(3-playerindex)<2),(out("Please wait for ",players(playerindex),"'s move..."),brout(brchannel,'l(',moveeffects(3-playerindex)>>2,',',boardstaterecurrence,',',drawoffered,',',pieceindex,',',piecetypeindex,',',piecemoveto(1),',',piecemoveto(2),',',piecemoveto(3),',',piecemoveto(4),')')))
+if(and(playerindex==remoteplayerindex,moveeffects(3-playerindex)<2),(out("Please wait for ",players(playerindex),"'s move..."),brfire(brchannel,1,'ack','l(',moveeffects(3-playerindex)>>2,',',boardstaterecurrence,',',drawoffered,',',pieceindex,',',piecetypeindex,',',piecemoveto(1),',',piecemoveto(2),',',piecemoveto(3),',',piecemoveto(4),')')))
 jump(-163+8+7+3+6+6+19+11+8+18+8) ; take all continuations into account!!!

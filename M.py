@@ -601,8 +601,11 @@ class Function:
 						if len(arguments)>1 and isinstance(arguments[0],list) and len(arguments[0])>1:
 							write(concatenate(arguments[1:],False),arguments[0][0],arguments[0][1])
 					elif self.functionindex==-10: # MDH@09OCT2017: brout
-						if isinstance(arguments[0],int) and arguments[0]>=0:
+						if isinstance(arguments[0],int) and arguments[0]>0:
 							return (falsevalue,truevalue)[Mcomm.brout(arguments[0],concatenate(arguments[1:],False))]
+					elif self.functionindex==-11: # MDH@09OCT2017: brfire
+						if isinstance(arguments[0],int) and arguments[0]>0 and isinstance(arguments[1],(int,float)) and arguments[1]>0:
+							return (falsevalue,truevalue)[Mcomm.brfire(arguments[0],arguments[1],dequote(arguments[2])[0],concatenate(arguments[3:],False))]
 			else: # a fixed-argument function
 				# application of a scalar function to a list, means applying the function to each element of the list (and return the list of it)
 				if self.functionindex<100: # a scalar function
@@ -1732,7 +1735,7 @@ Menvironment.addIdentifier(Identifier(_value="'\r'"),'cr') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
 # MDH@31AUG2017: let's add the function groups as well
-Menvironment.addFunctions({'return':0,'l':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'brout':-10}) # special functions (0=return,negative ids=list functions)
+Menvironment.addFunctions({'return':0,'l':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'brout':-10,'brfire':-11}) # special functions (0=return,negative ids=list functions)
 Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'wait':35,'setdebug':36,'brend':37,'brlisten':38,'brmute':39,'sign':45,'jump':47,'in':48,'inch':49})
 Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'int':106,'i':107,'brstart':108,'brin':109,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'and':211,'or':212,'function':211})
