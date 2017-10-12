@@ -1,0 +1,2 @@
+; current player returns either the name of the current player followed by the
+return(if(remoteplayerindex==0,players(playerindex)+", "+arg1,arg2))

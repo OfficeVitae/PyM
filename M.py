@@ -790,7 +790,7 @@ class Function:
 						result=list() # always to return a list
 						if isinstance(arguments[0],int) and arguments[0]>=0 and isinstance(arguments[1],(int,long,float)):
 							resulttexts=Mcomm.brin(arguments[0],arguments[1])
-							note("Received: "+str(resulttexts)+" of type "+str(type(resulttexts))+".")
+							#######note("Received: "+str(resulttexts)+" of type "+str(type(resulttexts))+".")
 							if isinstance(resulttexts,list):
 								for resulttext in resulttexts:
 									result.append(enquote(resulttext))

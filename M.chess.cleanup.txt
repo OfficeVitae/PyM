@@ -2,5 +2,6 @@
 setdebug(debugnow) ; reset debug
 ; the result needs to be communicated to the remote player if it's the local player that did it
 ; which is troublesome if the remote player does not acknowledge having received the result
-if(and(remoteplayerindex>0,brchannel>=0)
-  ,(if(playerindex!=remoteplayerindex,brout(brchannel,"$=",result)),wait(1.0),out("disconnecting...",lf),brend(brchannel))) ; close communication channel
+if(remoteplayerindex>0
+  ,(if(playerindex!=remoteplayerindex,brout(brchannel,"$=",result))
+   ,if(brchannel>0,(wait(1.0),out("disconnecting...",lf),brend(brchannel))))) ; close communication channel

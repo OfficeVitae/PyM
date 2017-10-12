@@ -69,16 +69,12 @@ class UDPCommunicatorManager(list):
 			discarded=None
 		self.received[_brindex]=list() # prepare for receiving whatever's coming in (overwriting anything received in the meanwhile that is now lost)
 		return discarded
-	def appended(self,_udpCommunicator,_brindex):
-		# you can't reuse ports so the ports used by _udpcommunicator should not be in use
-		for udpCommunicator in self:
-			if udpCommunicator.usesPort(_udpCommunicator.getSendPort()) or udpCommunicator.usesPort(_udpCommunicator.getReceivePort()):
-				return False
+	def appended(self,_udpCommunicator):
 		try:
 			# NOTE start() returns the UDP Communicator instance itself
 			#      TODO should we throw an exception when start() fails?????
 			self.append(_udpCommunicator)
-			print "UDP Communicator "+str(self[len(self)-1])+" added..."
+			########print "UDP Communicator "+str(self[len(self)-1])+" added..."
 			_udpCommunicator.setDebug(DEBUG) # make the appended communicator have the same DEBUG level
 			#########self.received[_brindex]=list() # wait with setting the receive list until brin() is called!!!!
 			_udpCommunicator.go(processReceived) # get the communicator going!!
@@ -89,69 +85,71 @@ class UDPCommunicatorManager(list):
 		return False
 	def done(self):
 		while len(self)>0:
+			print "Closing communication channel #"+str(len(self))+"..."
 			udpCommunicator=self.pop(0)
 			if udpCommunicator is not None:
-				print "Stopping "+str(udpCommunicator)+"..."
 				udpCommunicator.stop()
 	def __destroy__(self):
 		self.done()
 udpCommunicatorManager=UDPCommunicatorManager() # our UDPCommunicators() instance managing the communicators
 # main level methods for opening, closing and using UDPCommunicator instances
+# MDH@12OCT2017: brstart() now returns the position (1-based) of the communication channel (replacing the 0-based index)
 def brstart(_sendport,_recvport):
 	global udpCommunicatorManager
-	udpCommunicator=UDPCommunicator(_sendport,_recvport)
-	try:
-		result=udpCommunicatorManager.index(udpCommunicator)
-	except Exception,ex:
-		if not isinstance(ex,ValueError) and DEBUG>0:
-			print "ERROR: '"+str(ex)+"' starting "+str(udpCommunicator)+"."
-		result=len(udpCommunicatorManager)
-		# NOTE appended() will get the thread started
-		if not udpCommunicatorManager.appended(udpCommunicator,result):
-			raise Exception("Failed to register the communicator sending at "+str(_sendport)+" and receiving at "+str(_recvport)+".")
-	return result
+	for (index,udpCommunicator) in enumerate(udpCommunicatorManager):
+		if udpCommunicator is None:
+			continue
+		if udpCommunicator.getSendPort()==_sendport and udpCommunicator.getReceivePort()==_recvport: # got it
+			return (index+1)
+		# both ports must not be in use right now
+		if udpCommunicator.usesPort(_sendport) or udpCommunicator.usesPort(_recvport):
+			return 0
+	# NOTE appended() will get the thread started
+	if not udpCommunicatorManager.appended(UDPCommunicator(_sendport,_recvport)):
+		return -1 #####raise Exception("Failed to register the communicator sending at "+str(_sendport)+" and receiving at "+str(_recvport)+".")
+	return len(udpCommunicatorManager)
 def brend(_brindex):
 	#######print "Ending UDP Communicator #"+str(_brindex)+"..."
 	global udpCommunicatorManager
 	try:
-		udpCommunicator=udpCommunicatorManager[_brindex]
+		udpCommunicator=udpCommunicatorManager[_brindex-1]
 		if udpCommunicator is not None:
 			udpCommunicator.stop() # stop to force waiting for the thread to die
-			udpCommunicatorManager[_brindex]=None
+			udpCommunicatorManager[_brindex-1]=None
 		return True
 	except Exception,ex:
 		if DEBUG>0:
-			print "ERROR: '"+str(ex)+"' ending UDP communication #"+str(_brindex+1)+"."
+			print "ERROR: '"+str(ex)+"' closing communication channel #"+str(_brindex)+"."
 	return False
 # send something
 def brout(_brindex,_tosend):
 	global udpCommunicatorManager
 	# are we going to keep waiting until we succeed?
 	########print "Sending '"+_tosend+"'"
-	if _brindex<0 or _brindex>=len(udpCommunicatorManager):
-		print "ERROR: UDP Communicator #"+str(_brindex)+" does not exist!"
+	if _brindex<=0 or _brindex>len(udpCommunicatorManager):
+		print "ERROR: Communication channel #"+str(_brindex)+" does not exist!"
 		return False
 	try:
-		udpCommunicator=udpCommunicatorManager[_brindex]
+		udpCommunicator=udpCommunicatorManager[_brindex-1]
 		if udpCommunicator is not None:
-			sentcount=udpCommunicatorManager[_brindex].sent(_tosend)
+			sentcount=udpCommunicatorManager[_brindex-1].sent(_tosend)
 		else:
 			########print "UDP Communicator vanished!"
 			sentcount=0
-		print str(sentcount)
+		#######print str(sentcount)
 		if sentcount>=len(_tosend):
 			return True
 	except Exception,ex:
 		####if DEBUG>0:
-		print "ERROR: '"+str(ex)+"' outputting '"+_tosend+"' to UDP communicator #"+str(_brindex+1)+"."
+		print "ERROR: '"+str(ex)+"' outputting '"+_tosend+"' to communication channel #"+str(_brindex+1)+"."
 	return False
 # wait for receiving something, pass 0 for timeout to return immediately with what was received so far, nothing to wait indefinitely...
 def brlisten(_brindex):
 	global udpCommunicatorManager
-	return udpCommunicatorManager.listen(_brindex)
+	return udpCommunicatorManager.listen(_brindex-1)
 def brmute(_brindex):
 	global udpCommunicatorManager
-	return udpCommunicatorManager.mute(_brindex)
+	return udpCommunicatorManager.mute(_brindex-1)
 def brin(_brindex,_maxwaitseconds=None):
 	global udpCommunicatorManager
 	# something might go wrong e.g. when you're trying to access an UDPCommunicator that
@@ -167,14 +165,14 @@ def brin(_brindex,_maxwaitseconds=None):
 		if timeoutms!=0:
 			udpCommunicator.mute(_brindex)
 		# wait until something is received
-		while timeoutms!=0 and not udpCommunicatorManager.somethingReceived(_brindex):
+		while timeoutms!=0 and not udpCommunicatorManager.somethingReceived(_brindex-1):
 			if timeoutms>0:
 				timeoutms-=1
 				if (timeoutms%100)==0:
 					sys.stdout.write('~') # a bit dangerous?????
 			time.sleep(0.001)
 		# return whatever's received so far (even if nothing was received!!!)
-		return udpCommunicatorManager.getReceived(_brindex)
+		return udpCommunicatorManager.getReceived(_brindex-1)
 	except Exception,ex:
 		if DEBUG>0:
 			print "ERROR: '"+str(ex)+"' waiting for input."

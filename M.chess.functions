@@ -30,3 +30,4 @@ bishopCanMove	brow	bcol
 knightCanMove	nrow	ncol
 queenCanMove	qrow	qcol
 kingCanMove	krow	kcol
+currentPlayer	arg1	arg2
