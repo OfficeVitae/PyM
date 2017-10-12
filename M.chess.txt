@@ -60,7 +60,7 @@ if(playerindex==remoteplayerindex
   ,(brlisten(brchannel),movenotfound=1
    ,while(movenotfound,wait(1.0),movein=brin(brchannel,0),moveinl=len(movein),if(moveinl==0,out("."))
          ,while(and(movenotfound,moveinl>0),movetext=movein(moveinl)
-         ,if(and(movetext(1)=='l',movetext(2)=='('),if(brout('ack'),movenotfound=0),if(movetext(1)=='$',return(int(movetext(3))),moveinl-=1))))
+         ,if(and(movetext(1)=='l',movetext(2)=='('),if(brout(brchannel,'ack'),movenotfound=0),if(movetext(1)=='$',return(int(movetext(3))),moveinl-=1))))
    ,brmute(brchannel),out(lf),move=eval(movetext)
    ,remoteplayerclaimedadraw=move(1),boardstaterecurrence=move(2),drawoffered=move(3),pieceindex=move(4),fromrow=piecepositions(playerindex,pieceindex,2),fromcol=piecepositions(playerindex,pieceindex,3)
    ,piecetypeindex=move(5),piecemoveto=l(move(6),move(7),move(8),move(9)),jump(51-7-18)))
