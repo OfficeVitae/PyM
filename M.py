@@ -73,7 +73,7 @@ def getch():
 	except ImportError:
 		# Non-POSIX. Return msvcrt's (Windows') getch.
 		import msvcrt
-		return msvcrt.getch
+		return msvcrt.getch() # MDH@13OCT2017 (P's 53rd BIRTHDAY yeah!!!!): the () behind the call to getch are pretty essential!!!!
 	# POSIX system. Create and return a getch that manipulates the tty.
 	import tty
 	fd=sys.stdin.fileno()
