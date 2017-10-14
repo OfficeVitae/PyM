@@ -173,6 +173,7 @@ def write(_towrite,_color=None,_backcolor=None):
 	result=None
 	if isinstance(_towrite,str): # if something to write, go ahead and write it
 		if isinstance(_color,str):
+			output(_color)
 			result="\033["+_color+"m"
 		else:
 			result=""
@@ -405,6 +406,25 @@ class Identifier:
 	def __str__(self):
 		return self.name
 # MDH@13OCT2017: let's put the 4-bit colors in for use in outc (so we can reliably use them on Windows)
+textcolors=['30','31','32','33','34','35','36','37','30;1','31;1','32;1','33;1','34;1','35;1','36;1','37;1']
+backgroundcolors=['40','41','42','43','44','45','46','47','100','101','102','103','104','105','106','107']
+def getTextColor(_index):
+	if isinstance(_index,str):
+		return dequote(_index)[0]
+	try:
+		return textcolors[_index]
+	except:
+		pass
+	return None
+def getBackgroundColor(_index):
+	if isinstance(_index,str):
+		return dequote(_index)[0]
+	try:
+		return backgroundcolors[_index]
+	except:
+		pass
+	return None
+"""
 FG_BLACK=Identifier(_value='30')
 FG_RED=Identifier(_value='31')
 FG_GREEN=Identifier(_value='32')
@@ -437,6 +457,7 @@ BG_BRBLUE=Identifier(_value='104')
 BG_BRMAGENTA=Identifier(_value='105')
 BG_BRCYAN=Identifier(_value='106')
 BG_BRWHITE=Identifier(_value='107')
+"""
 VERSION=Identifier(_value='2017-10-09 17:00:00') # MDH@28SEP2017: constant representing the current version timestamp
 DEBUG=Identifier('debug',0) # MDH@22SEP2017: let's make debug accessible to the expressions
 def getDebug():
@@ -643,7 +664,7 @@ class Function:
 					elif self.functionindex==-9: # outc i.e. colored output
 						# the first argument should be the foreground and background color value, the remainder the elements to show
 						if len(arguments)>2:
-							write(concatenate(arguments[2:],False),arguments[0],arguments[1])
+							write(concatenate(arguments[2:],False),getTextColor(arguments[0]),getBackgroundColor(arguments[1]))
 					elif self.functionindex==-10: # MDH@09OCT2017: brout
 						if isinstance(arguments[0],int) and arguments[0]>0:
 							return (falsevalue,truevalue)[Mcomm.brout(arguments[0],concatenate(arguments[1:],False))]
@@ -1778,38 +1799,22 @@ Menvironment.addIdentifier(Identifier(_value="'\n'"),'lf') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value="'\r'"),'cr') # MDH@18SEP2017
 Menvironment.addIdentifier(Identifier(_value=math.pi),'pi')
 Menvironment.addIdentifier(Identifier(_value=math.e),'e')
-Menvironment.addIdentifier(FG_BLACK,'fgblack')
-Menvironment.addIdentifier(FG_RED,'fgred')
-Menvironment.addIdentifier(FG_GREEN,'fggreen')
-Menvironment.addIdentifier(FG_YELLOW,'fgyellow')
-Menvironment.addIdentifier(FG_BLUE,'fgblue')
-Menvironment.addIdentifier(FG_MAGENTA,'fgmagenta')
-Menvironment.addIdentifier(FG_CYAN,'fgcyan')
-Menvironment.addIdentifier(FG_WHITE,'fgwhite')
-Menvironment.addIdentifier(BG_BLACK,'bgblack')
-Menvironment.addIdentifier(BG_RED,'bgred')
-Menvironment.addIdentifier(BG_GREEN,'bggreen')
-Menvironment.addIdentifier(BG_YELLOW,'bgyellow')
-Menvironment.addIdentifier(BG_BLUE,'bgblue')
-Menvironment.addIdentifier(BG_MAGENTA,'bgmagenta')
-Menvironment.addIdentifier(BG_CYAN,'bgcyan')
-Menvironment.addIdentifier(BG_WHITE,'bgwhite')
-Menvironment.addIdentifier(FG_BRBLACK,'fgbrblack')
-Menvironment.addIdentifier(FG_BRRED,'fgbrred')
-Menvironment.addIdentifier(FG_BRGREEN,'fgbrgreen')
-Menvironment.addIdentifier(FG_BRYELLOW,'fgbryellow')
-Menvironment.addIdentifier(FG_BRBLUE,'fgbrblue')
-Menvironment.addIdentifier(FG_BRMAGENTA,'fgbrmagenta')
-Menvironment.addIdentifier(FG_BRCYAN,'fgbrcyan')
-Menvironment.addIdentifier(FG_BRWHITE,'fgbrwhite')
-Menvironment.addIdentifier(BG_BRBLACK,'bgbrblack')
-Menvironment.addIdentifier(BG_BRRED,'bgbrred')
-Menvironment.addIdentifier(BG_BRGREEN,'bgbrgreen')
-Menvironment.addIdentifier(BG_BRYELLOW,'bgbryellow')
-Menvironment.addIdentifier(BG_BRBLUE,'bgbrblue')
-Menvironment.addIdentifier(BG_BRMAGENTA,'bgbrmagenta')
-Menvironment.addIdentifier(BG_BRCYAN,'bgbrcyan')
-Menvironment.addIdentifier(BG_BRWHITE,'bgbrwhite')
+Menvironment.addIdentifier(Identifier(_value=0),'black')
+Menvironment.addIdentifier(Identifier(_value=1),'red')
+Menvironment.addIdentifier(Identifier(_value=2),'green')
+Menvironment.addIdentifier(Identifier(_value=3),'yellow')
+Menvironment.addIdentifier(Identifier(_value=4),'blue')
+Menvironment.addIdentifier(Identifier(_value=5),'magenta')
+Menvironment.addIdentifier(Identifier(_value=6),'cyan')
+Menvironment.addIdentifier(Identifier(_value=7),'white')
+Menvironment.addIdentifier(Identifier(_value=8),'brblack')
+Menvironment.addIdentifier(Identifier(_value=9),'brred')
+Menvironment.addIdentifier(Identifier(_value=10),'brgreen')
+Menvironment.addIdentifier(Identifier(_value=11),'bryellow')
+Menvironment.addIdentifier(Identifier(_value=12),'brblue')
+Menvironment.addIdentifier(Identifier(_value=13),'brmagenta')
+Menvironment.addIdentifier(Identifier(_value=14),'brcyan')
+Menvironment.addIdentifier(Identifier(_value=15),'brwhite')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'l':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'brout':-10,'brfire':-11}) # special functions (0=return,negative ids=list functions)
 Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'wait':35,'setdebug':36,'brend':37,'brlisten':38,'brmute':39,'sign':45,'jump':47,'in':48,'inch':49})
