@@ -62,6 +62,15 @@ Marc's expression tokenizer and evaluator
 - Token constructor can also receive a token character to add immediately
 - opening and closing parenthesis moved over to the prefix and suffix of an expression
 """
+# MDH@15OCT2017: solve the VT mode problem on Windows computers
+import platform
+if platform.system().lower()=='windows':
+  from ctypes import windll,c_int,byref
+  stdout_handle=windll.kernel32.GetStdHandle(c_int(-11))
+  mode=c_int(0)
+  windll.kernel32.GetConsoleMode(c_int(stdout_handle),byref(mode))
+  mode=c_int(mode.value|4)
+  windll.kernel32.SetConsoleMode(c_int(stdout_handle), mode)
 import time # MDH@10OCT2017: as required to call time.sleep()
 import Mcomm # MDH@09OCT2017: for using brstart, brend, brout and brin, brlisten and brmute
 import copy
@@ -173,7 +182,7 @@ def write(_towrite,_color=None,_backcolor=None):
 	result=None
 	if isinstance(_towrite,str): # if something to write, go ahead and write it
 		if isinstance(_color,str):
-			output(_color)
+			####output(_color)
 			result="\033["+_color+"m"
 		else:
 			result=""

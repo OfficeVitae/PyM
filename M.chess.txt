@@ -14,11 +14,11 @@ playertypes=l('white','black') ; the player 'types'
 movecharacters='abcdefghijklmnopqrstuvwxyz.,' ; the characters to use for marking the piece positions on the board that can be moved
 moveeffectcharacters=l('+','=','#') ; characters for representing the effect of the last move (of the opponent), i.e. 1=check, 2=draw, 3=mate
 moveeffectnames=l('nothing','check','stalemate','mate') ; name of move effect
-movetypecolors=l(20,200,201,33,226) ; the move type colors used by showBoard() 1=normal, 2=short castling, 3=long castling, 4=two step pawn, 5=en passant capture
+movetypecolors=l('38;5;20','38;5;200','38;5;201','38;5;33','38;5;226') ; the move type colors used by showBoard() 1=normal, 2=short castling, 3=long castling, 4=two step pawn, 5=en passant capture
 ranges=l(8..1,1..8) ; display ranges
-colors=l(231,16) ; the (foreground) color of the pieces
-bgcolors=l(247,251) ; the field colors
-shadowcolors=l(249,249) ; the grays close to the field colors for showing the row and column name in each field
+colors=l('38;5;231','38;5;16') ; the (foreground) color of the pieces
+bgcolors=l('48;5;247','48;5;251') ; the field colors
+shadowcolors=l('38;5;249','38;5;249') ; the grays close to the field colors for showing the row and column name in each field
 ; initialize the game
 rows='12345678' ; the row names
 cols='abcdefgh' ; the column names
