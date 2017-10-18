@@ -2,6 +2,10 @@
 Marc's expression tokenizer and evaluator
 """
 """ History of development:
+16OCT2017:
+- os identifier with the name of the operating system added
+13OCT2017:
+- brfire added to repeat at regular intervals executing brout until a certain message (ack) is received
 11OCT2017:
 - brlisten() and brmute() to start and stop listening for communication messages
 09OCT2017:
@@ -64,13 +68,14 @@ Marc's expression tokenizer and evaluator
 """
 # MDH@15OCT2017: solve the VT mode problem on Windows computers
 import platform
-if platform.system().lower()=='windows':
-  from ctypes import windll,c_int,byref
-  stdout_handle=windll.kernel32.GetStdHandle(c_int(-11))
-  mode=c_int(0)
-  windll.kernel32.GetConsoleMode(c_int(stdout_handle),byref(mode))
-  mode=c_int(mode.value|4)
-  windll.kernel32.SetConsoleMode(c_int(stdout_handle), mode)
+operatingsystem=platform.system().lower()
+if operatingsystem=='windows':
+	from ctypes import windll,c_int,byref
+	stdout_handle=windll.kernel32.GetStdHandle(c_int(-11))
+	mode=c_int(0)
+	windll.kernel32.GetConsoleMode(c_int(stdout_handle),byref(mode))
+	mode=c_int(mode.value|4)
+	windll.kernel32.SetConsoleMode(c_int(stdout_handle), mode)
 import time # MDH@10OCT2017: as required to call time.sleep()
 import Mcomm # MDH@09OCT2017: for using brstart, brend, brout and brin, brlisten and brmute
 import copy
@@ -467,14 +472,14 @@ BG_BRMAGENTA=Identifier(_value='105')
 BG_BRCYAN=Identifier(_value='106')
 BG_BRWHITE=Identifier(_value='107')
 """
-VERSION=Identifier(_value='2017-10-09 17:00:00') # MDH@28SEP2017: constant representing the current version timestamp
+VERSION=Identifier(_value='2017-10-18 12:00:00') # MDH@28SEP2017: constant representing the current version timestamp
 DEBUG=Identifier('debug',0) # MDH@22SEP2017: let's make debug accessible to the expressions
 def getDebug():
 	return DEBUG.getValue()
 def setDebug(_debug):
 	debug=getDebug()
 	if isinstance(_debug,int):
-		DEBUG.setValue(Math.max(0,_debug))
+		DEBUG.setValue(math.max(0,_debug))
 	return debug
 # MDH@19SEP2017: _executable signifies whether or not the expressions should be immediately executable
 # MDH@22SEP2017: by allowing to pass in an expression it's possible to continue that expression with the given expression text!!!!
@@ -746,7 +751,7 @@ class Function:
 							# nevertheless we should treat __value as an expression that we need to evaluate
 							expressiontext=dequote(value)[0]
 							####note("To evaluate: '"+expressiontext+"'.")
-							return getExpressionValue(expressiontext,_environment) # don't show debug information
+							return getExpressionValue(expressiontext,self) # don't show debug information
 						elif self.functionindex==22: # error
 							raise Exception(value) # generate an error
 						elif self.functionindex==24: # chr
@@ -1790,6 +1795,58 @@ class Environment:
 					argument1.setValue(result,self)
 		#######note("Operation result: "+str(result)+".")
 		return result
+# some utility functions
+def equals(_value1,_value2):
+	# the longer list should take the lead
+	if isinstance(_value1,List) and (not isinstance(_value2,List) or len(_value1)>=len(_value2)):
+		return _value1.equals(_value2)
+	if isinstance(_value2,List):
+		return equals(_value2,_value1)
+	# neither is a List
+	return (falsevalue,truevalue)[_value1==_value2]
+def getInteger(_value):
+	if isinstance(_value,(int,long)):
+		return _value
+	if isinstance(_value,str) and len(_value)>0:
+		if _value[0]=='~': # starts with complement 'sign'
+			return ~getInteger(_value[1:])
+		return int(_value)
+	return None
+def getValue(_value):
+	if getDebug()&8:
+		note("Obtaining the value of "+str(_value)+"...")
+	if _value is not None:
+		if isinstance(_value,list):
+			return map(getValue,_value)
+		if isinstance(_value,(int,long,float)):
+			return _value
+		if isinstance(_value,str):
+			return _value
+		# everything else is assumed to have a getValue() method (like Identifier and Expression)
+		#####note("Calling getValue() on the value of type "+str(type(_value))+".")
+		return _value.getValue()
+	return _value
+def listify(t):
+	if t is None:
+		return t
+	if isinstance(t,List):
+		return listify(t.list)
+	if isinstance(t,list):
+		return t
+	return [t] # wrap the given non-list in a single-item list
+def stringify(t):
+	if isinstance(t,str):
+		return t
+	return str(t)
+def dequote(t):
+	if t is None:
+		return ('?',None)
+	if isinstance(t,str) and len(t)>1:
+		if t[:1] in ts and t[-1:] in te:
+			return (t[1:-1],t[:1])
+	return (str(t),None) # something not representing enquoted text!!
+def enquote(t,quotechar="'"):
+	return quotechar+t+quotechar
 
 # let's define two constants representing the value to use for true and the one for false
 falsevalue=0
@@ -1800,6 +1857,7 @@ import math
 Menvironment=Environment() # MDH@03SEP2017: the root M environment containing the M identifiers and functions always accessible
 # populate the M environment with the predefined constants/variables
 Menvironment.addIdentifier(VERSION,'version') # MDH@28SEP2017: the current version timestamp
+Menvironment.addIdentifier(Identifier(_value=enquote(operatingsystem)),'os') # MDH@16OCT2017: access to the name of the operating system
 Menvironment.addIdentifier(DEBUG) # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(undefined,'?') # MDH@07SEP2017: using a question mark is probably a good idea for something undefined!!
 Menvironment.addIdentifier(Identifier(_value=falsevalue),'false')
@@ -1827,7 +1885,7 @@ Menvironment.addIdentifier(Identifier(_value=15),'brwhite')
 # MDH@31AUG2017: let's add the function groups as well
 Menvironment.addFunctions({'return':0,'l':-1,'sum':-2,'product':-3,'sorti':-6,'concat':-7,'out':-8,'outc':-9,'brout':-10,'brfire':-11}) # special functions (0=return,negative ids=list functions)
 Menvironment.addFunctions({'sqr':12,'abs':13,'cos':14,'sin':15,'tan':16,'cot':17,'rnd':18,'ln':19,'log':20,'eval':21,'error':22,'exists':23,'chr':24,'ord':25,'readlines':26,'exec':27,'readvalues':28,'len':29,'size':30,'defined':31,'undefined':32,'isalist':33,'not':34,'wait':35,'setdebug':36,'brend':37,'brlisten':38,'brmute':39,'sign':45,'jump':47,'in':48,'inch':49})
-Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'int':106,'i':107,'brstart':108,'brin':109,'function':150,'join':199})
+Menvironment.addFunctions({'while':100,'ls':101,'dir':102,'replicate':103,'intin':104,'find':105,'int':106,'interval':107,'brstart':108,'brin':109,'function':150,'join':199})
 Menvironment.addFunctions({'if':200,'select':201,'case':202,'switch':203,'for':210,'and':211,'or':212,'function':211})
 
 environment=None # MDH@03SEP2017: wait for the user name to be known!!!
@@ -2032,7 +2090,7 @@ class List: # wraps a list, to prevent de-listing
 		return listor(self.list)
 def listor(_list):
 	# all items need to be truevalue to return truevalue
-	for item in self.list:
+	for item in _list:
 		if item is None:
 			continue
 		if isinstance(item,List):
@@ -2073,57 +2131,6 @@ def listclone(_list):
 				result.append(item)
 		return result
 	return None
-def equals(_value1,_value2):
-	# the longer list should take the lead
-	if isinstance(_value1,List) and (not isinstance(_value2,List) or len(_value1)>=len(_value2)):
-		return _value1.equals(_value2)
-	if isinstance(_value2,List):
-		return equals(_value2,_value1)
-	# neither is a List
-	return (falsevalue,truevalue)[_value1==_value2]
-def getInteger(_value):
-	if isinstance(_value,(int,long)):
-		return _value
-	if isinstance(_value,str) and len(_value)>0:
-		if _value[0]=='~': # starts with complement 'sign'
-			return ~getInteger(_value[1:])
-		return int(_value)
-	return None
-def getValue(_value):
-	if getDebug()&8:
-		note("Obtaining the value of "+str(_value)+"...")
-	if _value is not None:
-		if isinstance(_value,list):
-			return map(getValue,_value)
-		if isinstance(_value,(int,long,float)):
-			return _value
-		if isinstance(_value,str):
-			return _value
-		# everything else is assumed to have a getValue() method (like Identifier and Expression)
-		#####note("Calling getValue() on the value of type "+str(type(_value))+".")
-		return _value.getValue()
-	return _value
-def listify(t):
-	if t is None:
-		return t
-	if isinstance(t,List):
-		return listify(t.list)
-	if isinstance(t,list):
-		return t
-	return [t] # wrap the given non-list in a single-item list
-def stringify(t):
-	if isinstance(t,str):
-		return t
-	return str(t)
-def dequote(t):
-	if t is None:
-		return ('?',None)
-	if isinstance(t,str) and len(t)>1:
-		if t[:1] in ts and t[-1:] in te:
-			return (t[1:-1],t[:1])
-	return (str(t),None) # something not representing enquoted text!!
-def enquote(t,quotechar="'"):
-	return quotechar+t+quotechar
 def textconcatenate(operand1,operand2):
 	##note("Concatenating '"+str(operand1)+"' and '"+str(operand2)+"'.")
 	(o1,qc1)=dequote(operand1)
@@ -4786,7 +4793,7 @@ def main():
 							expressionerror=mexpression.getError()
 							if expressionerror is not None:
 								writeerror(expressionerror)
-								updateUserInputLine(false)
+								updateUserInputLine(False)
 								break
 							if mexpression_new is None:
 								break
